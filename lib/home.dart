@@ -104,9 +104,7 @@ class HomeState extends State<Home> with TickerProviderStateMixin {
         // Handle Discover BU button
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => Maps(),
-          ), // Replace with your actual Discover page
+          MaterialPageRoute(builder: (context) => Maps()),
         );
         break;
       default:
@@ -219,7 +217,7 @@ class HomeState extends State<Home> with TickerProviderStateMixin {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'Hi Student Last!',
+                                          'Hi Student Last! (Placeholder for DB)',
                                           style: TextStyle(
                                             color: Colors.white,
                                             fontSize: 16,
@@ -227,7 +225,7 @@ class HomeState extends State<Home> with TickerProviderStateMixin {
                                           ),
                                         ),
                                         Text(
-                                          'BSIT 3rd Year',
+                                          'BSIT 3rd Year (Placeholder for DB)',
                                           style: TextStyle(
                                             color: Colors.white.withValues(
                                               alpha: 0.9,
@@ -272,15 +270,14 @@ class HomeState extends State<Home> with TickerProviderStateMixin {
                                       _buildMenuItem(Icons.home, 'Home'),
                                       _buildMenuItem(Icons.map, 'Map'),
                                       _buildMenuItem(
-                                        Icons.settings,
-                                        'Settings',
-                                      ),
-                                      _buildMenuItem(
                                         Icons.feedback,
                                         'Feedback',
                                       ),
+                                      _buildMenuItem(
+                                        Icons.settings,
+                                        'Settings',
+                                      ),
                                       _buildMenuItem(Icons.logout, 'Logout'),
-
                                       SizedBox(height: 10),
                                     ],
                                   ),
@@ -344,7 +341,7 @@ class HomeState extends State<Home> with TickerProviderStateMixin {
                           vertical: 15,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(25),
+                          borderRadius: BorderRadius.circular(20),
                         ),
                       ),
                       child: Text(
