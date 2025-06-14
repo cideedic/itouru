@@ -23,28 +23,89 @@ class FeedbacksState extends State<Feedbacks> {
     });
   }
 
+  void _showModal({
+    required String message,
+    required Color backgroundColor,
+    required Color textColor,
+    required IconData icon,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black26,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: textColor, size: 32),
+                SizedBox(height: 12),
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    // Auto-dismiss after 2 seconds
+    Future.delayed(Duration(seconds: 2), () {
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+    });
+  }
+
   void _submitFeedback() {
     // Handle feedback submission
     if (_selectedRating > 0 && _feedbackController.text.isNotEmpty) {
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Thank you for your feedback!'),
-          backgroundColor: Colors.green,
-        ),
+      // Show success modal
+      _showModal(
+        message: 'Thank you for your feedback!',
+        backgroundColor: Colors.green[50]!,
+        textColor: const Color.fromARGB(255, 91, 194, 96),
+        icon: Icons.check_circle,
       );
-      // Clear form
-      setState(() {
-        _selectedRating = 0;
-        _feedbackController.clear();
+
+      // Clear form after showing modal
+      Future.delayed(Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() {
+            _selectedRating = 0;
+            _feedbackController.clear();
+          });
+        }
       });
     } else {
-      // Show error message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please provide a rating and feedback'),
-          backgroundColor: Colors.red,
-        ),
+      // Show error modal
+      _showModal(
+        message: 'Please provide a rating and feedback',
+        backgroundColor: Colors.red[50]!,
+        textColor: const Color.fromARGB(255, 207, 80, 80),
+        icon: Icons.error,
       );
     }
   }
@@ -53,23 +114,22 @@ class FeedbacksState extends State<Feedbacks> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
+      resizeToAvoidBottomInset: false, // Prevent resizing when keyboard appears
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            children: [
-              // Logo section
-              Expanded(
-                flex: 2,
-                child: Center(
-                  child: Row(mainAxisAlignment: MainAxisAlignment.center),
-                ),
-              ),
-              // Content section
-              Expanded(
-                flex: 4,
+        child: Column(
+          children: [
+            // Main content area
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20.0),
                 child: Column(
                   children: [
+                    // Logo section
+                    SizedBox(height: 40),
+                    Row(mainAxisAlignment: MainAxisAlignment.center),
+
+                    SizedBox(height: 60),
+
                     // Rate us text
                     Text(
                       'Rate us!',
@@ -151,31 +211,32 @@ class FeedbacksState extends State<Feedbacks> {
                         ),
                       ),
                     ),
+
+                    // Add some bottom padding for scrolling
+                    SizedBox(height: 100),
                   ],
                 ),
               ),
+            ),
 
-              // Back to home link
-              Expanded(
-                flex: 1,
-                child: Center(
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                    },
-                    child: Text(
-                      'Back to home',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.blue[400],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+            // Fixed Back to home link at bottom
+            Container(
+              padding: EdgeInsets.only(bottom: 90),
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.pop(context);
+                },
+                child: Text(
+                  'Back to home',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.blue[400],
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
