@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:itouru/header.dart'; // Import the reusable header
 
 class Feedbacks extends StatefulWidget {
   const Feedbacks({super.key});
@@ -115,28 +116,57 @@ class FeedbacksState extends State<Feedbacks> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       resizeToAvoidBottomInset: false, // Prevent resizing when keyboard appears
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Main content area
-            Expanded(
+      body: Column(
+        children: [
+          // Use the reusable header with Feedback title and back button
+          ReusableHeader(pageTitle: 'Feedback', showBackButton: true),
+
+          // Main content area
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.grey[200]!, Colors.white],
+                ),
+              ),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
                   children: [
-                    // Logo section
-                    SizedBox(height: 40),
-                    Row(mainAxisAlignment: MainAxisAlignment.center),
+                    SizedBox(height: 20),
 
-                    SizedBox(height: 60),
+                    // Welcome message
+                    Text(
+                      'We value your feedback!',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 10),
+                    Text(
+                      'Help us improve iTOURu for a better experience',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w400,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+
+                    SizedBox(height: 40),
 
                     // Rate us text
                     Text(
                       'Rate us!',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 18,
                         color: Colors.black87,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     SizedBox(height: 20),
@@ -161,7 +191,6 @@ class FeedbacksState extends State<Feedbacks> {
                       }),
                     ),
                     SizedBox(height: 40),
-
                     // Feedback text field
                     Container(
                       height: 150,
@@ -169,6 +198,13 @@ class FeedbacksState extends State<Feedbacks> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: Colors.grey[300]!),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 5,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: TextField(
                         controller: _feedbackController,
@@ -200,10 +236,11 @@ class FeedbacksState extends State<Feedbacks> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          elevation: 0,
+                          elevation: 2,
+                          shadowColor: Colors.orange.withValues(alpha: 0.3),
                         ),
                         child: Text(
-                          'Submit',
+                          'Submit Feedback',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
@@ -213,31 +250,13 @@ class FeedbacksState extends State<Feedbacks> {
                     ),
 
                     // Add some bottom padding for scrolling
-                    SizedBox(height: 100),
+                    SizedBox(height: 50),
                   ],
                 ),
               ),
             ),
-
-            // Fixed Back to home link at bottom
-            Container(
-              padding: EdgeInsets.only(bottom: 90),
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.pop(context);
-                },
-                child: Text(
-                  'Back to home',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.blue[400],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
