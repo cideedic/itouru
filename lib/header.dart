@@ -97,42 +97,11 @@ class ReusableHeaderState extends State<ReusableHeader>
           MaterialPageRoute(builder: (context) => Feedbacks()),
         );
         break;
-      case 'Logout':
-        _showLogoutDialog();
-        break;
       default:
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('$item selected')));
     }
-  }
-
-  void _showLogoutDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Logout'),
-          content: Text('Are you sure you want to logout?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(); // Close dialog
-              },
-              child: Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(); // Close dialog
-                // Add your logout logic here
-                // For example: Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-              },
-              child: Text('Logout'),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   @override
@@ -270,7 +239,6 @@ class ReusableHeaderState extends State<ReusableHeader>
                                 _buildMenuItem(Icons.map, 'Map'),
                                 _buildMenuItem(Icons.feedback, 'Feedback'),
                                 _buildMenuItem(Icons.settings, 'Settings'),
-                                _buildMenuItem(Icons.logout, 'Logout'),
                                 SizedBox(height: 10),
                               ],
                             ),
