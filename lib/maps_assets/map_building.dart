@@ -89,28 +89,6 @@ class MapBuildings {
       description: "Student services and activities",
       type: BuildingType.facility,
     ),
-    BicolBuildingPolygon(
-      points: [
-        const LatLng(13.14320, 123.72450),
-        const LatLng(13.14335, 123.72460),
-        const LatLng(13.14330, 123.72470),
-        const LatLng(13.14315, 123.72460),
-      ],
-      name: "Student Center",
-      description: "Student activities and dining facilities",
-      type: BuildingType.facility,
-    ),
-    BicolBuildingPolygon(
-      points: [
-        const LatLng(13.14180, 123.72340),
-        const LatLng(13.14195, 123.72350),
-        const LatLng(13.14185, 123.72365),
-        const LatLng(13.14170, 123.72355),
-      ],
-      name: "Engineering Building",
-      description: "Mechanical and Civil Engineering departments",
-      type: BuildingType.academic,
-    ),
   ];
 
   // Get building color based on type
