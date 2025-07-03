@@ -3,6 +3,21 @@ import 'package:flutter/material.dart';
 import 'map_building.dart';
 
 class MapWidgets {
+  // Consistent transparent blue color scheme
+  static const Color _transparentBlue = Color(
+    0x40E3F2FD,
+  ); // Light blue with transparency
+  static const Color _borderBlue = Color(
+    0x60BBDEFB,
+  ); // Slightly more opaque blue border
+  static const Color _textColor = Color.fromARGB(
+    136,
+    55,
+    107,
+    132,
+  ); // Darker blue for text
+  static const Color _iconColor = Color(0xFF1976D2); // Blue for icons
+
   // Build legend item
   static Widget buildLegendItem(Color color, String label) {
     return Row(
@@ -16,7 +31,11 @@ class MapWidgets {
         const SizedBox(width: 4),
         Text(
           label,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: _textColor,
+          ),
         ),
       ],
     );
@@ -34,11 +53,12 @@ class MapWidgets {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: backgroundColor ?? Colors.white,
+        color: backgroundColor ?? _transparentBlue,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderBlue, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -46,15 +66,15 @@ class MapWidgets {
       ),
       child: IconButton(
         icon: isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                  valueColor: AlwaysStoppedAnimation<Color>(_iconColor),
                 ),
               )
-            : Icon(icon, color: iconColor ?? Colors.grey[600]),
+            : Icon(icon, color: iconColor ?? _iconColor),
         onPressed: onPressed,
       ),
     );
@@ -65,15 +85,16 @@ class MapWidgets {
     required TextEditingController controller,
     required Function(String) onChanged,
     required VoidCallback onClear,
-    String hintText = 'Search buildings, locations...',
+    String hintText = 'Search',
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: _transparentBlue,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _borderBlue, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -81,13 +102,14 @@ class MapWidgets {
       ),
       child: TextField(
         controller: controller,
+        style: TextStyle(color: _textColor),
         decoration: InputDecoration(
           hintText: hintText,
-          hintStyle: TextStyle(color: Colors.grey[500]),
-          prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
+          hintStyle: TextStyle(color: _textColor.withValues(alpha: 0.6)),
+          prefixIcon: Icon(Icons.search, color: _iconColor),
           suffixIcon: controller.text.isNotEmpty
               ? IconButton(
-                  icon: Icon(Icons.clear, color: Colors.grey[600]),
+                  icon: Icon(Icons.clear, color: _iconColor),
                   onPressed: onClear,
                 )
               : null,
@@ -110,11 +132,12 @@ class MapWidgets {
     return Container(
       constraints: const BoxConstraints(maxHeight: 200),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _transparentBlue,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderBlue, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -142,11 +165,18 @@ class MapWidgets {
             ),
             title: Text(
               building.name,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: _textColor,
+              ),
             ),
             subtitle: Text(
               building.description,
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              style: TextStyle(
+                fontSize: 12,
+                color: _textColor.withValues(alpha: 0.7),
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -168,44 +198,46 @@ class MapWidgets {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: _transparentBlue,
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(12),
               topRight: Radius.circular(12),
             ),
+            border: Border.all(color: _borderBlue, width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
           child: IconButton(
-            icon: Icon(Icons.add, color: Colors.grey[700]),
+            icon: Icon(Icons.add, color: _iconColor),
             onPressed: onZoomIn,
           ),
         ),
-        Container(width: 48, height: 1, color: Colors.grey[300]),
+        Container(width: 48, height: 1, color: _borderBlue),
         Container(
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: _transparentBlue,
             borderRadius: const BorderRadius.only(
               bottomLeft: Radius.circular(12),
               bottomRight: Radius.circular(12),
             ),
+            border: Border.all(color: _borderBlue, width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
           child: IconButton(
-            icon: Icon(Icons.remove, color: Colors.grey[700]),
+            icon: Icon(Icons.remove, color: _iconColor),
             onPressed: onZoomOut,
           ),
         ),
@@ -218,11 +250,12 @@ class MapWidgets {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _transparentBlue,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borderBlue, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
