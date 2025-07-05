@@ -1,24 +1,151 @@
-// lib/maps_assets/map_building.dart
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
+import 'building_fetcher.dart'; // Your OSM fetcher
 
-enum BuildingType { academic, administrative, facility }
+class MapBuildings {
+  static List<BicolBuildingPolygon> _campusBuildings = [];
+  static bool _isInitialized = false;
+  static bool _isLoading = false;
 
+  // Initialize with known campus boundary
+  static Future<void> initializeWithBoundary({
+    required List<LatLng> campusBoundaryPoints,
+  }) async {
+    if (_isInitialized || _isLoading) return;
+
+    _isLoading = true;
+
+    try {
+      // Use campus center from boundary points
+      final campusCenter = GeometryUtils.getCenterFromPoints(
+        campusBoundaryPoints,
+      );
+
+      final osmBuildings = await OSMBuildingFetcher.fetchCampusBuildings(
+        campusBoundaryPoints: campusBoundaryPoints,
+        campusCenter: campusCenter,
+      );
+
+      _campusBuildings = osmBuildings
+          .map(
+            (osm) => BicolBuildingPolygon(
+              points: osm.points,
+              name: osm.name,
+              description: osm.description,
+              type: _convertBuildingType(osm.type),
+              osmId: osm.osmId,
+              osmTags: osm.tags,
+            ),
+          )
+          .toList();
+
+      _isInitialized = true;
+      debugPrint('Loaded ${_campusBuildings.length} campus buildings from OSM');
+    } catch (e) {
+      debugPrint('Error loading campus buildings: $e');
+      _campusBuildings = [];
+    }
+
+    _isLoading = false;
+  }
+
+  // Convert OSM building type to your internal type
+  static BicolBuildingType _convertBuildingType(BuildingType osmType) {
+    switch (osmType) {
+      case BuildingType.academic:
+        return BicolBuildingType.academic;
+      case BuildingType.administrative:
+        return BicolBuildingType.administrative;
+      case BuildingType.facility:
+        return BicolBuildingType.facility;
+    }
+  }
+
+  // Getters
+  static List<BicolBuildingPolygon> get campusBuildings => _campusBuildings;
+  static bool get isInitialized => _isInitialized;
+  static bool get isLoading => _isLoading;
+
+  static Color getBuildingColor(BicolBuildingType type) {
+    switch (type) {
+      case BicolBuildingType.academic:
+        return const Color.fromARGB(255, 244, 178, 121);
+      case BicolBuildingType.administrative:
+        return const Color.fromARGB(255, 244, 178, 121);
+      case BicolBuildingType.facility:
+        return const Color.fromARGB(255, 244, 178, 121);
+    }
+  }
+
+  static List<BicolBuildingPolygon> getFilteredBuildings(String query) {
+    if (query.isEmpty) return _campusBuildings;
+
+    return _campusBuildings.where((building) {
+      return building.name.toLowerCase().contains(query.toLowerCase()) ||
+          building.description.toLowerCase().contains(query.toLowerCase());
+    }).toList();
+  }
+
+  static BicolBuildingPolygon? findBuildingAtPoint(LatLng point) {
+    for (final building in _campusBuildings) {
+      if (GeometryUtils.isPointInPolygon(point, building.points)) {
+        return building;
+      }
+    }
+    return null;
+  }
+}
+
+// Your existing building class
 class BicolBuildingPolygon {
   final List<LatLng> points;
   final String name;
   final String description;
-  final BuildingType type;
+  final BicolBuildingType type;
+  final String? osmId;
+  final Map<String, dynamic> osmTags;
 
   BicolBuildingPolygon({
     required this.points,
     required this.name,
     required this.description,
     required this.type,
+    this.osmId,
+    this.osmTags = const {},
   });
 
-  // Get the center point of the polygon for map navigation
-  LatLng getCenterPoint() {
+  LatLng getCenterPoint() => GeometryUtils.getCenterFromPoints(points);
+}
+
+enum BicolBuildingType { academic, administrative, facility }
+
+// Utility class for shared geometry functions
+class GeometryUtils {
+  // Shared point-in-polygon algorithm
+  static bool isPointInPolygon(LatLng point, List<LatLng> polygon) {
+    int intersections = 0;
+    final double x = point.latitude;
+    final double y = point.longitude;
+
+    for (int i = 0; i < polygon.length; i++) {
+      final LatLng vertex1 = polygon[i];
+      final LatLng vertex2 = polygon[(i + 1) % polygon.length];
+
+      if (((vertex1.longitude > y) != (vertex2.longitude > y)) &&
+          (x <
+              (vertex2.latitude - vertex1.latitude) *
+                      (y - vertex1.longitude) /
+                      (vertex2.longitude - vertex1.longitude) +
+                  vertex1.latitude)) {
+        intersections++;
+      }
+    }
+
+    return intersections % 2 == 1;
+  }
+
+  // Shared center point calculation
+  static LatLng getCenterFromPoints(List<LatLng> points) {
     double sumLat = 0;
     double sumLng = 0;
 
@@ -28,123 +155,5 @@ class BicolBuildingPolygon {
     }
 
     return LatLng(sumLat / points.length, sumLng / points.length);
-  }
-}
-
-class MapBuildings {
-  // Sample building polygons for Bicol University
-  static final List<BicolBuildingPolygon> campusBuildings = [
-    BicolBuildingPolygon(
-      points: [
-        const LatLng(13.14300, 123.72430),
-        const LatLng(13.14305, 123.72440),
-        const LatLng(13.14290, 123.72445),
-        const LatLng(13.14285, 123.72435),
-      ],
-      name: "College of Science - Building 1",
-      description: "Main administrative offices and registrar",
-      type: BuildingType.administrative,
-    ),
-    BicolBuildingPolygon(
-      points: [
-        const LatLng(13.14275, 123.72415),
-        const LatLng(13.14282, 123.72425),
-        const LatLng(13.14275, 123.72430),
-        const LatLng(13.14268, 123.72420),
-      ],
-      name: "College of Science - Building 2",
-      description: "Engineering programs and laboratories",
-      type: BuildingType.academic,
-    ),
-    BicolBuildingPolygon(
-      points: [
-        const LatLng(13.14258, 123.72390),
-        const LatLng(13.14265, 123.72400),
-        const LatLng(13.14255, 123.72405),
-        const LatLng(13.14248, 123.72395),
-      ],
-      name: "College of Science - Building 3",
-      description: "Humanities and liberal arts programs",
-      type: BuildingType.academic,
-    ),
-    BicolBuildingPolygon(
-      points: [
-        const LatLng(13.14210, 123.72370),
-        const LatLng(13.14218, 123.72380),
-        const LatLng(13.14208, 123.72385),
-        const LatLng(13.14200, 123.72375),
-      ],
-      name: "College of Science - Building 4",
-      description: "University library and study areas",
-      type: BuildingType.facility,
-    ),
-    BicolBuildingPolygon(
-      points: [
-        const LatLng(13.14245, 123.72440),
-        const LatLng(13.14252, 123.72450),
-        const LatLng(13.14242, 123.72455),
-        const LatLng(13.14235, 123.72445),
-      ],
-      name: "College of Nursing",
-      description: "Student services and activities",
-      type: BuildingType.facility,
-    ),
-  ];
-
-  // Get building color based on type
-  static Color getBuildingColor(BuildingType type) {
-    switch (type) {
-      case BuildingType.academic:
-        return Colors.red;
-      case BuildingType.administrative:
-        return Colors.blue;
-      case BuildingType.facility:
-        return Colors.green;
-    }
-  }
-
-  // Get filtered buildings based on search query
-  static List<BicolBuildingPolygon> getFilteredBuildings([
-    String searchQuery = '',
-  ]) {
-    if (searchQuery.isEmpty) return campusBuildings;
-
-    return campusBuildings.where((building) {
-      return building.name.toLowerCase().contains(searchQuery.toLowerCase()) ||
-          building.description.toLowerCase().contains(
-            searchQuery.toLowerCase(),
-          );
-    }).toList();
-  }
-
-  // Check if a point is inside a polygon using ray casting algorithm
-  static bool isPointInPolygon(LatLng point, List<LatLng> polygon) {
-    bool isInside = false;
-    int j = polygon.length - 1;
-
-    for (int i = 0; i < polygon.length; i++) {
-      if (((polygon[i].latitude > point.latitude) !=
-              (polygon[j].latitude > point.latitude)) &&
-          (point.longitude <
-              (polygon[j].longitude - polygon[i].longitude) *
-                      (point.latitude - polygon[i].latitude) /
-                      (polygon[j].latitude - polygon[i].latitude) +
-                  polygon[i].longitude)) {
-        isInside = !isInside;
-      }
-      j = i;
-    }
-
-    return isInside;
-  }
-
-  // Find building at a specific point
-  static BicolBuildingPolygon? findBuildingAtPoint(LatLng point) {
-    for (final building in campusBuildings) {
-      if (isPointInPolygon(point, building.points)) {
-        return building;
-      }
-    }
-    return null;
   }
 }
