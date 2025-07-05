@@ -1,268 +1,252 @@
-// lib/maps_assets/map_utils.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:math' as math;
+import 'map_boundary.dart';
 
 class MapUtils {
-  // Convert screen coordinates to LatLng
-  static LatLng screenToLatLng(
-    Offset screenPoint,
-    MapController mapController,
-    Size screenSize,
-  ) {
-    final camera = mapController.camera;
-    final bounds = camera.visibleBounds;
-
-    final lat =
-        bounds.north -
-        (screenPoint.dy / screenSize.height) * (bounds.north - bounds.south);
-    final lng =
-        bounds.west +
-        (screenPoint.dx / screenSize.width) * (bounds.east - bounds.west);
-
-    return LatLng(lat, lng);
-  }
-
-  // Calculate distance between two points
-  static double calculateDistance(LatLng point1, LatLng point2) {
-    const Distance distance = Distance();
-    return distance.as(LengthUnit.Meter, point1, point2);
-  }
-
-  // Calculate distance between two points in meters (using Haversine formula)
-  static double calculateDistanceInMeters(LatLng point1, LatLng point2) {
-    const double earthRadius = 6371000; // Earth's radius in meters
-
-    double lat1Rad = point1.latitude * (math.pi / 180);
-    double lat2Rad = point2.latitude * (math.pi / 180);
-    double deltaLatRad = (point2.latitude - point1.latitude) * (math.pi / 180);
-    double deltaLngRad =
-        (point2.longitude - point1.longitude) * (math.pi / 180);
-
-    double a =
-        math.sin(deltaLatRad / 2) * math.sin(deltaLatRad / 2) +
-        math.cos(lat1Rad) *
-            math.cos(lat2Rad) *
-            math.sin(deltaLngRad / 2) *
-            math.sin(deltaLngRad / 2);
-    double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-
-    return earthRadius * c;
-  }
-
-  // Calculate bearing between two points
-  static double calculateBearing(LatLng start, LatLng end) {
-    double lat1 = start.latitude * (math.pi / 180);
-    double lat2 = end.latitude * (math.pi / 180);
-    double deltaLng = (end.longitude - start.longitude) * (math.pi / 180);
-
-    double y = math.sin(deltaLng) * math.cos(lat2);
-    double x =
-        math.cos(lat1) * math.sin(lat2) -
-        math.sin(lat1) * math.cos(lat2) * math.cos(deltaLng);
-
-    double bearing = math.atan2(y, x) * (180 / math.pi);
-    return (bearing + 360) % 360; // Normalize to 0-360 degrees
-  }
-
-  // Get map options with default settings
+  // Get default map options with strict boundary enforcement
   static MapOptions getDefaultMapOptions(
-    LatLng initialCenter,
-    CameraConstraint constraint,
+    LatLng center,
+    CameraConstraint? cameraConstraint,
   ) {
     return MapOptions(
-      initialCenter: initialCenter,
-      initialZoom: 18.0,
-      minZoom: 16.0,
-      maxZoom: 20.0,
-      cameraConstraint: constraint,
+      initialCenter: center,
+      initialZoom: MapBoundary.getInitialZoom(),
+      minZoom: MapBoundary.getMinZoom(),
+      maxZoom: MapBoundary.getMaxZoom(),
+      cameraConstraint: cameraConstraint,
       interactionOptions: const InteractionOptions(
         flags: InteractiveFlag.all,
+        enableMultiFingerGestureRace: true,
         enableScrollWheel: true,
+        scrollWheelVelocity: 0.005,
       ),
+      // Add boundary checking on camera move
+      onPositionChanged: (MapPosition position, bool hasGesture) {
+        _enforceBoundaryConstraints(position);
+      },
     );
   }
 
-  // Create default tile layer
+  // Enforce boundary constraints
+  static void _enforceBoundaryConstraints(MapPosition position) {
+    if (!MapBoundary.isWithinCampusBounds(position.center!)) {
+      // If center goes outside campus, don't allow the move
+      // This is handled by CameraConstraint, but we can add additional logic here
+    }
+  }
+
+  // Get default tile layer
   static TileLayer getDefaultTileLayer() {
     return TileLayer(
       urlTemplate:
           'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-      subdomains: const ['a', 'b', 'c', 'd'],
-      userAgentPackageName: 'com.bicoluniversity.etouro',
-      maxNativeZoom: 19,
+      userAgentPackageName: 'com.example.bicol_university_app',
+      maxZoom: MapBoundary.getMaxZoom(),
+      minZoom: MapBoundary.getMinZoom(),
+      subdomains: const ['a', 'b', 'c'],
+      retinaMode: true,
     );
   }
 
-  // Create user location marker
+  // Enhanced location animation that respects boundaries
+  static Future<void> animateToLocation(
+    MapController controller,
+    LatLng location, {
+    double? zoom,
+    Duration duration = const Duration(milliseconds: 800),
+  }) async {
+    // Check if the target location is within campus bounds
+    if (!MapBoundary.isWithinCampusBounds(location)) {
+      // If outside bounds, animate to the nearest point within bounds
+      location = _getNearestPointInBounds(location);
+    }
+
+    // Remove await since controller.move() returns bool, not Future
+    controller.move(location, zoom ?? MapBoundary.getInitialZoom());
+
+    // Add a small delay to simulate animation if needed
+    await Future.delayed(duration);
+  }
+
+  // Get nearest point within campus bounds
+  static LatLng _getNearestPointInBounds(LatLng point) {
+    final center = MapBoundary.bicolUniversityCenter;
+
+    // If point is outside, return campus center as fallback
+    if (!MapBoundary.isWithinCampusBounds(point)) {
+      return center;
+    }
+
+    return point;
+  }
+
+  // Enhanced pan method with boundary checking
+  static Future<void> panToLocationFromCurrentView(
+    MapController controller,
+    LatLng targetLocation, {
+    double? targetZoom,
+    Duration animationDuration = const Duration(milliseconds: 1000),
+  }) async {
+    // Ensure target location is within bounds
+    if (!MapBoundary.isWithinCampusBounds(targetLocation)) {
+      targetLocation = MapBoundary.bicolUniversityCenter;
+    }
+
+    final currentZoom = controller.camera.zoom;
+    final finalZoom = targetZoom ?? currentZoom;
+
+    // Ensure zoom is within limits
+    final constrainedZoom = finalZoom.clamp(
+      MapBoundary.getMinZoom(),
+      MapBoundary.getMaxZoom(),
+    );
+
+    // Remove await since controller.move() returns bool, not Future
+    controller.move(targetLocation, constrainedZoom);
+
+    // Add delay to simulate animation
+    await Future.delayed(animationDuration);
+  }
+
+  // Building-specific animation with boundary checking
+  static Future<void> animateToBuildingLocation(
+    MapController controller,
+    LatLng buildingLocation, {
+    double zoom = 19.0,
+    Duration duration = const Duration(milliseconds: 600),
+  }) async {
+    // Ensure building location is within campus bounds
+    if (!MapBoundary.isWithinCampusBounds(buildingLocation)) {
+      buildingLocation = MapBoundary.bicolUniversityCenter;
+    }
+
+    final constrainedZoom = zoom.clamp(
+      MapBoundary.getMinZoom(),
+      MapBoundary.getMaxZoom(),
+    );
+
+    // Remove await since controller.move() returns bool, not Future
+    controller.move(buildingLocation, constrainedZoom);
+
+    // Add delay to simulate animation
+    await Future.delayed(duration);
+  }
+
+  // Zoom controls with boundary-aware limits
+  static void zoomIn(MapController controller) {
+    final currentZoom = controller.camera.zoom;
+    final newZoom = (currentZoom + 1).clamp(
+      MapBoundary.getMinZoom(),
+      MapBoundary.getMaxZoom(),
+    );
+    controller.move(controller.camera.center, newZoom);
+  }
+
+  static void zoomOut(MapController controller) {
+    final currentZoom = controller.camera.zoom;
+    final newZoom = (currentZoom - 1).clamp(
+      MapBoundary.getMinZoom(),
+      MapBoundary.getMaxZoom(),
+    );
+    controller.move(controller.camera.center, newZoom);
+  }
+
+  // Screen to LatLng conversion
+  static LatLng screenToLatLng(
+    Offset screenPosition,
+    MapController controller,
+    Size screenSize,
+  ) {
+    final camera = controller.camera;
+    final mapSize = screenSize;
+
+    final centerX = mapSize.width / 2;
+    final centerY = mapSize.height / 2;
+
+    final deltaX = screenPosition.dx - centerX;
+    final deltaY = screenPosition.dy - centerY;
+
+    final scale = math.pow(2, camera.zoom);
+    final earthCircumference = 40075016.686; // meters
+    final metersPerPixel = earthCircumference / (256 * scale);
+
+    final deltaLatMeters = -deltaY * metersPerPixel;
+    final deltaLngMeters = deltaX * metersPerPixel;
+
+    final deltaLat = deltaLatMeters / 111320;
+    final deltaLng =
+        deltaLngMeters /
+        (111320 * math.cos(camera.center.latitude * math.pi / 180));
+
+    return LatLng(
+      camera.center.latitude + deltaLat,
+      camera.center.longitude + deltaLng,
+    );
+  }
+
+  // User location marker
   static Marker createUserLocationMarker(LatLng location) {
     return Marker(
       point: location,
-      width: 50,
-      height: 50,
+      width: 20,
+      height: 20,
       child: Container(
         decoration: BoxDecoration(
           color: Colors.blue,
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 4),
+          border: Border.all(color: Colors.white, width: 2),
           boxShadow: [
             BoxShadow(
-              color: Colors.blue.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+              color: Colors.black.withValues(alpha: 0.3),
+              spreadRadius: 1,
+              blurRadius: 3,
             ),
           ],
         ),
-        child: const Icon(Icons.person, color: Colors.white, size: 30),
       ),
     );
   }
 
-  // Create navigation marker with direction indicator
-  static Marker createNavigationMarker(LatLng position, double bearing) {
+  // Navigation marker with direction
+  static Marker createNavigationMarker(LatLng location, double bearing) {
     return Marker(
-      point: position,
-      width: 40,
-      height: 40,
+      point: location,
+      width: 30,
+      height: 30,
       child: Transform.rotate(
-        angle: bearing * (math.pi / 180), // Convert degrees to radians
+        angle: bearing * math.pi / 180,
         child: Container(
           decoration: BoxDecoration(
             color: Colors.green,
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 3),
+            border: Border.all(color: Colors.white, width: 2),
             boxShadow: [
               BoxShadow(
-                color: Colors.black26,
-                blurRadius: 6,
-                offset: const Offset(0, 2),
+                color: Colors.black.withValues(alpha: 0.3),
+                spreadRadius: 1,
+                blurRadius: 3,
               ),
             ],
           ),
-          child: const Icon(Icons.navigation, color: Colors.white, size: 24),
+          child: const Icon(Icons.navigation, color: Colors.white, size: 16),
         ),
       ),
     );
   }
 
-  // Enhanced animate to location with smoother transitions
-  static void animateToLocation(
-    MapController mapController,
-    LatLng location, {
-    double zoom = 18.0,
-    Duration duration = const Duration(milliseconds: 1000),
-  }) {
-    // Use the move method which provides smooth animation
-    mapController.move(location, zoom);
+  // Check if location is within campus bounds (helper method)
+  static bool isLocationWithinCampus(LatLng location) {
+    return MapBoundary.isWithinCampusBounds(location);
   }
 
-  // Enhanced method for smooth panning to building with visual feedback
-  static Future<void> animateToBuildingLocation(
-    MapController mapController,
-    LatLng location, {
-    double zoom = 19.0,
-    Duration duration = const Duration(milliseconds: 1200),
-  }) async {
-    // First, smoothly animate to the location
-    mapController.move(location, zoom);
-
-    // Add a small delay to ensure the animation completes
-    await Future.delayed(duration);
-  }
-
-  // Method to pan from current view to a specific location with custom zoom
-  static Future<void> panToLocationFromCurrentView(
-    MapController mapController,
-    LatLng targetLocation, {
-    double targetZoom = 19.0,
-    Duration animationDuration = const Duration(milliseconds: 1000),
-  }) async {
-    // Get current camera position
-    final currentCenter = mapController.camera.center;
-    final currentZoom = mapController.camera.zoom;
-
-    // Calculate distance to determine if we need to zoom out first for better visual effect
-    final distance = calculateDistanceInMeters(currentCenter, targetLocation);
-
-    if (distance > 500) {
-      // If far away, create a smoother transition
-      // First zoom out slightly to show the path
-      final intermediateZoom = math.min(currentZoom - 1, 17.0);
-      mapController.move(currentCenter, intermediateZoom);
-
-      // Wait for zoom out animation
-      await Future.delayed(const Duration(milliseconds: 300));
-
-      // Then pan to target location
-      mapController.move(targetLocation, intermediateZoom);
-
-      // Wait for pan animation
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Finally zoom in to target zoom level
-      mapController.move(targetLocation, targetZoom);
-    } else {
-      // For nearby locations, just pan directly
-      mapController.move(targetLocation, targetZoom);
-    }
-  }
-
-  // Zoom in/out functions
-  static void zoomIn(MapController mapController) {
-    final currentZoom = mapController.camera.zoom;
-    mapController.move(mapController.camera.center, currentZoom + 1);
-  }
-
-  static void zoomOut(MapController mapController) {
-    final currentZoom = mapController.camera.zoom;
-    mapController.move(mapController.camera.center, currentZoom - 1);
-  }
-
-  // Method to fit bounds with padding
-  static void fitBounds(
-    MapController mapController,
-    List<LatLng> points, {
-    EdgeInsets padding = const EdgeInsets.all(50),
-  }) {
-    if (points.isEmpty) return;
-
-    // Calculate bounds
-    double minLat = points.first.latitude;
-    double maxLat = points.first.latitude;
-    double minLng = points.first.longitude;
-    double maxLng = points.first.longitude;
-
-    for (final point in points) {
-      minLat = math.min(minLat, point.latitude);
-      maxLat = math.max(maxLat, point.latitude);
-      minLng = math.min(minLng, point.longitude);
-      maxLng = math.max(maxLng, point.longitude);
-    }
-
-    // Calculate center point
-    final centerLat = (minLat + maxLat) / 2;
-    final centerLng = (minLng + maxLng) / 2;
-    final center = LatLng(centerLat, centerLng);
-
-    // Calculate appropriate zoom level
-    final latDiff = maxLat - minLat;
-    final lngDiff = maxLng - minLng;
-    final maxDiff = math.max(latDiff, lngDiff);
-
-    // Estimate zoom level based on difference
-    double zoom = 18.0;
-    if (maxDiff > 0.01)
-      zoom = 15.0;
-    else if (maxDiff > 0.005)
-      zoom = 16.0;
-    else if (maxDiff > 0.002)
-      zoom = 17.0;
-    else if (maxDiff > 0.001)
-      zoom = 18.0;
-    else
-      zoom = 19.0;
-
-    mapController.move(center, zoom);
+  // Reset to campus center if user gets lost
+  static Future<void> resetToCampusCenter(MapController controller) async {
+    await animateToLocation(
+      controller,
+      MapBoundary.bicolUniversityCenter,
+      zoom: MapBoundary.getInitialZoom(),
+    );
   }
 }
