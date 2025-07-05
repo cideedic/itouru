@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
 import 'dart:async';
-import 'dart:math' as math;
 
 // map_assets:
 import 'maps_assets/map_boundary.dart';
@@ -25,24 +23,12 @@ class _MapsState extends State<Maps> {
   final MapController _mapController = MapController();
   LatLng? _currentLocation;
   bool _isLoadingLocation = false;
-  String _locationStatus = '';
   final TextEditingController _searchController = TextEditingController();
   bool _showSearchResults = false;
 
-  // Real-time tracking variables
-  StreamSubscription<Position>? _positionStream;
-  bool _isTrackingLocation = false;
+  // Replace individual navigation variables with NavigationManager
+  late NavigationManager _navigationManager;
   bool _autoFollowLocation = false;
-
-  // Navigation and route variables
-  List<LatLng> _polylinePoints = [];
-  bool _isLoadingRoute = false;
-  String? _routeDistance;
-  String? _routeDuration;
-  BicolBuildingPolygon? _currentDestination;
-  bool _isNavigating = false;
-  double _currentBearing = 0.0;
-  LatLng? _previousLocation;
 
   // Add this flag to track if widget is disposed
   bool _isDisposed = false;
@@ -50,115 +36,74 @@ class _MapsState extends State<Maps> {
   @override
   void initState() {
     super.initState();
+    _navigationManager = NavigationManager();
+    _setupNavigationCallbacks();
     _startLocationTracking();
+    _loadBuildingData();
+  }
+
+  void _setupNavigationCallbacks() {
+    // Set up navigation callbacks
+    _navigationManager.onLocationUpdate = (location, bearing) {
+      if (!_isDisposed && mounted) {
+        setState(() {
+          _currentLocation = location;
+        });
+
+        // Auto-follow user location if enabled OR if navigating
+        if (_autoFollowLocation || _navigationManager.isNavigating) {
+          _followUserLocation();
+        }
+      }
+    };
+
+    _navigationManager.onDestinationReached = (destination) {
+      if (!_isDisposed && context.mounted) {
+        _handleDestinationReached(destination);
+      }
+    };
+
+    _navigationManager.onError = (error) {
+      if (!_isDisposed && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error), backgroundColor: Colors.red),
+        );
+      }
+    };
   }
 
   Future<void> _startLocationTracking() async {
-    if (_isDisposed) return; // Check if disposed
+    if (_isDisposed) return;
 
     setState(() {
       _isLoadingLocation = true;
-      _locationStatus = 'Starting location tracking...';
     });
 
-    // Check if location services are enabled
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      if (!_isDisposed) {
+    // Use your LocationService for initial location
+    final initialLocation = await LocationService.getCurrentLocation();
+
+    if (!initialLocation.isSuccess) {
+      if (!_isDisposed && mounted) {
         setState(() {
           _isLoadingLocation = false;
-          _locationStatus = 'Location services are disabled';
         });
-      }
-      return;
-    }
 
-    // Check location permissions
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        if (!_isDisposed) {
-          setState(() {
-            _isLoadingLocation = false;
-            _locationStatus = 'Location permissions are denied';
-          });
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(initialLocation.error ?? 'Location error'),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
-        return;
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      if (!_isDisposed) {
-        setState(() {
-          _isLoadingLocation = false;
-          _locationStatus = 'Location permissions are permanently denied';
-        });
       }
       return;
     }
 
-    // Start listening to location updates
-    const LocationSettings locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 5,
-    );
-
-    _positionStream =
-        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
-          (Position position) {
-            // Check if widget is still mounted before calling setState
-            if (!_isDisposed && mounted) {
-              final newLocation = LatLng(position.latitude, position.longitude);
-
-              // Calculate bearing if we have a previous location
-              if (_previousLocation != null) {
-                _currentBearing = MapUtils.calculateBearing(
-                  _previousLocation!,
-                  newLocation,
-                );
-              }
-
-              setState(() {
-                _currentLocation = newLocation;
-                _isTrackingLocation = true;
-                _isLoadingLocation = false;
-                _locationStatus = 'Location tracking active';
-              });
-
-              // Update previous location
-              _previousLocation = newLocation;
-
-              // Auto-follow user location if enabled OR if navigating
-              if ((_autoFollowLocation || _isNavigating) && !_isDisposed) {
-                _followUserLocation();
-              }
-
-              // Check if user reached destination during navigation
-              if (_isNavigating && _currentDestination != null) {
-                _checkDestinationReached();
-              }
-            }
-          },
-          onError: (error) {
-            // Handle stream errors
-            if (!_isDisposed && mounted) {
-              setState(() {
-                _isLoadingLocation = false;
-                _locationStatus = 'Location error: $error';
-              });
-            }
-          },
-        );
-  }
-
-  void _stopLocationTracking() {
-    _positionStream?.cancel();
-    _positionStream = null;
     if (!_isDisposed && mounted) {
       setState(() {
-        _isTrackingLocation = false;
-        _locationStatus = 'Location tracking stopped';
+        _currentLocation = initialLocation.location;
+        _isLoadingLocation = false;
       });
     }
   }
@@ -175,29 +120,6 @@ class _MapsState extends State<Maps> {
     }
   }
 
-  Future<void> _getCurrentLocation() async {
-    if (_isDisposed) return;
-
-    setState(() {
-      _isLoadingLocation = true;
-      _locationStatus = 'Getting location...';
-    });
-
-    final result = await LocationService.getCurrentLocation();
-
-    if (!_isDisposed && mounted) {
-      setState(() {
-        _isLoadingLocation = false;
-        if (result.isSuccess) {
-          _currentLocation = result.location;
-          _locationStatus = 'Location found';
-        } else {
-          _locationStatus = result.error ?? 'Unknown error';
-        }
-      });
-    }
-  }
-
   Future<void> _getRoute(
     LatLng start,
     LatLng end,
@@ -206,33 +128,28 @@ class _MapsState extends State<Maps> {
     if (_isDisposed) return;
 
     setState(() {
-      _isLoadingRoute = true;
-      _polylinePoints.clear();
-      _currentDestination = building;
+      _isLoadingLocation = true; // Reuse loading state
     });
 
     try {
-      final routeResult = await RoutingService.getRoute(start, end);
+      final routeResult = await _navigationManager.getRouteAndPrepareNavigation(
+        start,
+        end,
+        building,
+      );
 
       if (!_isDisposed && mounted) {
-        if (routeResult.isSuccess && routeResult.points != null) {
-          setState(() {
-            _polylinePoints = routeResult.points!;
-            _routeDistance = routeResult.distance;
-            _routeDuration = routeResult.duration;
-            _isLoadingRoute = false;
-          });
+        setState(() {
+          _isLoadingLocation = false;
+        });
 
+        if (routeResult.isSuccess && routeResult.points != null) {
           // Use the routing service to fit the map to the route
-          RoutingService.fitMapToRoute(_mapController, _polylinePoints);
+          RoutingService.fitMapToRoute(_mapController, routeResult.points!);
 
           // Show route information
           _showRouteInfo(building);
         } else {
-          setState(() {
-            _isLoadingRoute = false;
-          });
-
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -246,7 +163,7 @@ class _MapsState extends State<Maps> {
     } catch (e) {
       if (!_isDisposed && mounted) {
         setState(() {
-          _isLoadingRoute = false;
+          _isLoadingLocation = false;
         });
 
         if (context.mounted) {
@@ -264,66 +181,153 @@ class _MapsState extends State<Maps> {
   void _showRouteInfo(BicolBuildingPolygon building) {
     if (_isDisposed || !context.mounted) return;
 
-    if (_routeDistance != null && _routeDuration != null) {
+    if (_navigationManager.routeDistance != null &&
+        _navigationManager.routeDuration != null) {
       BottomSheets.showRouteInfo(
         context,
         buildingName: building.name,
-        distance: _routeDistance!,
-        duration: _routeDuration!,
+        distance: _navigationManager.routeDistance!,
+        duration: _navigationManager.routeDuration!,
         onClearRoute: _clearRoute,
         onStartNavigation: () => _startNavigation(building),
       );
     }
   }
 
-  void _startNavigation(BicolBuildingPolygon building) {
+  void _startNavigation(BicolBuildingPolygon building) async {
     if (_isDisposed || !context.mounted) return;
 
+    if (_currentLocation == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Current location not available'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() {
-      _isNavigating = true;
       _autoFollowLocation = true; // Enable auto-follow during navigation
     });
 
-    // Start location tracking if not already active
-    if (!_isTrackingLocation) {
-      _startLocationTracking();
+    // Start navigation using NavigationManager
+    await _navigationManager.startNavigation(
+      destination: building,
+      routePoints: _navigationManager.polylinePoints,
+      distance: _navigationManager.routeDistance,
+      duration: _navigationManager.routeDuration,
+    );
+
+    if (mounted && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.navigation, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Navigation started to ${building.name}')),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          action: SnackBarAction(
+            label: 'STOP',
+            textColor: Colors.white,
+            onPressed: _stopNavigation,
+          ),
+        ),
+      );
+    }
+  }
+
+  void _clearRoute() {
+    if (_isDisposed) return;
+
+    _navigationManager.clearRoute();
+    setState(() {
+      _autoFollowLocation = false;
+    });
+
+    // Return to campus center view
+    _centerOnCampus();
+  }
+
+  void _stopNavigation() {
+    if (_isDisposed) return;
+
+    _navigationManager.stopNavigation();
+    setState(() {
+      _autoFollowLocation = false;
+    });
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Navigation Stopped'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _handleDestinationReached(dynamic destination) {
+    if (_isDisposed || !context.mounted) return;
+
+    setState(() {
+      _autoFollowLocation = false;
+    });
+
+    String destinationName = 'your destination';
+    if (destination is BicolBuildingPolygon) {
+      destinationName = destination.name;
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.navigation, color: Colors.white),
+            const Icon(Icons.place, color: Colors.white),
             const SizedBox(width: 8),
-            Expanded(child: Text('Navigation started to ${building.name}')),
+            Expanded(child: Text('You have arrived at $destinationName!')),
           ],
         ),
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: 'STOP',
-          textColor: Colors.white,
-          onPressed: _stopNavigation,
-        ),
+        duration: const Duration(seconds: 4),
       ),
     );
+
+    // Clear the route after a delay
+    Future.delayed(const Duration(seconds: 2), () {
+      if (!_isDisposed) {
+        _clearRoute();
+      }
+    });
   }
 
-  void _clearRoute() {
-    if (_isDisposed) return;
-
-    setState(() {
-      _polylinePoints.clear();
-      _routeDistance = null;
-      _routeDuration = null;
-      _currentDestination = null;
-      _isNavigating = false;
-      _currentBearing = 0.0;
-      _previousLocation = null;
-    });
-
-    // Return to campus center view
-    _centerOnCampus();
+  // Simplify _loadBuildingData method:
+  Future<void> _loadBuildingData() async {
+    try {
+      await MapBuildings.initializeWithBoundary(
+        campusBoundaryPoints: MapBoundary.getCampusBoundaryPoints(),
+      );
+      if (mounted) {
+        setState(() {
+          // Update UI if needed
+        });
+      }
+    } catch (e) {
+      if (mounted && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load building data: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -331,7 +335,7 @@ class _MapsState extends State<Maps> {
     return Scaffold(
       body: Stack(
         children: [
-          // Full-screen map with camera constraint for boundary limits
+          // Full-screen map with exact campus boundary constraints
           FlutterMap(
             mapController: _mapController,
             options: MapUtils.getDefaultMapOptions(
@@ -342,19 +346,14 @@ class _MapsState extends State<Maps> {
               // Tile Layer
               MapUtils.getDefaultTileLayer(),
 
-              // Campus boundary visualization
+              // Exact campus boundary visualization using GeoJSON data
               PolygonLayer(
                 polygons: [
                   Polygon(
                     points: MapBoundary.getCampusBoundaryPoints(),
-                    color: const Color.fromARGB(
-                      255,
-                      0,
-                      0,
-                      0,
-                    ).withValues(alpha: 0.05),
-                    borderColor: Colors.blue.withValues(alpha: 0.3),
-                    borderStrokeWidth: 2,
+                    color: Colors.blue.withValues(alpha: 0.1),
+                    borderColor: Colors.blue.withValues(alpha: 0.8),
+                    borderStrokeWidth: 3,
                     isFilled: true,
                   ),
                 ],
@@ -362,39 +361,57 @@ class _MapsState extends State<Maps> {
 
               // Building polygons layer
               PolygonLayer(
-                polygons: MapBuildings.campusBuildings.map((building) {
-                  return Polygon(
-                    points: building.points,
-                    color: MapBuildings.getBuildingColor(
-                      building.type,
-                    ).withValues(alpha: 0.7),
-                    borderColor: MapBuildings.getBuildingColor(building.type),
-                    borderStrokeWidth: 2,
-                    isFilled: true,
-                  );
-                }).toList(),
+                polygons: MapBuildings.campusBuildings
+                    .where(
+                      (building) => MapBoundary.isWithinCampusBounds(
+                        building.getCenterPoint(),
+                      ),
+                    )
+                    .map((building) {
+                      return Polygon(
+                        points: building.points,
+                        color: MapBuildings.getBuildingColor(
+                          building.type,
+                        ).withValues(alpha: 0.7),
+                        borderColor: MapBuildings.getBuildingColor(
+                          building.type,
+                        ),
+                        borderStrokeWidth: 2,
+                        isFilled: true,
+                      );
+                    })
+                    .toList(),
               ),
 
-              // Polyline layer for directions - using RouteHelper
-              if (_polylinePoints.isNotEmpty)
+              // Route polyline using NavigationManager
+              if (_navigationManager.polylinePoints.isNotEmpty)
                 PolylineLayer(
-                  polylines: [RouteHelper.createRoutePolyline(_polylinePoints)],
+                  polylines: [
+                    RouteHelper.createRoutePolyline(
+                      _navigationManager.polylinePoints
+                          .where(
+                            (point) => MapBoundary.isWithinCampusBounds(point),
+                          )
+                          .toList(),
+                    ),
+                  ],
                 ),
 
               // Current location marker
-              if (_currentLocation != null)
+              if (_currentLocation != null &&
+                  MapBoundary.isWithinCampusBounds(_currentLocation!))
                 MarkerLayer(
                   markers: [
-                    _isNavigating
+                    _navigationManager.isNavigating
                         ? MapUtils.createNavigationMarker(
                             _currentLocation!,
-                            _currentBearing,
+                            _navigationManager.currentBearing,
                           )
                         : MapUtils.createUserLocationMarker(_currentLocation!),
                   ],
                 ),
 
-              // Invisible tap detection layer for building polygons
+              // Map tap handler
               GestureDetector(
                 onTapUp: (details) => _handleMapTap(details),
                 child: Container(
@@ -406,19 +423,53 @@ class _MapsState extends State<Maps> {
             ],
           ),
 
-          // Top floating search bar and back button
+          // Campus info overlay
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
+            left: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.school, color: Colors.blue[700], size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Bicol University West Campus',
+                    style: TextStyle(
+                      color: Colors.blue[700],
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Top floating search bar and controls
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 51,
             left: 16,
             right: 16,
             child: Row(
               children: [
-                // Back button with proper navigation handling
+                // Back button
                 MapWidgets.buildFloatingActionButton(
                   icon: Icons.arrow_back,
                   onPressed: () {
-                    // Ensure cleanup before navigation
-                    _stopLocationTracking();
+                    _navigationManager.dispose();
                     Navigator.of(context).pop();
                   },
                   iconColor: Colors.black87,
@@ -449,7 +500,7 @@ class _MapsState extends State<Maps> {
 
                 const SizedBox(width: 12),
 
-                // Filter/Menu button
+                // Filter button
                 MapWidgets.buildFloatingActionButton(
                   icon: Icons.tune,
                   onPressed: () {
@@ -463,10 +514,10 @@ class _MapsState extends State<Maps> {
             ),
           ),
 
-          // Search results dropdown
+          // Search results
           if (_showSearchResults)
             Positioned(
-              top: MediaQuery.of(context).padding.top + 80,
+              top: MediaQuery.of(context).padding.top + 115,
               left: 76,
               right: 76,
               child: MapWidgets.buildSearchResults(
@@ -476,13 +527,11 @@ class _MapsState extends State<Maps> {
                 onBuildingTap: (building) async {
                   if (_isDisposed) return;
 
-                  // Clear search first
                   _searchController.clear();
                   setState(() {
                     _showSearchResults = false;
                   });
 
-                  // Show loading indicator briefly
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -508,7 +557,7 @@ class _MapsState extends State<Maps> {
                       ),
                     );
                   }
-                  // Use the enhanced panning method
+
                   await MapUtils.panToLocationFromCurrentView(
                     _mapController,
                     building.getCenterPoint(),
@@ -519,28 +568,26 @@ class _MapsState extends State<Maps> {
               ),
             ),
 
-          // Right side floating controls
+          // Right side controls
           Positioned(
             right: 16,
-            top: MediaQuery.of(context).padding.top + 80,
+            top: MediaQuery.of(context).padding.top + 115,
             child: Column(
               children: [
                 // Location tracking button
                 MapWidgets.buildFloatingActionButton(
-                  icon: _isTrackingLocation
+                  icon: _currentLocation != null
                       ? Icons.location_on
                       : Icons.location_off,
-                  onPressed: _isTrackingLocation
-                      ? _stopLocationTracking
-                      : _startLocationTracking,
-                  iconColor: _isTrackingLocation
+                  onPressed: _startLocationTracking,
+                  iconColor: _currentLocation != null
                       ? Colors.green
                       : Colors.grey[600],
                   isLoading: _isLoadingLocation,
                 ),
                 const SizedBox(height: 12),
 
-                // Auto-follow toggle button
+                // Auto-follow toggle
                 MapWidgets.buildFloatingActionButton(
                   icon: _autoFollowLocation
                       ? Icons.center_focus_strong
@@ -552,14 +599,14 @@ class _MapsState extends State<Maps> {
                 ),
                 const SizedBox(height: 12),
 
-                // Clear route button (only show when route is active)
-                if (_polylinePoints.isNotEmpty) ...[
-                  const SizedBox(height: 12),
+                // Clear route button
+                if (_navigationManager.polylinePoints.isNotEmpty) ...[
                   MapWidgets.buildFloatingActionButton(
                     icon: Icons.clear,
                     onPressed: _clearRoute,
                     iconColor: Colors.red,
                   ),
+                  const SizedBox(height: 12),
                 ],
               ],
             ),
@@ -575,7 +622,7 @@ class _MapsState extends State<Maps> {
             ),
           ),
 
-          // Bottom legend/status bar
+          // Bottom status/route info
           Positioned(
             left: 16,
             right: 16,
@@ -583,10 +630,10 @@ class _MapsState extends State<Maps> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Route info (if route is active)
-                if (_polylinePoints.isNotEmpty &&
-                    !_isLoadingRoute &&
-                    _currentDestination != null)
+                // Route info using NavigationManager data
+                if (_navigationManager.polylinePoints.isNotEmpty &&
+                    !_isLoadingLocation &&
+                    _navigationManager.currentDestination != null)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -594,7 +641,9 @@ class _MapsState extends State<Maps> {
                     ),
                     margin: const EdgeInsets.only(bottom: 8),
                     decoration: BoxDecoration(
-                      color: _isNavigating ? Colors.green : Colors.blue,
+                      color: _navigationManager.isNavigating
+                          ? Colors.green
+                          : Colors.blue,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -606,7 +655,7 @@ class _MapsState extends State<Maps> {
                             children: [
                               Row(
                                 children: [
-                                  if (_isNavigating) ...[
+                                  if (_navigationManager.isNavigating) ...[
                                     const Icon(
                                       Icons.navigation,
                                       color: Colors.white,
@@ -616,9 +665,9 @@ class _MapsState extends State<Maps> {
                                   ],
                                   Expanded(
                                     child: Text(
-                                      _isNavigating
-                                          ? 'Navigating to ${_currentDestination!.name}'
-                                          : 'Route to ${_currentDestination!.name}',
+                                      _navigationManager.isNavigating
+                                          ? 'Navigating to ${_navigationManager.currentDestination.name}'
+                                          : 'Route to ${_navigationManager.currentDestination.name}',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,
@@ -630,10 +679,10 @@ class _MapsState extends State<Maps> {
                                   ),
                                 ],
                               ),
-                              if (_routeDistance != null &&
-                                  _routeDuration != null)
+                              if (_navigationManager.routeDistance != null &&
+                                  _navigationManager.routeDuration != null)
                                 Text(
-                                  '$_routeDistance • $_routeDuration',
+                                  '${_navigationManager.routeDistance} • ${_navigationManager.routeDuration}',
                                   style: const TextStyle(
                                     color: Colors.white70,
                                     fontSize: 12,
@@ -645,7 +694,7 @@ class _MapsState extends State<Maps> {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (_isNavigating) ...[
+                            if (_navigationManager.isNavigating) ...[
                               GestureDetector(
                                 onTap: _stopNavigation,
                                 child: const Icon(
@@ -659,7 +708,9 @@ class _MapsState extends State<Maps> {
                             GestureDetector(
                               onTap: () {
                                 if (!_isDisposed) {
-                                  _showRouteInfo(_currentDestination!);
+                                  _showRouteInfo(
+                                    _navigationManager.currentDestination,
+                                  );
                                 }
                               },
                               child: const Icon(
@@ -674,8 +725,8 @@ class _MapsState extends State<Maps> {
                     ),
                   ),
 
-                // Loading indicator for route
-                if (_isLoadingRoute)
+                // Loading indicator
+                if (_isLoadingLocation)
                   Container(
                     padding: const EdgeInsets.all(12),
                     margin: const EdgeInsets.only(bottom: 8),
@@ -698,14 +749,14 @@ class _MapsState extends State<Maps> {
                         ),
                         SizedBox(width: 8),
                         Text(
-                          'Loading route...',
+                          'Loading...',
                           style: TextStyle(color: Colors.white),
                         ),
                       ],
                     ),
                   ),
 
-                // Legend bar
+                // Legend
                 MapWidgets.buildLegendBar(
                   isLocationConnected: _currentLocation != null,
                 ),
@@ -717,7 +768,6 @@ class _MapsState extends State<Maps> {
     );
   }
 
-  // Also update the _handleMapTap method for better building selection:
   void _handleMapTap(TapUpDetails details) async {
     if (_isDisposed || !context.mounted) return;
 
@@ -732,7 +782,6 @@ class _MapsState extends State<Maps> {
 
     final building = MapBuildings.findBuildingAtPoint(mapPosition);
     if (building != null) {
-      // Add a subtle zoom-in effect when tapping on buildings
       await MapUtils.animateToBuildingLocation(
         _mapController,
         building.getCenterPoint(),
@@ -740,7 +789,7 @@ class _MapsState extends State<Maps> {
         duration: const Duration(milliseconds: 600),
       );
 
-      if (!_isDisposed && context.mounted) {
+      if (mounted && context.mounted) {
         BottomSheets.showBuildingInfo(
           context,
           building,
@@ -803,31 +852,10 @@ class _MapsState extends State<Maps> {
     _getRoute(_currentLocation!, destination, building);
   }
 
-  // New navigation methods
-  void _stopNavigation() {
-    if (_isDisposed) return;
-
-    setState(() {
-      _isNavigating = false;
-      _autoFollowLocation = false;
-    });
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Navigation stopped'),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
   void _followUserLocation() async {
     if (_currentLocation == null || _isDisposed) return;
 
-    if (_isNavigating) {
-      // During navigation, use a closer zoom and smooth animation
+    if (_navigationManager.isNavigating) {
       await MapUtils.animateToBuildingLocation(
         _mapController,
         _currentLocation!,
@@ -835,7 +863,6 @@ class _MapsState extends State<Maps> {
         duration: const Duration(milliseconds: 800),
       );
     } else {
-      // Normal follow mode with smooth transition
       await MapUtils.panToLocationFromCurrentView(
         _mapController,
         _currentLocation!,
@@ -845,84 +872,11 @@ class _MapsState extends State<Maps> {
     }
   }
 
-  void _checkDestinationReached() {
-    if (_currentLocation == null || _currentDestination == null) return;
-
-    final destination = _currentDestination!.getCenterPoint();
-    final distance = _calculateDistance(_currentLocation!, destination);
-
-    // If within 50 meters of destination, consider it reached
-    if (distance < 50) {
-      _destinationReached();
-    }
-  }
-
-  void _destinationReached() {
-    if (_isDisposed || !context.mounted) return;
-
-    setState(() {
-      _isNavigating = false;
-      _autoFollowLocation = false;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.place, color: Colors.white),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text('You have arrived at ${_currentDestination!.name}!'),
-            ),
-          ],
-        ),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
-      ),
-    );
-
-    // Optionally clear the route after a delay
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!_isDisposed) {
-        _clearRoute();
-      }
-    });
-  }
-
-  // Calculate distance between two points in meters
-  double _calculateDistance(LatLng point1, LatLng point2) {
-    const double earthRadius = 6371000; // Earth's radius in meters
-
-    double lat1Rad = point1.latitude * (math.pi / 180);
-    double lat2Rad = point2.latitude * (math.pi / 180);
-    double deltaLatRad = (point2.latitude - point1.latitude) * (math.pi / 180);
-    double deltaLngRad =
-        (point2.longitude - point1.longitude) * (math.pi / 180);
-
-    double a =
-        math.sin(deltaLatRad / 2) * math.sin(deltaLatRad / 2) +
-        math.cos(lat1Rad) *
-            math.cos(lat2Rad) *
-            math.sin(deltaLngRad / 2) *
-            math.sin(deltaLngRad / 2);
-    double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-
-    return earthRadius * c;
-  }
-
   @override
   void dispose() {
-    // Set disposal flag first
     _isDisposed = true;
-
-    // Cancel location tracking
-    _stopLocationTracking();
-
-    // Dispose controllers
+    _navigationManager.dispose();
     _searchController.dispose();
-
-    // Call super dispose
     super.dispose();
   }
 }
