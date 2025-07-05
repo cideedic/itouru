@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:itouru/maps_assets/location_service.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
+import 'dart:async';
 import 'dart:math' as math;
 
 class RoutingService {
@@ -82,9 +85,8 @@ class RoutingService {
     if (routePoints.isEmpty) return;
 
     final bounds = calculateRouteBounds(routePoints);
-    mapController.fitBounds(
-      bounds,
-      options: const FitBoundsOptions(padding: EdgeInsets.all(50)),
+    mapController.fitCamera(
+      CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(50)),
     );
   }
 
@@ -107,6 +109,253 @@ class RoutingService {
     } else {
       return '${minutes}m';
     }
+  }
+
+  /// Calculate distance between two points in meters using Haversine formula
+  static double calculateDistance(LatLng point1, LatLng point2) {
+    const double earthRadius = 6371000; // Earth's radius in meters
+
+    double lat1Rad = point1.latitude * (math.pi / 180);
+    double lat2Rad = point2.latitude * (math.pi / 180);
+    double deltaLatRad = (point2.latitude - point1.latitude) * (math.pi / 180);
+    double deltaLngRad =
+        (point2.longitude - point1.longitude) * (math.pi / 180);
+
+    double a =
+        math.sin(deltaLatRad / 2) * math.sin(deltaLatRad / 2) +
+        math.cos(lat1Rad) *
+            math.cos(lat2Rad) *
+            math.sin(deltaLngRad / 2) *
+            math.sin(deltaLngRad / 2);
+    double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+
+    return earthRadius * c;
+  }
+
+  /// Calculate bearing between two points
+  static double calculateBearing(LatLng start, LatLng end) {
+    double lat1Rad = start.latitude * (math.pi / 180);
+    double lat2Rad = end.latitude * (math.pi / 180);
+    double deltaLngRad = (end.longitude - start.longitude) * (math.pi / 180);
+
+    double y = math.sin(deltaLngRad) * math.cos(lat2Rad);
+    double x =
+        math.cos(lat1Rad) * math.sin(lat2Rad) -
+        math.sin(lat1Rad) * math.cos(lat2Rad) * math.cos(deltaLngRad);
+
+    double bearing = math.atan2(y, x);
+    return (bearing * 180 / math.pi + 360) % 360;
+  }
+}
+
+// Navigation Manager Class - NEW
+class NavigationManager {
+  StreamSubscription<Position>? _positionStream;
+  LatLng? _currentLocation;
+  LatLng? _previousLocation;
+  double _currentBearing = 0.0;
+  bool _isNavigating = false;
+  bool _isDisposed = false;
+
+  // Destination info
+  dynamic _currentDestination;
+  List<LatLng> _polylinePoints = [];
+  String? _routeDistance;
+  String? _routeDuration;
+
+  // Callbacks
+  Function(LatLng, double)? onLocationUpdate;
+  Function(dynamic)? onDestinationReached;
+  Function(String)? onError;
+
+  bool get isNavigating => _isNavigating;
+  bool get isDisposed => _isDisposed;
+  LatLng? get currentLocation => _currentLocation;
+  double get currentBearing => _currentBearing;
+  dynamic get currentDestination => _currentDestination;
+  List<LatLng> get polylinePoints => _polylinePoints;
+  String? get routeDistance => _routeDistance;
+  String? get routeDuration => _routeDuration;
+
+  /// Start navigation to a destination
+  Future<void> startNavigation({
+    required dynamic destination,
+    required List<LatLng> routePoints,
+    String? distance,
+    String? duration,
+    Function(LatLng, double)? onLocationUpdate,
+    Function(dynamic)? onDestinationReached,
+    Function(String)? onError,
+  }) async {
+    if (_isDisposed) return;
+
+    _currentDestination = destination;
+    _polylinePoints = routePoints;
+    _routeDistance = distance;
+    _routeDuration = duration;
+    _isNavigating = true;
+
+    // Set callbacks
+    this.onLocationUpdate = onLocationUpdate;
+    this.onDestinationReached = onDestinationReached;
+    this.onError = onError;
+
+    // Start location tracking
+    await _startLocationTracking();
+  }
+
+  /// Stop navigation
+  void stopNavigation() {
+    if (_isDisposed) return;
+
+    _isNavigating = false;
+    _currentDestination = null;
+    _polylinePoints.clear();
+    _routeDistance = null;
+    _routeDuration = null;
+    _currentBearing = 0.0;
+    _previousLocation = null;
+
+    _stopLocationTracking();
+  }
+
+  /// Start location tracking for navigation
+  Future<void> _startLocationTracking() async {
+    if (_isDisposed) return;
+
+    // Use your existing LocationService for initial permission/location check
+    final initialLocationResult = await LocationService.getCurrentLocation();
+
+    if (!initialLocationResult.isSuccess) {
+      onError?.call(initialLocationResult.error ?? 'Location error');
+      return;
+    }
+
+    // Set initial location
+    _currentLocation = initialLocationResult.location;
+    _previousLocation = initialLocationResult.location;
+
+    // Now start the position stream (permissions already handled)
+    const LocationSettings locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 3, // More sensitive for navigation
+    );
+
+    _positionStream =
+        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+          (Position position) {
+            if (_isDisposed) return;
+
+            final newLocation = LatLng(position.latitude, position.longitude);
+
+            // Calculate bearing if we have a previous location
+            if (_previousLocation != null) {
+              _currentBearing = RoutingService.calculateBearing(
+                _previousLocation!,
+                newLocation,
+              );
+            }
+
+            _currentLocation = newLocation;
+            _previousLocation = newLocation;
+
+            // Notify location update
+            onLocationUpdate?.call(newLocation, _currentBearing);
+
+            // Check if destination is reached
+            if (_isNavigating && _currentDestination != null) {
+              _checkDestinationReached();
+            }
+          },
+          onError: (error) {
+            if (!_isDisposed) {
+              onError?.call('Location error: $error');
+            }
+          },
+        );
+  }
+
+  /// Stop location tracking
+  void _stopLocationTracking() {
+    _positionStream?.cancel();
+    _positionStream = null;
+  }
+
+  /// Check if destination is reached
+  void _checkDestinationReached() {
+    if (_currentLocation == null || _currentDestination == null) return;
+
+    // Get destination center point (assuming it has getCenterPoint method)
+    LatLng destinationPoint;
+    if (_currentDestination.runtimeType.toString().contains('Building')) {
+      destinationPoint = _currentDestination.getCenterPoint();
+    } else {
+      destinationPoint = _currentDestination as LatLng;
+    }
+
+    final distance = RoutingService.calculateDistance(
+      _currentLocation!,
+      destinationPoint,
+    );
+
+    // If within 50 meters of destination, consider it reached
+    if (distance < 50) {
+      _destinationReached();
+    }
+  }
+
+  /// Handle destination reached
+  void _destinationReached() {
+    if (_isDisposed) return;
+
+    _isNavigating = false;
+    onDestinationReached?.call(_currentDestination);
+
+    // Clear navigation data after a delay
+    Future.delayed(const Duration(seconds: 2), () {
+      if (!_isDisposed) {
+        stopNavigation();
+      }
+    });
+  }
+
+  /// Clear route data
+  void clearRoute() {
+    if (_isDisposed) return;
+
+    _polylinePoints.clear();
+    _routeDistance = null;
+    _routeDuration = null;
+    _currentDestination = null;
+    _isNavigating = false;
+    _currentBearing = 0.0;
+    _previousLocation = null;
+  }
+
+  /// Get route and prepare for navigation
+  Future<RouteResult> getRouteAndPrepareNavigation(
+    LatLng start,
+    LatLng end,
+    dynamic destination,
+  ) async {
+    if (_isDisposed) return RouteResult.error('Navigation manager disposed');
+
+    final routeResult = await RoutingService.getRoute(start, end);
+
+    if (routeResult.isSuccess && routeResult.points != null) {
+      _polylinePoints = routeResult.points!;
+      _routeDistance = routeResult.distance;
+      _routeDuration = routeResult.duration;
+      _currentDestination = destination;
+    }
+
+    return routeResult;
+  }
+
+  /// Dispose the navigation manager
+  void dispose() {
+    _isDisposed = true;
+    _stopLocationTracking();
   }
 }
 
@@ -165,29 +414,11 @@ class RouteHelper {
 
     double totalDistance = 0.0;
     for (int i = 0; i < points.length - 1; i++) {
-      totalDistance += _calculateDistance(points[i], points[i + 1]);
+      totalDistance += RoutingService.calculateDistance(
+        points[i],
+        points[i + 1],
+      );
     }
     return totalDistance;
-  }
-
-  /// Calculates distance between two points using Haversine formula
-  static double _calculateDistance(LatLng point1, LatLng point2) {
-    const double earthRadius = 6371000; // Earth's radius in meters
-
-    double lat1Rad = point1.latitude * (math.pi / 180);
-    double lat2Rad = point2.latitude * (math.pi / 180);
-    double deltaLatRad = (point2.latitude - point1.latitude) * (math.pi / 180);
-    double deltaLngRad =
-        (point2.longitude - point1.longitude) * (math.pi / 180);
-
-    double a =
-        math.sin(deltaLatRad / 2) * math.sin(deltaLatRad / 2) +
-        math.cos(lat1Rad) *
-            math.cos(lat2Rad) *
-            math.sin(deltaLngRad / 2) *
-            math.sin(deltaLngRad / 2);
-    double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-
-    return earthRadius * c;
   }
 }
