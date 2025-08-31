@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/header.dart';
+import 'package:itouru/bottom_nav_bar.dart';
 
 class Settings extends StatelessWidget {
   const Settings({super.key});
@@ -7,40 +9,26 @@ class Settings extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: Column(
         children: [
-          // Use the reusable header with custom title and back button
-          ReusableHeader(pageTitle: 'Settings', showBackButton: true),
+          // Use the reusable header
+          ReusableHeader(),
 
           // Main content for Settings page
           Expanded(
             child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.grey[200]!, Colors.white],
-                ),
-              ),
+              color: Colors.white,
               child: SingleChildScrollView(
                 padding: EdgeInsets.all(20),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SizedBox(height: 20),
-                    Text(
-                      'App Settings',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    SizedBox(height: 20),
 
-                    // Example settings items
+                    // Settings items
                     _buildSettingItem(
                       icon: Icons.notifications,
+                      iconColor: Colors.orange[400]!,
                       title: 'Notifications',
                       subtitle: 'Manage app notifications',
                       onTap: () {
@@ -50,6 +38,7 @@ class Settings extends StatelessWidget {
 
                     _buildSettingItem(
                       icon: Icons.security,
+                      iconColor: Colors.orange[400]!,
                       title: 'Privacy & Security',
                       subtitle: 'Manage your privacy settings',
                       onTap: () {
@@ -58,13 +47,27 @@ class Settings extends StatelessWidget {
                     ),
 
                     _buildSettingItem(
-                      icon: Icons.help,
+                      icon: Icons.help_outline,
+                      iconColor: Colors.orange[400]!,
                       title: 'Help & Support',
                       subtitle: 'Get help and contact support',
                       onTap: () {
                         // Handle help & support
                       },
                     ),
+
+                    _buildSettingItem(
+                      icon: Icons.info_outline,
+                      iconColor: Colors.orange[400]!,
+                      title: 'About iTOURu',
+                      subtitle:
+                          'Know more about the application and its creators',
+                      onTap: () {
+                        // Handle about section
+                      },
+                    ),
+
+                    SizedBox(height: 20),
                   ],
                 ),
               ),
@@ -72,41 +75,80 @@ class Settings extends StatelessWidget {
           ),
         ],
       ),
+      bottomNavigationBar: ReusableBottomNavBar(currentIndex: 4),
     );
   }
 
   Widget _buildSettingItem({
     required IconData icon,
+    required Color iconColor,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
   }) {
-    return Card(
-      margin: EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      child: ListTile(
-        leading: Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Color(0xFF4FC3F7).withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: Offset(0, 2),
           ),
-          child: Icon(icon, color: Color(0xFF4FC3F7), size: 24),
-        ),
-        title: Text(
-          title,
-          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(color: Colors.grey[600], fontSize: 14),
-        ),
-        trailing: Icon(
-          Icons.arrow_forward_ios,
-          size: 16,
-          color: Colors.grey[400],
-        ),
+        ],
+      ),
+      child: InkWell(
         onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Row(
+          children: [
+            // Icon container
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconColor, size: 24),
+            ),
+
+            SizedBox(width: 16),
+
+            // Text content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.poppins(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Arrow icon
+            Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+          ],
+        ),
       ),
     );
   }

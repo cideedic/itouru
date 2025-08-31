@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:itouru/bottom_nav_bar.dart';
 import 'package:itouru/header.dart'; // Import the new header
 import 'package:itouru/maps.dart';
 
@@ -12,6 +14,7 @@ class Home extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: Column(
         children: [
           // Use the reusable header
@@ -35,7 +38,7 @@ class Home extends StatelessWidget {
                     SizedBox(height: 80),
                     Text(
                       'iTOURu',
-                      style: TextStyle(
+                      style: GoogleFonts.poppins(
                         fontSize: 48,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
@@ -45,7 +48,7 @@ class Home extends StatelessWidget {
                     SizedBox(height: 20),
                     Text(
                       'Your Bicol University Navigation Guide',
-                      style: TextStyle(
+                      style: GoogleFonts.poppins(
                         fontSize: 18,
                         color: Colors.grey[600],
                         fontWeight: FontWeight.w500,
@@ -68,7 +71,7 @@ class Home extends StatelessWidget {
                       ),
                       child: Text(
                         'Discover BU',
-                        style: TextStyle(
+                        style: GoogleFonts.poppins(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
@@ -77,7 +80,7 @@ class Home extends StatelessWidget {
                     SizedBox(height: 60),
                     Text(
                       'Featured Locations',
-                      style: TextStyle(
+                      style: GoogleFonts.poppins(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
@@ -90,7 +93,7 @@ class Home extends StatelessWidget {
                       child: Center(
                         child: Text(
                           'Featured location images will be added here',
-                          style: TextStyle(
+                          style: GoogleFonts.poppins(
                             color: Colors.grey[500],
                             fontSize: 14,
                             fontStyle: FontStyle.italic,
@@ -107,6 +110,8 @@ class Home extends StatelessWidget {
           ),
         ],
       ),
+      // Corrected bottom navigation bar implementation
+      bottomNavigationBar: ReusableBottomNavBar(currentIndex: 0),
     );
   }
 }

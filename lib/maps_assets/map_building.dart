@@ -32,7 +32,6 @@ class MapBuildings {
               points: osm.points,
               name: osm.name,
               description: osm.description,
-              type: _convertBuildingType(osm.type),
               osmId: osm.osmId,
               osmTags: osm.tags,
             ),
@@ -49,33 +48,10 @@ class MapBuildings {
     _isLoading = false;
   }
 
-  // Convert OSM building type to your internal type
-  static BicolBuildingType _convertBuildingType(BuildingType osmType) {
-    switch (osmType) {
-      case BuildingType.academic:
-        return BicolBuildingType.academic;
-      case BuildingType.administrative:
-        return BicolBuildingType.administrative;
-      case BuildingType.facility:
-        return BicolBuildingType.facility;
-    }
-  }
-
   // Getters
   static List<BicolBuildingPolygon> get campusBuildings => _campusBuildings;
   static bool get isInitialized => _isInitialized;
   static bool get isLoading => _isLoading;
-
-  static Color getBuildingColor(BicolBuildingType type) {
-    switch (type) {
-      case BicolBuildingType.academic:
-        return const Color.fromARGB(255, 244, 178, 121);
-      case BicolBuildingType.administrative:
-        return const Color.fromARGB(255, 244, 178, 121);
-      case BicolBuildingType.facility:
-        return const Color.fromARGB(255, 244, 178, 121);
-    }
-  }
 
   static List<BicolBuildingPolygon> getFilteredBuildings(String query) {
     if (query.isEmpty) return _campusBuildings;
@@ -96,12 +72,11 @@ class MapBuildings {
   }
 }
 
-// Your existing building class
+// Building class without type
 class BicolBuildingPolygon {
   final List<LatLng> points;
   final String name;
   final String description;
-  final BicolBuildingType type;
   final String? osmId;
   final Map<String, dynamic> osmTags;
 
@@ -109,15 +84,12 @@ class BicolBuildingPolygon {
     required this.points,
     required this.name,
     required this.description,
-    required this.type,
     this.osmId,
     this.osmTags = const {},
   });
 
   LatLng getCenterPoint() => GeometryUtils.getCenterFromPoints(points);
 }
-
-enum BicolBuildingType { academic, administrative, facility }
 
 // Utility class for shared geometry functions
 class GeometryUtils {

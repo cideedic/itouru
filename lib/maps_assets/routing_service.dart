@@ -299,7 +299,7 @@ class NavigationManager {
     );
 
     // If within 50 meters of destination, consider it reached
-    if (distance < 50) {
+    if (distance < 5) {
       _destinationReached();
     }
   }

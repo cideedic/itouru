@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/header.dart'; // Import the reusable header
+import 'package:itouru/bottom_nav_bar.dart'; // Import the bottom nav bar
 
 class Feedbacks extends StatefulWidget {
   const Feedbacks({super.key});
@@ -58,7 +60,7 @@ class FeedbacksState extends State<Feedbacks> {
                 SizedBox(height: 12),
                 Text(
                   message,
-                  style: TextStyle(
+                  style: GoogleFonts.poppins(
                     color: textColor,
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
@@ -114,56 +116,41 @@ class FeedbacksState extends State<Feedbacks> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      resizeToAvoidBottomInset: false, // Prevent resizing when keyboard appears
+      backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: false,
       body: Column(
         children: [
-          // Use the reusable header with Feedback title and back button
-          ReusableHeader(pageTitle: 'Feedback', showBackButton: true),
+          // Use the reusable header without back button
+          ReusableHeader(),
 
           // Main content area
           Expanded(
             child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.grey[200]!, Colors.white],
-                ),
-              ),
+              color: Colors.white,
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20.0),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Column(
                   children: [
-                    SizedBox(height: 20),
-
-                    // Welcome message
-                    Text(
-                      'We value your feedback!',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: 10),
-                    Text(
-                      'Help us improve iTOURu for a better experience',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w400,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-
                     SizedBox(height: 40),
+
+                    // Logo section
+                    Column(
+                      children: [
+                        Image.asset(
+                          'assets/images/itouru_logo.png',
+                          width: 220,
+                          height: 100,
+                          fit: BoxFit.contain,
+                        ),
+                      ],
+                    ),
+
+                    SizedBox(height: 25),
 
                     // Rate us text
                     Text(
                       'Rate us!',
-                      style: TextStyle(
+                      style: GoogleFonts.poppins(
                         fontSize: 18,
                         color: Colors.black87,
                         fontWeight: FontWeight.w600,
@@ -178,10 +165,10 @@ class FeedbacksState extends State<Feedbacks> {
                         return GestureDetector(
                           onTap: () => _onStarTap(index + 1),
                           child: Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 8),
+                            padding: EdgeInsets.symmetric(horizontal: 4),
                             child: Icon(
                               Icons.star,
-                              size: 40,
+                              size: 36,
                               color: index < _selectedRating
                                   ? Colors.orange[400]
                                   : Colors.grey[300],
@@ -190,30 +177,29 @@ class FeedbacksState extends State<Feedbacks> {
                         );
                       }),
                     ),
+
                     SizedBox(height: 40),
+
                     // Feedback text field
                     Container(
-                      height: 150,
+                      height: 140,
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[300]!),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 5,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey[300]!, width: 1),
                       ),
                       child: TextField(
                         controller: _feedbackController,
                         maxLines: null,
                         expands: true,
                         textAlignVertical: TextAlignVertical.top,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.black87,
+                        ),
                         decoration: InputDecoration(
-                          hintText: 'Type your feedback here...',
-                          hintStyle: TextStyle(
+                          hintText: 'Type your feedback here',
+                          hintStyle: GoogleFonts.inter(
                             color: Colors.grey[400],
                             fontSize: 14,
                           ),
@@ -222,6 +208,7 @@ class FeedbacksState extends State<Feedbacks> {
                         ),
                       ),
                     ),
+
                     SizedBox(height: 30),
 
                     // Submit button
@@ -234,14 +221,13 @@ class FeedbacksState extends State<Feedbacks> {
                           backgroundColor: Colors.orange[400],
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          elevation: 2,
-                          shadowColor: Colors.orange.withValues(alpha: 0.3),
+                          elevation: 0,
                         ),
                         child: Text(
-                          'Submit Feedback',
-                          style: TextStyle(
+                          'Submit',
+                          style: GoogleFonts.poppins(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),
@@ -249,8 +235,8 @@ class FeedbacksState extends State<Feedbacks> {
                       ),
                     ),
 
-                    // Add some bottom padding for scrolling
-                    SizedBox(height: 50),
+                    // Bottom padding
+                    SizedBox(height: 30),
                   ],
                 ),
               ),
@@ -258,6 +244,7 @@ class FeedbacksState extends State<Feedbacks> {
           ),
         ],
       ),
+      bottomNavigationBar: ReusableBottomNavBar(currentIndex: 3),
     );
   }
 }

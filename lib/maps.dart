@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:async';
+import 'bottom_nav_bar.dart';
 
 // map_assets:
 import 'maps_assets/map_boundary.dart';
@@ -370,12 +371,10 @@ class _MapsState extends State<Maps> {
                     .map((building) {
                       return Polygon(
                         points: building.points,
-                        color: MapBuildings.getBuildingColor(
-                          building.type,
-                        ).withValues(alpha: 0.7),
-                        borderColor: MapBuildings.getBuildingColor(
-                          building.type,
-                        ),
+                        color: Colors.blue.withOpacity(
+                          0.7,
+                        ), // Use a single color
+                        borderColor: Colors.blue,
                         borderStrokeWidth: 2,
                         isFilled: true,
                       );
@@ -499,17 +498,6 @@ class _MapsState extends State<Maps> {
                 ),
 
                 const SizedBox(width: 12),
-
-                // Filter button
-                MapWidgets.buildFloatingActionButton(
-                  icon: Icons.tune,
-                  onPressed: () {
-                    if (!_isDisposed && context.mounted) {
-                      BottomSheets.showFilterOptions(context);
-                    }
-                  },
-                  iconColor: Colors.black87,
-                ),
               ],
             ),
           ),
@@ -748,23 +736,16 @@ class _MapsState extends State<Maps> {
                           ),
                         ),
                         SizedBox(width: 8),
-                        Text(
-                          'Loading...',
-                          style: TextStyle(color: Colors.white),
-                        ),
+                        Text('Loading', style: TextStyle(color: Colors.white)),
                       ],
                     ),
                   ),
-
-                // Legend
-                MapWidgets.buildLegendBar(
-                  isLocationConnected: _currentLocation != null,
-                ),
               ],
             ),
           ),
         ],
       ),
+      bottomNavigationBar: ReusableBottomNavBar(currentIndex: 2),
     );
   }
 

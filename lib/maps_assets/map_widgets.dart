@@ -154,7 +154,7 @@ class MapWidgets {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: MapBuildings.getBuildingColor(building.type),
+                color: Colors.blue, // Use a single color for all buildings
                 shape: BoxShape.circle,
               ),
               child: const Icon(

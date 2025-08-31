@@ -27,27 +27,7 @@ class BottomSheets {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            _buildFilterTile(
-              color: Colors.red,
-              icon: Icons.school,
-              title: 'Academic Buildings',
-              value: true,
-              onChanged: (value) {},
-            ),
-            _buildFilterTile(
-              color: Colors.blue,
-              icon: Icons.business,
-              title: 'Administrative',
-              value: true,
-              onChanged: (value) {},
-            ),
-            _buildFilterTile(
-              color: Colors.green,
-              icon: Icons.local_library,
-              title: 'Facilities',
-              value: true,
-              onChanged: (value) {},
-            ),
+            // Removed building type filter tiles
           ],
         ),
       ),
@@ -88,7 +68,7 @@ class BottomSheets {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: MapBuildings.getBuildingColor(building.type),
+                    color: Colors.blue, // Use a single color for all buildings
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
@@ -372,26 +352,6 @@ class BottomSheets {
         color: Colors.grey[300],
         borderRadius: BorderRadius.circular(2),
       ),
-    );
-  }
-
-  // Build filter tile
-  static Widget _buildFilterTile({
-    required Color color,
-    required IconData icon,
-    required String title,
-    required bool value,
-    required Function(bool) onChanged,
-  }) {
-    return ListTile(
-      leading: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        child: Icon(icon, color: Colors.white, size: 16),
-      ),
-      title: Text(title),
-      trailing: Switch(value: value, onChanged: onChanged),
     );
   }
 }
