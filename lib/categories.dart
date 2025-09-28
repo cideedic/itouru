@@ -1,18 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:itouru/bottom_nav_bar.dart';
-import 'package:itouru/header.dart';
-import 'package:itouru/animation.dart';
-import 'package:itouru/content.dart'; // Import the reusable component
+import 'package:itouru/components/bottom_nav_bar.dart';
+import 'package:itouru/components/header.dart';
+import 'package:itouru/components/animation.dart';
+import 'package:itouru/components/footer.dart';
+import 'package:itouru/college_content_pages/content.dart'
+    as CollegeContent; // Import the college content component
+import 'package:itouru/building_content_pages/content.dart'
+    as BuildingContent; // Import the building content component
+import 'package:itouru/office_content_pages/content.dart'
+    as OfficeContent; // Import the office content component
 
 class Categories extends StatefulWidget {
   const Categories({super.key});
 
   @override
-  _CategoriesState createState() => _CategoriesState();
+  CategoriesState createState() => CategoriesState();
 }
 
-class _CategoriesState extends State<Categories> {
+class CategoriesState extends State<Categories> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -40,11 +46,13 @@ class _CategoriesState extends State<Categories> {
 }
 
 class CategoriesBody extends StatefulWidget {
+  const CategoriesBody({super.key});
+
   @override
-  _CategoriesBodyState createState() => _CategoriesBodyState();
+  CategoriesBodyState createState() => CategoriesBodyState();
 }
 
-class _CategoriesBodyState extends State<CategoriesBody>
+class CategoriesBodyState extends State<CategoriesBody>
     with TickerProviderStateMixin, ContentAnimationMixin {
   String selectedCategory = 'All';
   TextEditingController searchController = TextEditingController();
@@ -93,31 +101,41 @@ class _CategoriesBodyState extends State<CategoriesBody>
 
   List<BuildingItem> buildings = [
     BuildingItem(
-      name: 'Main Building',
+      name: 'Ricardo Arcilla Bldg.',
+      subtitle: 'The White House',
+      imagePath: 'assets/images/ricardo_arcilla_building.jpg',
       description:
           'The historic main building of Bicol University houses the administrative offices, including the Office of the President, Vice President for Academic Affairs, and the Registrar. Built in 1969, it stands as a symbol of the university\'s rich heritage and academic excellence.',
       hasVideo: true,
     ),
     BuildingItem(
       name: 'Science Laboratory Building',
+      subtitle: 'Research & Innovation Hub',
+      imagePath: 'assets/images/science_lab_building.jpg',
       description:
           'A state-of-the-art facility equipped with modern laboratories for Physics, Chemistry, Biology, and Computer Science. Features advanced research equipment and collaborative spaces for students and faculty.',
       hasVideo: false,
     ),
     BuildingItem(
       name: 'Library Building',
+      subtitle: 'Knowledge Center',
+      imagePath: 'assets/images/library_building.jpg',
       description:
           'The central repository of knowledge featuring over 50,000 books, digital resources, study areas, and research facilities. Open 24/7 during exam periods to support student learning.',
       hasVideo: true,
     ),
     BuildingItem(
       name: 'Student Center',
+      subtitle: 'Hub of Activities',
+      imagePath: 'assets/images/student_center.jpg',
       description:
           'Hub for student activities, organizations, and events. Contains meeting rooms, cafeteria, student services offices, and recreational facilities.',
       hasVideo: false,
     ),
     BuildingItem(
       name: 'Engineering Complex',
+      subtitle: 'Technical Excellence',
+      imagePath: 'assets/images/engineering_complex.jpg',
       description:
           'Multi-story complex housing engineering laboratories, workshops, computer labs, and faculty offices. Features specialized equipment for mechanical, electrical, and civil engineering programs.',
       hasVideo: true,
@@ -241,24 +259,19 @@ class _CategoriesBodyState extends State<CategoriesBody>
         children: [
           SizedBox(height: 15),
 
-          // Reusable Animated Dropdown - FIXED: Removed duplicate selectedBackgroundColor
+          // Reusable Animated Dropdown
           AnimatedDropdown(
             items: categoryOptions,
             selectedValue: selectedCategory,
             onChanged: _onCategoryChanged,
             hint: 'Select Category',
-            // Custom styling
             backgroundColor: Colors.white,
-            selectedBackgroundColor: Color(0xFFFFE7CA), // Only one instance now
+            selectedBackgroundColor: Color(0xFFFFE7CA),
             borderColor: Colors.grey.shade300,
             selectedBorderColor: Colors.blue,
             selectedItemColor: Color(0xFF2457C5),
-            unselectedItemColor: Color(
-              0xFF65789F,
-            ), // New property for unselected items
-            textStyle: GoogleFonts.poppins(
-              fontWeight: FontWeight.bold,
-            ), // Make dropdown text bold
+            unselectedItemColor: Color(0xFF65789F),
+            textStyle: GoogleFonts.poppins(fontWeight: FontWeight.bold),
             borderRadius: 12,
             elevation: 4,
             animationDuration: Duration(milliseconds: 200),
@@ -314,25 +327,25 @@ class _CategoriesBodyState extends State<CategoriesBody>
               }).toList(),
             ),
           ),
+          AppFooter(),
         ],
       ),
     );
   }
 }
 
-// Universal Card Widget that handles all types (unchanged)
+// Universal Card Widget that handles all types
 class UniversalCard extends StatefulWidget {
   final dynamic item;
   final bool isExpanded;
 
-  const UniversalCard({Key? key, required this.item, this.isExpanded = false})
-    : super(key: key);
+  const UniversalCard({super.key, required this.item, this.isExpanded = false});
 
   @override
-  _UniversalCardState createState() => _UniversalCardState();
+  UniversalCardState createState() => UniversalCardState();
 }
 
-class _UniversalCardState extends State<UniversalCard>
+class UniversalCardState extends State<UniversalCard>
     with SingleTickerProviderStateMixin {
   late bool _isExpanded;
   late AnimationController _animationController;
@@ -367,17 +380,48 @@ class _UniversalCardState extends State<UniversalCard>
   }
 
   void _handleInfo() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ContentPage(
-          title: widget.item.name,
-          subtitle: 'NICE',
-          imagePath: 'college_of_science.png',
-          logoPath: 'cs_logo.png',
+    // Check the item type and navigate to appropriate content page
+    if (widget.item is BuildingItem) {
+      BuildingItem building = widget.item as BuildingItem;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => BuildingContent.ContentPage(
+            title: building.name,
+            subtitle: building.subtitle,
+            imagePath: building.imagePath,
+            // Removed logoPath parameter
+          ),
         ),
-      ),
-    );
+      );
+    } else if (widget.item is CollegeItem) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CollegeContent.ContentPage(
+            title: widget.item.name,
+            subtitle: 'NICE',
+            imagePath: 'college_of_science.png',
+            logoPath: 'cs_logo.png',
+          ),
+        ),
+      );
+    } else if (widget.item is OfficeItem) {
+      OfficeItem office = widget.item as OfficeItem;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OfficeContent.OfficeContentPage(
+            title: office.name,
+            subtitle: 'University Office',
+            description: office.description,
+          ),
+        ),
+      );
+    } else {
+      // Handle other types if needed
+      print('Info for ${widget.item.name}');
+    }
   }
 
   @override
@@ -385,7 +429,7 @@ class _UniversalCardState extends State<UniversalCard>
     return Card(
       margin: EdgeInsets.only(bottom: 16),
       elevation: 3,
-      shadowColor: Colors.black.withOpacity(0.1),
+      shadowColor: Colors.black.withValues(alpha: 0.1),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
@@ -466,7 +510,7 @@ class _UniversalCardState extends State<UniversalCard>
                             width: 60,
                             height: 60,
                             decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.7),
+                              color: Colors.black.withValues(alpha: 0.7),
                               shape: BoxShape.circle,
                             ),
                             child: Icon(
@@ -594,11 +638,15 @@ class CollegeItem {
 
 class BuildingItem {
   final String name;
+  final String subtitle;
+  final String imagePath;
   final String description;
   final bool hasVideo;
 
   BuildingItem({
     required this.name,
+    required this.subtitle,
+    required this.imagePath,
     required this.description,
     this.hasVideo = false,
   });

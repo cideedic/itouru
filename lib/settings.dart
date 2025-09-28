@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:itouru/header.dart';
-import 'package:itouru/bottom_nav_bar.dart';
+import 'package:itouru/components/header.dart';
+import 'package:itouru/components/bottom_nav_bar.dart';
 
 class Settings extends StatelessWidget {
   const Settings({super.key});
@@ -95,7 +95,7 @@ class Settings extends StatelessWidget {
         border: Border.all(color: Colors.grey[200]!, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: Offset(0, 2),
           ),
@@ -111,7 +111,7 @@ class Settings extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
+                color: iconColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(icon, color: iconColor, size: 24),

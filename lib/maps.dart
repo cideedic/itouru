@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:async';
-import 'bottom_nav_bar.dart';
+import 'components/bottom_nav_bar.dart';
 
 // map_assets:
 import 'maps_assets/map_boundary.dart';
@@ -371,8 +371,8 @@ class _MapsState extends State<Maps> {
                     .map((building) {
                       return Polygon(
                         points: building.points,
-                        color: Colors.blue.withOpacity(
-                          0.7,
+                        color: Colors.blue.withValues(
+                          alpha: 0.7,
                         ), // Use a single color
                         borderColor: Colors.blue,
                         borderStrokeWidth: 2,

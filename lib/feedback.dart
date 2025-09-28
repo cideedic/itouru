@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:itouru/header.dart'; // Import the reusable header
-import 'package:itouru/bottom_nav_bar.dart'; // Import the bottom nav bar
+import 'package:itouru/components/header.dart'; // Import the reusable header
+import 'package:itouru/components/bottom_nav_bar.dart'; // Import the bottom nav bar
 
 class Feedbacks extends StatefulWidget {
   const Feedbacks({super.key});
