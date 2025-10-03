@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/components/bottom_nav_bar.dart';
 import 'package:itouru/components/header.dart';
 import 'package:itouru/components/animation.dart';
-import 'package:itouru/components/footer.dart';
 import 'package:itouru/college_content_pages/content.dart'
     as CollegeContent; // Import the college content component
 import 'package:itouru/building_content_pages/content.dart'
@@ -327,7 +326,6 @@ class CategoriesBodyState extends State<CategoriesBody>
               }).toList(),
             ),
           ),
-          AppFooter(),
         ],
       ),
     );

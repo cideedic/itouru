@@ -1,7 +1,6 @@
 // rooms.dart (for buildings)
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:itouru/components/footer.dart';
 
 class RoomsTab extends StatefulWidget {
   const RoomsTab({super.key});
@@ -288,7 +287,6 @@ class _RoomsTabState extends State<RoomsTab> with TickerProviderStateMixin {
           );
         }),
         SizedBox(height: 20),
-        AppFooter(),
       ],
     );
   }

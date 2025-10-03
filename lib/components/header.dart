@@ -53,7 +53,9 @@ class ReusableHeaderState extends State<ReusableHeader> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => ProfilePage(),
+                            builder: (context) => const ProfilePage(
+                              email: "john.smith@email.com",
+                            ),
                           ),
                         );
                       }
@@ -83,7 +85,7 @@ class ReusableHeaderState extends State<ReusableHeader> {
                         ),
                       ),
                       Text(
-                        widget.showBackButton ? 'iTOURu' : 'BSIT 3rd Year',
+                        widget.showBackButton ? 'iTOURu' : 'Welcome to iTOURu!',
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.9),
                           fontSize: 14,

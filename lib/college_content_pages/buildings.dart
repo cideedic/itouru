@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:itouru/components/footer.dart';
 
 class BuildingsTab extends StatefulWidget {
   const BuildingsTab({super.key});
@@ -255,7 +254,6 @@ class _BuildingsTabState extends State<BuildingsTab>
           );
         }),
         SizedBox(height: 20),
-        AppFooter(),
       ],
     );
   }

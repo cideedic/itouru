@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/components/bottom_nav_bar.dart';
 import 'package:itouru/components/header.dart';
+import 'package:itouru/maps.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -10,26 +11,21 @@ class Home extends StatefulWidget {
   State<Home> createState() => _HomeState();
 }
 
-class _HomeState extends State<Home> {
+class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
   final PageController _pageController = PageController();
   int _currentSlideIndex = 0;
 
-  // Mock data - replace with database calls later
+  late AnimationController _zoomController;
+  late Animation<double> _zoomAnimation;
+
+  // Mock data - torch removed from featured locations
   final List<Map<String, dynamic>> featuredLocations = [
-    {
-      'id': 1,
-      'name': 'Bicol University Torch',
-      'description':
-          'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.',
-      'image': 'assets/images/bu_torch.png', // Replace with actual image path
-      'category': 'Monument',
-    },
     {
       'id': 2,
       'name': 'College of Science',
       'description':
           'The College of Science building houses various science departments and laboratories for students pursuing scientific disciplines.',
-      'image': 'assets/images/college_of_science.jpg',
+      'image': 'assets/images/college_of_science.png',
       'category': 'College Building',
     },
     {
@@ -59,7 +55,20 @@ class _HomeState extends State<Home> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _zoomController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+    _zoomAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
+      CurvedAnimation(parent: _zoomController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
   void dispose() {
+    _zoomController.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -76,6 +85,20 @@ class _HomeState extends State<Home> {
     // TODO: Navigate to about/info page
   }
 
+  void _onMapTap() async {
+    await _zoomController.forward();
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => Maps()),
+      ).then((_) {
+        if (mounted) {
+          _zoomController.reverse();
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -90,87 +113,90 @@ class _HomeState extends State<Home> {
             child: SingleChildScrollView(
               child: Column(
                 children: [
-                  // App Info Section with Image
+                  // App Info Section with Torch on Left
                   Container(
                     padding: const EdgeInsets.all(20),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Text Content
+                        // Torch Image on Left
                         Expanded(
-                          flex: 2,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 15),
-                              Text(
-                                '"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 11,
-                                  color: Colors.black87,
-                                  height: 1.4,
+                          flex: 1,
+                          child: Container(
+                            height: 200,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
                                 ),
-                                textAlign: TextAlign.justify,
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.asset(
+                                'assets/images/bu_torch.png',
+                                fit: BoxFit
+                                    .contain, // Changed to contain to show full image
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    color: Colors.grey[300],
+                                    child: const Icon(
+                                      Icons.image,
+                                      size: 50,
+                                      color: Colors.grey,
+                                    ),
+                                  );
+                                },
                               ),
-                              const SizedBox(height: 15),
-                              ElevatedButton(
-                                onPressed: _onLearnMoreTap,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.orange,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 8,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(15),
-                                  ),
-                                ),
-                                child: Text(
-                                  'Learn More',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                         const SizedBox(width: 15),
-                        // Image
+                        // Text Content on Right
                         Expanded(
-                          flex: 1,
-                          child: GestureDetector(
-                            onTap: () => _onLocationTap(featuredLocations[0]),
-                            child: Container(
-                              height: 200,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 4),
+                          flex: 2,
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 15),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Bicol University (BU) is the premier state university in the Bicol region, founded on June 21, 1969, through the passage of Republic Act 5521. The university is located in Legazpi City, Albay, Philippines, with external campuses scattered throughout the provinces of Albay and Sorsogon. The university was established through the collaboration of three founding fathers: Senator Dominador R. Aytona, Congressman Carlos R. Imperial, and Congressman Jose M. Alberto, who worked together to create the first state university in the Bicol region Bicol University.',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 9,
+                                    color: Colors.black87,
+                                    height: 1.4,
                                   ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.asset(
-                                  featuredLocations[0]['image'],
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      color: Colors.grey[300],
-                                      child: const Icon(
-                                        Icons.image,
-                                        size: 50,
-                                        color: Colors.grey,
-                                      ),
-                                    );
-                                  },
+                                  textAlign: TextAlign.justify,
                                 ),
-                              ),
+                                const SizedBox(height: 15),
+                                Center(
+                                  child: ElevatedButton(
+                                    onPressed: _onLearnMoreTap,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.orange,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 8,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(15),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Learn More',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -178,12 +204,12 @@ class _HomeState extends State<Home> {
                     ),
                   ),
 
-                  // Category Label
+                  // Torch Label
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Text(
-                      featuredLocations[0]['name'],
+                      'Featured Locations \n around West Campus',
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
@@ -192,7 +218,7 @@ class _HomeState extends State<Home> {
                     ),
                   ),
 
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 15),
 
                   // Slideshow Section
                   Container(
@@ -208,13 +234,9 @@ class _HomeState extends State<Home> {
                                 _currentSlideIndex = index;
                               });
                             },
-                            itemCount:
-                                featuredLocations.length -
-                                1, // Exclude first item used above
+                            itemCount: featuredLocations.length,
                             itemBuilder: (context, index) {
-                              final location =
-                                  featuredLocations[index +
-                                      1]; // Skip first item
+                              final location = featuredLocations[index];
                               return Container(
                                 margin: const EdgeInsets.symmetric(
                                   horizontal: 20,
@@ -312,7 +334,7 @@ class _HomeState extends State<Home> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: List.generate(
-                            featuredLocations.length - 1,
+                            featuredLocations.length,
                             (index) => Container(
                               margin: const EdgeInsets.symmetric(horizontal: 3),
                               width: _currentSlideIndex == index ? 20 : 8,
@@ -332,7 +354,7 @@ class _HomeState extends State<Home> {
 
                   const SizedBox(height: 20),
 
-                  // Navigation arrows for slideshow (optional)
+                  // Navigation arrows for slideshow
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -356,7 +378,7 @@ class _HomeState extends State<Home> {
                       IconButton(
                         onPressed: () {
                           if (_currentSlideIndex <
-                              featuredLocations.length - 2) {
+                              featuredLocations.length - 1) {
                             _pageController.nextPage(
                               duration: const Duration(milliseconds: 300),
                               curve: Curves.easeInOut,
@@ -366,7 +388,7 @@ class _HomeState extends State<Home> {
                         icon: Icon(
                           Icons.arrow_forward_ios,
                           color:
-                              _currentSlideIndex < featuredLocations.length - 2
+                              _currentSlideIndex < featuredLocations.length - 1
                               ? Colors.orange
                               : Colors.grey[300],
                         ),
@@ -374,7 +396,106 @@ class _HomeState extends State<Home> {
                     ],
                   ),
 
-                  const SizedBox(height: 100), // Bottom padding
+                  const SizedBox(height: 30), // Bottom padding
+
+                  GestureDetector(
+                    onTap: _onMapTap,
+                    child: AnimatedBuilder(
+                      animation: _zoomAnimation,
+                      builder: (context, child) {
+                        return Transform.scale(
+                          scale: _zoomAnimation.value,
+                          child: child,
+                        );
+                      },
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(20),
+                          topRight: Radius.circular(20),
+                          bottomLeft: Radius.circular(0),
+                          bottomRight: Radius.circular(0),
+                        ),
+                        child: Container(
+                          width: double.infinity,
+                          height: 200,
+                          decoration: BoxDecoration(
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 10,
+                                offset: const Offset(0, -3),
+                              ),
+                            ],
+                          ),
+                          child: Stack(
+                            children: [
+                              // Map Image
+                              Image.asset(
+                                'assets/images/footer_map.jpg',
+                                width: double.infinity,
+                                height: 200,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    color: Colors.grey[300],
+                                    child: const Center(
+                                      child: Icon(
+                                        Icons.map,
+                                        size: 60,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              // Overlay with text
+                              Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.black.withOpacity(0.3),
+                                      Colors.black.withOpacity(0.6),
+                                    ],
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.map_outlined,
+                                        size: 50,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        'Explore Campus Map',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Text(
+                                        'Tap to navigate',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 12,
+                                          color: Colors.white.withOpacity(0.9),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

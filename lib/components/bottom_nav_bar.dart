@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart'; // Add this import
+import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/feedback.dart';
 import 'package:itouru/settings.dart';
 import 'package:itouru/maps.dart';
 import 'package:itouru/categories.dart';
+import 'package:itouru/home.dart';
 
 // Add your other page imports here as needed
 
@@ -23,10 +24,12 @@ class ReusableBottomNavBar extends StatelessWidget {
     // Default navigation behavior
     switch (index) {
       case 0: // Home
-        Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => Home()),
+        );
         break;
       case 1: // Categories
-        // Navigate to Categories page - replace with your actual page
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => Categories()),
