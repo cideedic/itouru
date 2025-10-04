@@ -45,7 +45,20 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	
+	    <!-- Add this section for deep links -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>CFBundleURLName</key>
+            <string>com.yourcompany.itouru</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>itouru</string>
+            </array>
+        </dict>
+    </array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app needs location access to show your position on the campus map.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
