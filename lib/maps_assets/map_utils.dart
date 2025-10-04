@@ -8,7 +8,7 @@ class MapUtils {
   // Get default map options with strict boundary enforcement
   static MapOptions getDefaultMapOptions(
     LatLng center,
-    CameraConstraint? cameraConstraint,
+    CameraConstraint cameraConstraint,
   ) {
     return MapOptions(
       initialCenter: center,
@@ -19,19 +19,17 @@ class MapUtils {
       interactionOptions: const InteractionOptions(
         flags: InteractiveFlag.all,
         enableMultiFingerGestureRace: true,
-        enableScrollWheel: true,
-        scrollWheelVelocity: 0.005,
       ),
       // Add boundary checking on camera move
-      onPositionChanged: (MapPosition position, bool hasGesture) {
-        _enforceBoundaryConstraints(position);
+      onPositionChanged: (MapCamera camera, bool hasGesture) {
+        _enforceBoundaryConstraints(camera);
       },
     );
   }
 
   // Enforce boundary constraints
-  static void _enforceBoundaryConstraints(MapPosition position) {
-    if (!MapBoundary.isWithinCampusBounds(position.center!)) {
+  static void _enforceBoundaryConstraints(MapCamera camera) {
+    if (!MapBoundary.isWithinCampusBounds(camera.center)) {
       // If center goes outside campus, don't allow the move
       // This is handled by CameraConstraint, but we can add additional logic here
     }

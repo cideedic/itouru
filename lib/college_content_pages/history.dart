@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:itouru/components/footer.dart';
+import 'package:itouru/page_components/footer.dart';
 
 class HistoryTab extends StatefulWidget {
   final List<Map<String, String>> historyEntries;

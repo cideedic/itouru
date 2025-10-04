@@ -32,8 +32,7 @@ class RoutingService {
           final duration = route['duration'];
 
           // Decode the polyline
-          final polylinePoints = PolylinePoints();
-          final List<PointLatLng> result = polylinePoints.decodePolyline(
+          final List<PointLatLng> result = PolylinePoints.decodePolyline(
             geometry,
           );
 
@@ -49,7 +48,6 @@ class RoutingService {
           );
         }
       }
-
       return RouteResult.error('No route found');
     } catch (e) {
       return RouteResult.error('Error getting route: $e');

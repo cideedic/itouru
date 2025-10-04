@@ -1,6 +1,6 @@
-import 'package:itouru/components/info_card.dart'; // about.dart (for buildings)
+import 'package:itouru/page_components/info_card.dart'; // about.dart (for buildings)
 import 'package:flutter/material.dart';
-import 'package:itouru/components/footer.dart';
+import 'package:itouru/page_components/footer.dart';
 
 class AboutTab extends StatelessWidget {
   const AboutTab({super.key});

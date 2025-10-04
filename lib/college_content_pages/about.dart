@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:itouru/components/footer.dart';
-import 'package:itouru/components/info_card.dart'; // Import the new reusable InfoCard
+import 'package:itouru/page_components/footer.dart';
+import 'package:itouru/page_components/info_card.dart'; // Import the new reusable InfoCard
 
 class AboutTab extends StatefulWidget {
   const AboutTab({super.key});
