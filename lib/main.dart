@@ -29,6 +29,7 @@ class _MyAppState extends State<MyApp> {
   final _navigatorKey = GlobalKey<NavigatorState>();
   late AppLinks _appLinks;
   StreamSubscription<Uri>? _linkSubscription;
+  StreamSubscription<AuthState>? _authSubscription;
   bool _isCheckingSession = true;
   Widget _initialPage = const LoginOptionPage();
 
@@ -37,33 +38,176 @@ class _MyAppState extends State<MyApp> {
     super.initState();
     _checkSession();
     _initDeepLinks();
+    _initAuthListener();
   }
 
   Future<void> _checkSession() async {
     try {
-      // Check if there's an active session
       final session = Supabase.instance.client.auth.currentSession;
 
       if (session != null) {
-        // User is logged in, go to home
-        setState(() {
-          _initialPage = const Home();
-          _isCheckingSession = false;
-        });
+        // Check if current session is anonymous
+        final isAnonymous =
+            session.user.isAnonymous ||
+            session.user.appMetadata['provider'] == 'anonymous' ||
+            session.user.email == null ||
+            session.user.email!.isEmpty;
+
+        if (isAnonymous) {
+          // Guest user - go directly to Home
+          setState(() {
+            _initialPage = const Home();
+            _isCheckingSession = false;
+          });
+        } else {
+          // Non-anonymous user - check if authorized in Users table
+          try {
+            final existingUser = await Supabase.instance.client
+                .from('Users')
+                .select()
+                .eq('email', session.user.email!)
+                .maybeSingle();
+
+            if (existingUser != null) {
+              // User is authorized - go to Home
+              setState(() {
+                _initialPage = const Home();
+                _isCheckingSession = false;
+              });
+            } else {
+              // User not authorized - sign out and go to login
+              await Supabase.instance.client.auth.signOut();
+              setState(() {
+                _initialPage = const LoginOptionPage();
+                _isCheckingSession = false;
+              });
+            }
+          } catch (e) {
+            // Error checking authorization - sign out and go to login
+            print('Error checking user authorization: $e');
+            await Supabase.instance.client.auth.signOut();
+            setState(() {
+              _initialPage = const LoginOptionPage();
+              _isCheckingSession = false;
+            });
+          }
+        }
       } else {
-        // No session, go to login
+        // No session - go to login
         setState(() {
           _initialPage = const LoginOptionPage();
           _isCheckingSession = false;
         });
       }
     } catch (e) {
-      print('Error checking session: $e');
+      // Any error during session check - go to login
+      print('Error in _checkSession: $e');
       setState(() {
         _initialPage = const LoginOptionPage();
         _isCheckingSession = false;
       });
     }
+  }
+
+  void _initAuthListener() {
+    // Listen to auth state changes globally
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      data,
+    ) async {
+      final event = data.event;
+      final session = data.session;
+
+      if (event == AuthChangeEvent.signedIn && session != null) {
+        final user = session.user;
+
+        // Check if user is anonymous - check multiple ways
+        final isAnonymous =
+            user.isAnonymous ||
+            user.appMetadata['provider'] == 'anonymous' ||
+            user.email == null ||
+            user.email!.isEmpty;
+
+        if (isAnonymous) {
+          // Allow guest users to stay logged in
+          scheduleMicrotask(() {
+            if (_navigatorKey.currentState != null) {
+              _navigatorKey.currentState!.pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const Home()),
+                (route) => false,
+              );
+            }
+          });
+          return;
+        }
+
+        // For non-anonymous users, check authorization
+        try {
+          final existingUser = await Supabase.instance.client
+              .from('Users')
+              .select()
+              .eq('email', user.email!)
+              .maybeSingle();
+
+          if (existingUser == null) {
+            // User not authorized, sign them out
+            await Supabase.instance.client.auth.signOut();
+
+            scheduleMicrotask(() {
+              if (_navigatorKey.currentState != null) {
+                _navigatorKey.currentState!.pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (context) => const LoginOptionPage(),
+                  ),
+                  (route) => false,
+                );
+
+                ScaffoldMessenger.of(
+                  _navigatorKey.currentContext!,
+                ).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'This account is not authorized. Please contact an administrator.',
+                    ),
+                    backgroundColor: Colors.red,
+                    duration: Duration(seconds: 5),
+                  ),
+                );
+              }
+            });
+          } else {
+            // User is authorized, navigate to home
+            scheduleMicrotask(() {
+              if (_navigatorKey.currentState != null) {
+                _navigatorKey.currentState!.pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const Home()),
+                  (route) => false,
+                );
+              }
+            });
+          }
+        } catch (e) {
+          await Supabase.instance.client.auth.signOut();
+
+          scheduleMicrotask(() {
+            if (_navigatorKey.currentState != null) {
+              _navigatorKey.currentState!.pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (context) => const LoginOptionPage(),
+                ),
+                (route) => false,
+              );
+
+              ScaffoldMessenger.of(_navigatorKey.currentContext!).showSnackBar(
+                const SnackBar(
+                  content: Text('An error occurred. Please try again.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          });
+        }
+      }
+    });
   }
 
   Future<void> _initDeepLinks() async {
@@ -74,101 +218,63 @@ class _MyAppState extends State<MyApp> {
       if (uri != null) {
         _handleDeepLink(uri);
       }
-    } catch (e) {
-      print('Error getting initial link: $e');
-    }
+    } catch (e) {}
 
-    _linkSubscription = _appLinks.uriLinkStream.listen(
-      (uri) {
-        _handleDeepLink(uri);
-      },
-      onError: (err) {
-        print('Error listening to link stream: $err');
-      },
-    );
+    _linkSubscription = _appLinks.uriLinkStream.listen((uri) {
+      _handleDeepLink(uri);
+    }, onError: (err) {});
   }
 
   Future<void> _handleDeepLink(Uri uri) async {
-    print('Deep link received: $uri');
-
     if (uri.host == 'reset-password' ||
         uri.path.contains('reset-password') ||
         uri.fragment.contains('type=recovery')) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _navigatorKey.currentState?.push(
-          MaterialPageRoute(builder: (context) => const ResetPasswordPage()),
-        );
+      scheduleMicrotask(() {
+        if (_navigatorKey.currentState != null) {
+          _navigatorKey.currentState!.push(
+            MaterialPageRoute(builder: (context) => const ResetPasswordPage()),
+          );
+        }
       });
     } else if (uri.host == 'login-callback' ||
         uri.fragment.contains('access_token')) {
-      try {
-        final session = Supabase.instance.client.auth.currentSession;
-        final user = session?.user;
-
-        if (user == null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _navigatorKey.currentState?.pushReplacement(
-              MaterialPageRoute(builder: (context) => const LoginOptionPage()),
-            );
-
-            ScaffoldMessenger.of(_navigatorKey.currentContext!).showSnackBar(
-              const SnackBar(
-                content: Text('Authentication failed. Please try again.'),
-                backgroundColor: Colors.red,
-              ),
-            );
+      // Parse the OAuth tokens from the deep link fragment
+      if (uri.fragment.isNotEmpty) {
+        try {
+          // Supabase will automatically handle the OAuth callback
+          // through the auth state listener
+          // Add a timeout in case auth listener doesn't fire
+          Future.delayed(Duration(seconds: 10), () {
+            final session = Supabase.instance.client.auth.currentSession;
+            if (session == null) {
+              scheduleMicrotask(() {
+                if (_navigatorKey.currentContext != null) {
+                  ScaffoldMessenger.of(
+                    _navigatorKey.currentContext!,
+                  ).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Authentication timed out. Please try again.',
+                      ),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                }
+              });
+            }
           });
-          return;
-        }
-
-        // Check if user exists in your allowed users table
-        final existingUser = await Supabase.instance.client
-            .from('users')
-            .select()
-            .eq('email', user.email!)
-            .maybeSingle();
-
-        if (existingUser == null) {
-          await Supabase.instance.client.auth.signOut();
-
+        } catch (e) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            _navigatorKey.currentState?.pushReplacement(
-              MaterialPageRoute(builder: (context) => const LoginOptionPage()),
-            );
-
-            ScaffoldMessenger.of(_navigatorKey.currentContext!).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'This account is not authorized. Please contact an administrator.',
+            if (_navigatorKey.currentContext != null) {
+              ScaffoldMessenger.of(_navigatorKey.currentContext!).showSnackBar(
+                const SnackBar(
+                  content: Text('Authentication failed. Please try again.'),
+                  backgroundColor: Colors.red,
                 ),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 5),
-              ),
-            );
-          });
-        } else {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _navigatorKey.currentState?.pushReplacement(
-              MaterialPageRoute(builder: (context) => const Home()),
-            );
+              );
+            }
           });
         }
-      } catch (e) {
-        print('Error checking user: $e');
-        await Supabase.instance.client.auth.signOut();
-
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _navigatorKey.currentState?.pushReplacement(
-            MaterialPageRoute(builder: (context) => const LoginOptionPage()),
-          );
-
-          ScaffoldMessenger.of(_navigatorKey.currentContext!).showSnackBar(
-            const SnackBar(
-              content: Text('An error occurred. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        });
       }
     }
   }
@@ -176,6 +282,7 @@ class _MyAppState extends State<MyApp> {
   @override
   void dispose() {
     _linkSubscription?.cancel();
+    _authSubscription?.cancel();
     super.dispose();
   }
 

@@ -21,19 +21,12 @@ class DeepLinkService {
     }
 
     // Handle links while app is running
-    _sub = _appLinks!.uriLinkStream.listen(
-      (Uri uri) {
-        _handleDeepLink(uri, context);
-      },
-      onError: (err) {
-        print('Error listening to link stream: $err');
-      },
-    );
+    _sub = _appLinks!.uriLinkStream.listen((Uri uri) {
+      _handleDeepLink(uri, context);
+    }, onError: (err) {});
   }
 
   static void _handleDeepLink(Uri uri, BuildContext context) {
-    print('Received deep link: $uri');
-
     // Check if it's a password reset link
     // Supabase sends links with #access_token or type=recovery in the fragment
     if (uri.host == 'reset-password' ||

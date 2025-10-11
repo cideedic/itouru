@@ -21,7 +21,6 @@ class _LoginOptionPageState extends State<LoginOptionPage> {
         context,
         MaterialPageRoute(builder: (context) => LoginPage()),
       );
-      print('University login clicked');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -58,12 +57,10 @@ class _LoginOptionPageState extends State<LoginOptionPage> {
 
   void _showTerms() {
     // Open Terms of Service
-    print('Terms of Service');
   }
 
   void _showPrivacy() {
     // Open Privacy Concerns
-    print('Privacy Concerns');
   }
 
   @override

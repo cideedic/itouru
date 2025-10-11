@@ -3,15 +3,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/bottom_nav_bar.dart';
 import 'package:itouru/page_components/header.dart';
 import 'package:itouru/page_components/animation.dart';
-import 'package:itouru/college_content_pages/content.dart'
-    as CollegeContent; // Import the college content component
-import 'package:itouru/building_content_pages/content.dart'
-    as BuildingContent; // Import the building content component
-import 'package:itouru/office_content_pages/content.dart'
-    as OfficeContent; // Import the office content component
+import 'package:itouru/college_content_pages/content.dart' as CollegeContent;
+import 'package:itouru/building_content_pages/content.dart' as BuildingContent;
+import 'package:itouru/office_content_pages/content.dart' as OfficeContent;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class Categories extends StatefulWidget {
-  const Categories({super.key});
+  final bool autoFocusSearch;
+
+  const Categories({super.key, this.autoFocusSearch = false});
 
   @override
   CategoriesState createState() => CategoriesState();
@@ -34,7 +34,7 @@ class CategoriesState extends State<Categories> {
                   colors: [Colors.grey[200]!, Colors.white],
                 ),
               ),
-              child: CategoriesBody(),
+              child: CategoriesBody(autoFocusSearch: widget.autoFocusSearch),
             ),
           ),
         ],
@@ -45,7 +45,9 @@ class CategoriesState extends State<Categories> {
 }
 
 class CategoriesBody extends StatefulWidget {
-  const CategoriesBody({super.key});
+  final bool autoFocusSearch;
+
+  const CategoriesBody({super.key, this.autoFocusSearch = false});
 
   @override
   CategoriesBodyState createState() => CategoriesBodyState();
@@ -54,7 +56,8 @@ class CategoriesBody extends StatefulWidget {
 class CategoriesBodyState extends State<CategoriesBody>
     with TickerProviderStateMixin, ContentAnimationMixin {
   String selectedCategory = 'All';
-  TextEditingController searchController = TextEditingController();
+  late TextEditingController searchController;
+  late FocusNode _searchFocusNode;
 
   // Dropdown options
   final List<String> categoryOptions = [
@@ -64,128 +67,106 @@ class CategoriesBodyState extends State<CategoriesBody>
     'Offices',
   ];
 
-  // Sample data - TODO: Replace with MySQL database queries
-  List<CollegeItem> colleges = [
-    CollegeItem(
-      name: 'College of Science',
-      description:
-          'Bicol University College of Science is a leading academic institution dedicated to pursuing future materials and technology professionals. It offers a wide range of undergraduate programs including Information Technology, Computer Science, Biology, Chemistry, and Mathematics designed to equip students with both theoretical knowledge and practical experience.',
-      hasVideo: true,
-    ),
-    CollegeItem(
-      name: 'College of Nursing',
-      description:
-          'Dedicated to producing competent and caring healthcare professionals with strong ethical foundations and clinical expertise.',
-      hasVideo: false,
-    ),
-    CollegeItem(
-      name: 'College of Arts and Letters',
-      description:
-          'Fostering creativity, critical thinking, and cultural understanding through diverse academic programs in humanities and social sciences.',
-      hasVideo: false,
-    ),
-    CollegeItem(
-      name: 'College of Engineering',
-      description:
-          'Building future engineers with strong technical skills and innovative problem-solving capabilities.',
-      hasVideo: true,
-    ),
-    CollegeItem(
-      name: 'College of Education',
-      description:
-          'Preparing dedicated educators who will shape the minds of future generations.',
-      hasVideo: false,
-    ),
-  ];
-
-  List<BuildingItem> buildings = [
-    BuildingItem(
-      name: 'Ricardo Arcilla Bldg.',
-      subtitle: 'The White House',
-      imagePath: 'assets/images/ricardo_arcilla_building.jpg',
-      description:
-          'The historic main building of Bicol University houses the administrative offices, including the Office of the President, Vice President for Academic Affairs, and the Registrar. Built in 1969, it stands as a symbol of the university\'s rich heritage and academic excellence.',
-      hasVideo: true,
-    ),
-    BuildingItem(
-      name: 'Science Laboratory Building',
-      subtitle: 'Research & Innovation Hub',
-      imagePath: 'assets/images/science_lab_building.jpg',
-      description:
-          'A state-of-the-art facility equipped with modern laboratories for Physics, Chemistry, Biology, and Computer Science. Features advanced research equipment and collaborative spaces for students and faculty.',
-      hasVideo: false,
-    ),
-    BuildingItem(
-      name: 'Library Building',
-      subtitle: 'Knowledge Center',
-      imagePath: 'assets/images/library_building.jpg',
-      description:
-          'The central repository of knowledge featuring over 50,000 books, digital resources, study areas, and research facilities. Open 24/7 during exam periods to support student learning.',
-      hasVideo: true,
-    ),
-    BuildingItem(
-      name: 'Student Center',
-      subtitle: 'Hub of Activities',
-      imagePath: 'assets/images/student_center.jpg',
-      description:
-          'Hub for student activities, organizations, and events. Contains meeting rooms, cafeteria, student services offices, and recreational facilities.',
-      hasVideo: false,
-    ),
-    BuildingItem(
-      name: 'Engineering Complex',
-      subtitle: 'Technical Excellence',
-      imagePath: 'assets/images/engineering_complex.jpg',
-      description:
-          'Multi-story complex housing engineering laboratories, workshops, computer labs, and faculty offices. Features specialized equipment for mechanical, electrical, and civil engineering programs.',
-      hasVideo: true,
-    ),
-  ];
-
-  List<OfficeItem> offices = [
-    OfficeItem(
-      name: 'Registrar\'s Office',
-      description:
-          'Handles student enrollment, academic records, transcript requests, and graduation requirements. Open Monday to Friday, 8:00 AM - 5:00 PM.',
-      hasVideo: false,
-    ),
-    OfficeItem(
-      name: 'Accounting Office',
-      description:
-          'Manages tuition payments, financial aid, scholarships, and student accounts. Accepts various payment methods including online transactions.',
-      hasVideo: false,
-    ),
-    OfficeItem(
-      name: 'Student Affairs Office',
-      description:
-          'Provides student services including guidance counseling, disciplinary matters, student organizations coordination, and welfare programs.',
-      hasVideo: true,
-    ),
-    OfficeItem(
-      name: 'Admission Office',
-      description:
-          'Processes new student applications, entrance examinations, and provides information about academic programs and requirements.',
-      hasVideo: false,
-    ),
-    OfficeItem(
-      name: 'Medical Clinic',
-      description:
-          'Provides basic healthcare services, first aid, medical consultations, and health certificates for students and staff. Staffed by licensed medical professionals.',
-      hasVideo: false,
-    ),
-  ];
+  // Data lists from Supabase
+  List<CollegeItem> colleges = [];
+  List<BuildingItem> buildings = [];
+  List<OfficeItem> offices = [];
 
   List<dynamic> filteredItems = [];
   List<dynamic> allItems = [];
 
+  bool isLoading = true;
+  String? errorMessage;
+
+  final supabase = Supabase.instance.client;
+
   @override
   void initState() {
     super.initState();
-    _updateFilteredItems();
+    searchController = TextEditingController();
+    _searchFocusNode = FocusNode();
+
+    // Load data from Supabase
+    _loadDataFromSupabase();
+
+    // Delay to ensure the widget is fully built before requesting focus
+    if (widget.autoFocusSearch) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          _searchFocusNode.requestFocus();
+        }
+      });
+    }
+  }
+
+  Future<void> _loadDataFromSupabase() async {
+    try {
+      setState(() {
+        isLoading = true;
+        errorMessage = null;
+      });
+
+      // Fetch colleges
+      final collegesResponse = await supabase
+          .from('College')
+          .select('college_name, college_about');
+
+      // Fetch buildings
+      final buildingsResponse = await supabase
+          .from('Building')
+          .select('building_name, description');
+
+      // Fetch offices
+      final officesResponse = await supabase
+          .from('Office')
+          .select('office_name, office_services');
+
+      setState(() {
+        // Map colleges data
+        colleges = (collegesResponse as List).map((item) {
+          return CollegeItem(
+            name: item['college_name'] ?? '',
+            description: item['college_about'] ?? '',
+            hasVideo: false, // Set based on your data if available
+          );
+        }).toList();
+
+        // Map buildings data
+        buildings = (buildingsResponse as List).map((item) {
+          return BuildingItem(
+            name: item['building_name'] ?? '',
+            subtitle: '', // Add subtitle field if available in your database
+            imagePath: '', // Add image path field if available in your database
+            description: item['description'] ?? '',
+            hasVideo: false, // Set based on your data if available
+          );
+        }).toList();
+
+        // Map offices data
+        offices = (officesResponse as List).map((item) {
+          return OfficeItem(
+            name: item['office_name'] ?? '',
+            description: item['office_about'] ?? '',
+            hasVideo: false, // Set based on your data if available
+          );
+        }).toList();
+
+        isLoading = false;
+        _updateFilteredItems();
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+        errorMessage = 'Error loading data: $e';
+      });
+      print('Error loading data from Supabase: $e');
+    }
   }
 
   @override
   void dispose() {
     searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -251,6 +232,46 @@ class CategoriesBodyState extends State<CategoriesBody>
 
   @override
   Widget build(BuildContext context) {
+    // Show loading indicator
+    if (isLoading) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text(
+              'Loading data...',
+              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Show error message
+    if (errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+            SizedBox(height: 16),
+            Text(
+              errorMessage!,
+              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadDataFromSupabase,
+              child: Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20.0),
       child: Column(
@@ -282,6 +303,7 @@ class CategoriesBodyState extends State<CategoriesBody>
           buildAnimatedContent(
             child: TextField(
               controller: searchController,
+              focusNode: _searchFocusNode,
               onChanged: _filterItems,
               style: GoogleFonts.poppins(fontSize: 14),
               decoration: InputDecoration(
@@ -315,17 +337,38 @@ class CategoriesBodyState extends State<CategoriesBody>
 
           SizedBox(height: 20),
 
-          // Animated Items List with Staggered Animation
-          buildAnimatedContent(
-            child: buildStaggeredList(
-              children: filteredItems.asMap().entries.map((entry) {
-                int index = entry.key;
-                dynamic item = entry.value;
+          // Show empty state if no items
+          if (filteredItems.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Column(
+                  children: [
+                    Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+                    SizedBox(height: 16),
+                    Text(
+                      'No items found',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            // Animated Items List with Staggered Animation
+            buildAnimatedContent(
+              child: buildStaggeredList(
+                children: filteredItems.asMap().entries.map((entry) {
+                  int index = entry.key;
+                  dynamic item = entry.value;
 
-                return UniversalCard(item: item, isExpanded: index == 0);
-              }).toList(),
+                  return UniversalCard(item: item, isExpanded: index == 0);
+                }).toList(),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -388,7 +431,6 @@ class UniversalCardState extends State<UniversalCard>
             title: building.name,
             subtitle: building.subtitle,
             imagePath: building.imagePath,
-            // Removed logoPath parameter
           ),
         ),
       );
@@ -417,7 +459,6 @@ class UniversalCardState extends State<UniversalCard>
         ),
       );
     } else {
-      // Handle other types if needed
       print('Info for ${widget.item.name}');
     }
   }

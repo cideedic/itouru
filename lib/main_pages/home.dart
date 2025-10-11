@@ -3,6 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/bottom_nav_bar.dart';
 import 'package:itouru/page_components/header.dart';
 import 'package:itouru/main_pages/maps.dart';
+import 'package:itouru/main_pages/categories.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:itouru/login_components/guest_modal.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -11,14 +15,29 @@ class Home extends StatefulWidget {
   State<Home> createState() => _HomeState();
 }
 
-class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
-  final PageController _pageController = PageController();
-  int _currentSlideIndex = 0;
+class _HomeState extends State<Home> with TickerProviderStateMixin {
+  final ScrollController _scrollController = ScrollController();
 
-  late AnimationController _zoomController;
-  late Animation<double> _zoomAnimation;
+  late AnimationController _mapController;
+  late AnimationController _searchCardController;
+  late AnimationController _searchFieldController;
+  late AnimationController _aboutLogoController;
+  late AnimationController _aboutCardController;
+  late PageController _featuredLocationsController;
 
-  // Mock data - torch removed from featured locations
+  late Animation<double> _mapZoomAnimation;
+  late Animation<double> _searchCardFadeAnimation;
+  late Animation<double> _searchFieldFadeAnimation;
+  late Animation<double> _aboutLogoFadeAnimation;
+  late Animation<double> _aboutCardFadeAnimation;
+  late Animation<Offset> _aboutCardSlideAnimation;
+
+  final List<AnimationController> _locationControllers = [];
+  final List<Animation<double>> _locationFadeAnimations = [];
+  final List<Animation<Offset>> _locationSlideAnimations = [];
+
+  int _currentLocationIndex = 0;
+
   final List<Map<String, dynamic>> featuredLocations = [
     {
       'id': 2,
@@ -57,265 +76,360 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _zoomController = AnimationController(
+
+    // Search card animation
+    _searchCardController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+
+    _searchCardFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _searchCardController, curve: Curves.easeOut),
+    );
+
+    // Search field animation
+    _searchFieldController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+
+    _searchFieldFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _searchFieldController, curve: Curves.easeOut),
+    );
+
+    // Map zoom animation
+    _mapController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 350),
     );
-    _zoomAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
-      CurvedAnimation(parent: _zoomController, curve: Curves.easeInOut),
+    _mapZoomAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.08,
+    ).animate(CurvedAnimation(parent: _mapController, curve: Curves.easeInOut));
+
+    // About section animations
+    _aboutLogoController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
     );
+
+    _aboutLogoFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _aboutLogoController, curve: Curves.easeOut),
+    );
+
+    _aboutCardController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+
+    _aboutCardFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _aboutCardController, curve: Curves.easeOut),
+    );
+
+    _aboutCardSlideAnimation =
+        Tween<Offset>(begin: const Offset(-0.3, 0), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _aboutCardController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
+
+    // Featured locations page controller
+    _featuredLocationsController = PageController(initialPage: 0);
+
+    // Initialize animations for each location
+    for (int i = 0; i < featuredLocations.length; i++) {
+      final controller = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 1800),
+      );
+
+      _locationControllers.add(controller);
+
+      _locationFadeAnimations.add(
+        Tween<double>(
+          begin: 0.0,
+          end: 1.0,
+        ).animate(CurvedAnimation(parent: controller, curve: Curves.easeOut)),
+      );
+
+      _locationSlideAnimations.add(
+        Tween<Offset>(begin: const Offset(-0.3, 0), end: Offset.zero).animate(
+          CurvedAnimation(parent: controller, curve: Curves.easeOutCubic),
+        ),
+      );
+    }
+
+    // Start search animations
+    _searchCardController.forward().then((_) {
+      _searchFieldController.forward();
+    });
+
+    // Check for guest modal
+    _checkAndShowGuestModal();
+
+    // Add scroll listener for triggering animations
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    // Get screen height to calculate when card is 50% visible
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    // Trigger about section animations
+    final aboutSectionHeight = screenHeight * 0.75 + 40 + screenHeight + 100;
+    if (_scrollController.offset > aboutSectionHeight - (screenHeight * 0.6) &&
+        !_aboutLogoController.isCompleted) {
+      _aboutLogoController.forward();
+      _aboutCardController.forward();
+    }
+  }
+
+  Future<void> _checkAndShowGuestModal() async {
+    final user = Supabase.instance.client.auth.currentUser;
+
+    if (user != null) {
+      final isAnonymous =
+          user.isAnonymous ||
+          user.appMetadata['provider'] == 'anonymous' ||
+          user.email == null ||
+          user.email!.isEmpty;
+
+      if (isAnonymous) {
+        final prefs = await SharedPreferences.getInstance();
+        final hasSeenModal =
+            prefs.getBool('guest_modal_shown_${user.id}') ?? false;
+
+        if (!hasSeenModal && mounted) {
+          await Future.delayed(const Duration(milliseconds: 800));
+
+          if (mounted) {
+            await showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => const GuestAccessModal(),
+            );
+
+            await prefs.setBool('guest_modal_shown_${user.id}', true);
+          }
+        }
+      }
+    }
   }
 
   @override
   void dispose() {
-    _zoomController.dispose();
-    _pageController.dispose();
+    _mapController.dispose();
+    _searchCardController.dispose();
+    _searchFieldController.dispose();
+    _aboutLogoController.dispose();
+    _aboutCardController.dispose();
+    _scrollController.dispose();
+    _featuredLocationsController.dispose();
+    for (var controller in _locationControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
-  void _onLocationTap(Map<String, dynamic> location) {
-    // Navigate to detailed view or map location
-    print('Tapped on: ${location['name']}');
-    // TODO: Navigate to specific location or detailed view
-  }
-
-  void _onLearnMoreTap() {
-    // Navigate to about page or more info
-    print('Learn More tapped');
-    // TODO: Navigate to about/info page
-  }
-
   void _onMapTap() async {
-    await _zoomController.forward();
+    await _mapController.forward();
     if (mounted) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => Maps()),
       ).then((_) {
         if (mounted) {
-          _zoomController.reverse();
+          _mapController.reverse();
         }
       });
     }
   }
 
+  void _onSearchTap() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Categories(autoFocusSearch: true),
+      ),
+    );
+  }
+
+  void _onLocationExplore() {
+    // Navigate to Categories page with the current location
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Categories(autoFocusSearch: true),
+      ),
+    );
+  }
+
+  void _onLocationInfo() {
+    final location = featuredLocations[_currentLocationIndex];
+    // Navigate to detailed info page
+    print('Info for ${location['name']}');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          // Use the reusable header
           ReusableHeader(),
-
-          // Main content
           Expanded(
             child: SingleChildScrollView(
+              controller: _scrollController,
               child: Column(
                 children: [
-                  // App Info Section with Torch on Left
+                  // Welcome Banner Section
                   Container(
-                    padding: const EdgeInsets.all(20),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    height: isLandscape
+                        ? screenHeight * 0.35
+                        : screenHeight * 0.78,
+                    width: double.infinity,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: isLandscape ? 8 : 0,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Torch Image on Left
-                        Expanded(
-                          flex: 1,
-                          child: Container(
-                            height: 200,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
-                                ),
+                        Container(
+                          width: double.infinity,
+                          constraints: const BoxConstraints(maxWidth: 350),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: isLandscape ? 12 : 30,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(32),
+                            gradient: RadialGradient(
+                              center: const Alignment(-1.0, -1.0),
+                              radius: 1.5,
+                              colors: [
+                                const Color(
+                                  0xFFFFC86C,
+                                ).withValues(alpha: 0.535),
+                                const Color(0xFF6ABAF4).withValues(alpha: 0.26),
                               ],
                             ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.asset(
-                                'assets/images/bu_torch.png',
-                                fit: BoxFit
-                                    .contain, // Changed to contain to show full image
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 20,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Image.asset(
+                                'assets/images/home_image.png',
+                                height: isLandscape ? 120 : 200,
+                                fit: BoxFit.contain,
                                 errorBuilder: (context, error, stackTrace) {
                                   return Container(
-                                    color: Colors.grey[300],
-                                    child: const Icon(
-                                      Icons.image,
-                                      size: 50,
-                                      color: Colors.grey,
+                                    height: isLandscape ? 100 : 150,
+                                    child: Icon(
+                                      Icons.home,
+                                      size: isLandscape ? 50 : 80,
+                                      color: Colors.grey[400],
                                     ),
                                   );
                                 },
                               ),
-                            ),
+                              SizedBox(height: isLandscape ? 8 : 16),
+                              Text(
+                                'Welcome to',
+                                style: GoogleFonts.poppins(
+                                  fontSize: isLandscape ? 16 : 20,
+                                  fontWeight: FontWeight.w400,
+                                  color: Colors.black87,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              Image.asset(
+                                'assets/images/itouru_logo.png',
+                                height: isLandscape ? 50 : 80,
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Text(
+                                    'iTOURu',
+                                    style: GoogleFonts.bubblegumSans(
+                                      fontSize: isLandscape ? 36 : 48,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue[800],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 15),
-                        // Text Content on Right
-                        Expanded(
-                          flex: 2,
-                          child: Padding(
-                            padding: const EdgeInsets.only(right: 15),
+                        if (!isLandscape) ...[
+                          const SizedBox(height: 40),
+                          Container(
+                            constraints: const BoxConstraints(maxWidth: 350),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'Bicol University (BU) is the premier state university in the Bicol region, founded on June 21, 1969, through the passage of Republic Act 5521. The university is located in Legazpi City, Albay, Philippines, with external campuses scattered throughout the provinces of Albay and Sorsogon. The university was established through the collaboration of three founding fathers: Senator Dominador R. Aytona, Congressman Carlos R. Imperial, and Congressman Jose M. Alberto, who worked together to create the first state university in the Bicol region Bicol University.',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 9,
-                                    color: Colors.black87,
-                                    height: 1.4,
-                                  ),
-                                  textAlign: TextAlign.justify,
-                                ),
-                                const SizedBox(height: 15),
-                                Center(
-                                  child: ElevatedButton(
-                                    onPressed: _onLearnMoreTap,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.orange,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 20,
-                                        vertical: 8,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(15),
-                                      ),
+                                FadeTransition(
+                                  opacity: _searchCardFadeAnimation,
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(
+                                      left: 4,
+                                      bottom: 8,
                                     ),
                                     child: Text(
-                                      'Learn More',
+                                      'Search Location of Interest',
                                       style: GoogleFonts.poppins(
-                                        fontSize: 10,
+                                        fontSize: 14,
                                         fontWeight: FontWeight.w500,
+                                        color: Colors.black87,
                                       ),
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Torch Label
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Text(
-                      'Featured Locations \n around West Campus',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.blue[800],
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 15),
-
-                  // Slideshow Section
-                  Container(
-                    height: 280,
-                    child: Column(
-                      children: [
-                        // Slideshow
-                        Expanded(
-                          child: PageView.builder(
-                            controller: _pageController,
-                            onPageChanged: (index) {
-                              setState(() {
-                                _currentSlideIndex = index;
-                              });
-                            },
-                            itemCount: featuredLocations.length,
-                            itemBuilder: (context, index) {
-                              final location = featuredLocations[index];
-                              return Container(
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                ),
-                                child: GestureDetector(
-                                  onTap: () => _onLocationTap(location),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(15),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.1),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 5),
-                                        ),
-                                      ],
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(15),
-                                      child: Stack(
+                                FadeTransition(
+                                  opacity: _searchFieldFadeAnimation,
+                                  child: GestureDetector(
+                                    onTap: _onSearchTap,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.08,
+                                            ),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 14,
+                                      ),
+                                      child: Row(
                                         children: [
-                                          // Background Image
-                                          Container(
-                                            width: double.infinity,
-                                            height: double.infinity,
-                                            child: Image.asset(
-                                              location['image'],
-                                              fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (context, error, stackTrace) {
-                                                    return Container(
-                                                      color: Colors.grey[300],
-                                                      child: const Icon(
-                                                        Icons.location_city,
-                                                        size: 60,
-                                                        color: Colors.grey,
-                                                      ),
-                                                    );
-                                                  },
-                                            ),
+                                          Icon(
+                                            Icons.search,
+                                            color: Colors.grey[600],
                                           ),
-                                          // Gradient Overlay
-                                          Container(
-                                            decoration: BoxDecoration(
-                                              gradient: LinearGradient(
-                                                begin: Alignment.topCenter,
-                                                end: Alignment.bottomCenter,
-                                                colors: [
-                                                  Colors.transparent,
-                                                  Colors.black.withOpacity(0.7),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                          // Content
-                                          Positioned(
-                                            bottom: 15,
-                                            right: 15,
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 6,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white.withOpacity(
-                                                  0.9,
-                                                ),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              child: Text(
-                                                location['name'],
-                                                style: GoogleFonts.poppins(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.black87,
-                                                ),
-                                              ),
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            'Search',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 14,
+                                              color: Colors.grey[400],
                                             ),
                                           ),
                                         ],
@@ -323,27 +437,346 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                                     ),
                                   ),
                                 ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  // Featured Locations Slideshow Section
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(
+                      24,
+                    ), // Round the entire section
+                    child: Container(
+                      height: isLandscape ? screenHeight * 0.7 : screenHeight,
+                      width: double.infinity,
+                      color: Colors.black,
+                      child: Stack(
+                        children: [
+                          // PageView for slideshow
+                          PageView.builder(
+                            controller: _featuredLocationsController,
+                            onPageChanged: (index) {
+                              setState(() {
+                                _currentLocationIndex = index;
+                              });
+                            },
+                            itemCount: featuredLocations.length,
+                            itemBuilder: (context, index) {
+                              final location = featuredLocations[index];
+                              return Stack(
+                                children: [
+                                  // Background Image
+                                  Image.asset(
+                                    location['image'],
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        color: Colors.grey[400],
+                                        child: Center(
+                                          child: Icon(
+                                            Icons.location_city,
+                                            size: 80,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  // Gradient Overlay
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          const Color.fromARGB(
+                                            255,
+                                            0,
+                                            1,
+                                            46,
+                                          ).withValues(alpha: 0.2),
+                                          const Color.fromARGB(
+                                            255,
+                                            0,
+                                            1,
+                                            46,
+                                          ).withValues(alpha: 0.7),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+
+                          // Right side buttons - positioned at bottom right but not at the very bottom
+                          Positioned(
+                            right: 20,
+                            bottom: 90, // Moved up from center to bottom area
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Info Button
+                                Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap: _onLocationInfo,
+                                      borderRadius: BorderRadius.circular(25),
+                                      child: Icon(
+                                        Icons.info_outline,
+                                        color: Colors.white,
+                                        size: 35,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                // Explore Button
+                                Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      onTap: _onLocationExplore,
+                                      borderRadius: BorderRadius.circular(25),
+                                      child: Icon(
+                                        Icons.explore_outlined,
+                                        color: Colors.white,
+                                        size: 35,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Location Info at Bottom
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.black.withValues(alpha: 0),
+                                    Colors.black.withValues(alpha: 0.3),
+                                  ],
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color.fromARGB(
+                                        255,
+                                        199,
+                                        152,
+                                        76,
+                                      ).withValues(alpha: 0.3),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: const Color.fromARGB(
+                                          255,
+                                          199,
+                                          152,
+                                          76,
+                                        ),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      featuredLocations[_currentLocationIndex]['category'],
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color.fromARGB(
+                                          255,
+                                          199,
+                                          152,
+                                          76,
+                                        ),
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    featuredLocations[_currentLocationIndex]['name'],
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  // Indicator Dots
+                                  Row(
+                                    children: List.generate(
+                                      featuredLocations.length,
+                                      (index) => Container(
+                                        margin: const EdgeInsets.only(right: 8),
+                                        width: index == _currentLocationIndex
+                                            ? 24
+                                            : 8,
+                                        height: 4,
+                                        decoration: BoxDecoration(
+                                          color: index == _currentLocationIndex
+                                              ? Colors.cyan
+                                              : Colors.white.withValues(
+                                                  alpha: 0.3,
+                                                ),
+                                          borderRadius: BorderRadius.circular(
+                                            2,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Extra spacing before about section
+                  SizedBox(height: isLandscape ? 20 : 30),
+
+                  // About App Section
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 40,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        FadeTransition(
+                          opacity: _aboutLogoFadeAnimation,
+                          child: Image.asset(
+                            'assets/images/i_logo.png',
+                            height: 150,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(
+                                Icons.location_on,
+                                size: 100,
+                                color: Colors.blue[800],
                               );
                             },
                           ),
                         ),
-
-                        const SizedBox(height: 15),
-
-                        // Page Indicator
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: List.generate(
-                            featuredLocations.length,
-                            (index) => Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 3),
-                              width: _currentSlideIndex == index ? 20 : 8,
-                              height: 8,
+                        const SizedBox(height: 30),
+                        FadeTransition(
+                          opacity: _aboutCardFadeAnimation,
+                          child: SlideTransition(
+                            position: _aboutCardSlideAnimation,
+                            child: Container(
+                              padding: const EdgeInsets.all(24),
                               decoration: BoxDecoration(
-                                color: _currentSlideIndex == index
-                                    ? Colors.orange
-                                    : Colors.grey[300],
-                                borderRadius: BorderRadius.circular(4),
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.08),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'About iTOURu',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'iTOURu is an interactive campus navigation and tour application designed to help students, visitors, and staff explore Bicol University West Campus seamlessly. Discover academic facilities, buildings, amenities, and key locations all in one comprehensive digital guide.',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      color: Colors.grey[700],
+                                      height: 1.6,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        // Add navigation to more info page
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.orange,
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'Learn More',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -352,59 +785,17 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  // Extra spacing before map section
+                  SizedBox(height: isLandscape ? 20 : 30),
 
-                  // Navigation arrows for slideshow
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        onPressed: () {
-                          if (_currentSlideIndex > 0) {
-                            _pageController.previousPage(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                            );
-                          }
-                        },
-                        icon: Icon(
-                          Icons.arrow_back_ios,
-                          color: _currentSlideIndex > 0
-                              ? Colors.orange
-                              : Colors.grey[300],
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                      IconButton(
-                        onPressed: () {
-                          if (_currentSlideIndex <
-                              featuredLocations.length - 1) {
-                            _pageController.nextPage(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeInOut,
-                            );
-                          }
-                        },
-                        icon: Icon(
-                          Icons.arrow_forward_ios,
-                          color:
-                              _currentSlideIndex < featuredLocations.length - 1
-                              ? Colors.orange
-                              : Colors.grey[300],
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 30), // Bottom padding
-
+                  // Map Section
                   GestureDetector(
                     onTap: _onMapTap,
                     child: AnimatedBuilder(
-                      animation: _zoomAnimation,
+                      animation: _mapZoomAnimation,
                       builder: (context, child) {
                         return Transform.scale(
-                          scale: _zoomAnimation.value,
+                          scale: _mapZoomAnimation.value,
                           child: child,
                         );
                       },
@@ -412,8 +803,6 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                         borderRadius: const BorderRadius.only(
                           topLeft: Radius.circular(20),
                           topRight: Radius.circular(20),
-                          bottomLeft: Radius.circular(0),
-                          bottomRight: Radius.circular(0),
                         ),
                         child: Container(
                           width: double.infinity,
@@ -421,7 +810,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                           decoration: BoxDecoration(
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
+                                color: Colors.black.withValues(alpha: 0.2),
                                 blurRadius: 10,
                                 offset: const Offset(0, -3),
                               ),
@@ -429,7 +818,6 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                           ),
                           child: Stack(
                             children: [
-                              // Map Image
                               Image.asset(
                                 'assets/images/footer_map.jpg',
                                 width: double.infinity,
@@ -448,15 +836,14 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                                   );
                                 },
                               ),
-                              // Overlay with text
                               Container(
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     begin: Alignment.topCenter,
                                     end: Alignment.bottomCenter,
                                     colors: [
-                                      Colors.black.withOpacity(0.3),
-                                      Colors.black.withOpacity(0.6),
+                                      Colors.black.withValues(alpha: 0.3),
+                                      Colors.black.withValues(alpha: 0.6),
                                     ],
                                   ),
                                 ),
@@ -483,7 +870,9 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                                         'Tap to navigate',
                                         style: GoogleFonts.poppins(
                                           fontSize: 12,
-                                          color: Colors.white.withOpacity(0.9),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.9,
+                                          ),
                                         ),
                                       ),
                                     ],

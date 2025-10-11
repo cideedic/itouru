@@ -5,8 +5,8 @@ import 'package:itouru/main_pages/settings.dart';
 import 'package:itouru/main_pages/maps.dart';
 import 'package:itouru/main_pages/categories.dart';
 import 'package:itouru/main_pages/home.dart';
-
-// Add your other page imports here as needed
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:itouru/login_components/guest_restriction_modal.dart';
 
 class ReusableBottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -14,10 +14,28 @@ class ReusableBottomNavBar extends StatelessWidget {
 
   const ReusableBottomNavBar({super.key, this.currentIndex = 0, this.onTap});
 
+  bool _isGuestUser() {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return true;
+    return user.isAnonymous ||
+        user.appMetadata['provider'] == 'anonymous' ||
+        user.email == null ||
+        user.email!.isEmpty;
+  }
+
   void _onItemTapped(BuildContext context, int index) {
     // Call the provided onTap function if available
     if (onTap != null) {
       onTap!(index);
+      return;
+    }
+
+    // Check if trying to access Feedback (index 3) as guest
+    if (index == 3 && _isGuestUser()) {
+      showDialog(
+        context: context,
+        builder: (context) => const GuestRestrictionModal(feature: 'Feedback'),
+      );
       return;
     }
 
@@ -97,7 +115,7 @@ class ReusableBottomNavBar extends StatelessWidget {
             color: Colors.grey[600],
             fontSize: 11,
           ),
-          elevation: 0, // Remove default elevation since we have custom shadow
+          elevation: 0,
           items: [
             BottomNavigationBarItem(
               icon: Padding(

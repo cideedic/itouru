@@ -51,7 +51,6 @@ class _LoginPageState extends State<LoginPage> {
         if (!_rememberMe) {
           // Note: Session will still persist until explicitly signed out
           // You can implement app lifecycle listener to sign out on app close
-          print('Remember me not checked - session will be temporary');
         }
 
         if (mounted) {
@@ -73,18 +72,31 @@ class _LoginPageState extends State<LoginPage> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMessage),
+            content: Text(errorMessage, style: GoogleFonts.poppins()),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 4),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('An unexpected error occurred. Please try again.'),
+          SnackBar(
+            content: Text(
+              'An unexpected error occurred. Please try again.',
+              style: GoogleFonts.poppins(),
+            ),
+
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -104,23 +116,29 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       // Sign in with Google OAuth
-      final response = await supabase.auth.signInWithOAuth(
+      await supabase.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: 'itouru://login-callback',
       );
 
-      if (!response) {
-        throw Exception('Google sign-in was cancelled or failed');
-      }
-
-      // The OAuth flow will redirect back to the app
-      // Handle the callback in your deep link handler
+      // The app will be redirected to browser, then back
+      // Don't navigate here - let the auth state listener handle it
     } on AuthException catch (e) {
       if (mounted) {
+        String errorMessage = e.message;
+        if (e.message.contains('not authorized') ||
+            e.message.contains('restricted')) {
+          errorMessage =
+              'Your account is not authorized. Please contact an administrator.';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Google sign-in failed: ${e.message}'),
+            content: Text(errorMessage, style: GoogleFonts.poppins()),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -128,8 +146,15 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Google sign-in error: ${e.toString()}'),
+            content: Text(
+              'Google sign-in error: ${e.toString()}',
+              style: GoogleFonts.poppins(),
+            ),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -156,8 +181,15 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Guest login failed: $e'),
+            content: Text(
+              'Guest login failed: $e',
+              style: GoogleFonts.poppins(),
+            ),
             backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -230,11 +262,12 @@ class _LoginPageState extends State<LoginPage> {
                                     width: 50,
                                     height: 50,
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
                                       shape: BoxShape.circle,
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withOpacity(0.1),
+                                          color: Colors.black.withValues(
+                                            alpha: 0.1,
+                                          ),
                                           blurRadius: 10,
                                           offset: const Offset(0, 4),
                                         ),
@@ -244,8 +277,8 @@ class _LoginPageState extends State<LoginPage> {
                                       child: ClipOval(
                                         child: Image.asset(
                                           'assets/images/i_logo.png',
-                                          width: 40,
-                                          height: 40,
+                                          width: 150,
+                                          height: 150,
                                           fit: BoxFit.cover,
                                           errorBuilder:
                                               (context, error, stackTrace) {
@@ -284,19 +317,19 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 25),
+                              const SizedBox(height: 5),
                               Text(
                                 'Start your tour today!',
                                 style: GoogleFonts.montserrat(
-                                  fontSize: 16,
-                                  color: Colors.white.withOpacity(0.9),
+                                  fontSize: 14,
+                                  color: Colors.white.withValues(alpha: 0.9),
                                 ),
                               ),
                               const SizedBox(height: 20),
                               // Login Form Card
                               Container(
                                 margin: const EdgeInsets.symmetric(
-                                  horizontal: 24,
+                                  horizontal: 20,
                                   vertical: 16,
                                 ),
                                 constraints: const BoxConstraints(
@@ -308,7 +341,9 @@ class _LoginPageState extends State<LoginPage> {
                                   borderRadius: BorderRadius.circular(20),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.1),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.1,
+                                      ),
                                       blurRadius: 20,
                                       offset: const Offset(0, 10),
                                     ),
@@ -325,7 +360,7 @@ class _LoginPageState extends State<LoginPage> {
                                       Text(
                                         'Email',
                                         style: GoogleFonts.poppins(
-                                          fontSize: 14,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.w500,
                                           color: Colors.black87,
                                         ),
@@ -386,7 +421,7 @@ class _LoginPageState extends State<LoginPage> {
                                       Text(
                                         'Password',
                                         style: GoogleFonts.poppins(
-                                          fontSize: 14,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.w500,
                                           color: Colors.black87,
                                         ),
@@ -456,7 +491,7 @@ class _LoginPageState extends State<LoginPage> {
                                           return null;
                                         },
                                       ),
-                                      const SizedBox(height: 12),
+                                      const SizedBox(height: 6),
                                       // Forgot Password and Remember Me
                                       Row(
                                         mainAxisAlignment:
@@ -474,7 +509,7 @@ class _LoginPageState extends State<LoginPage> {
                                             child: Text(
                                               'Forgot Password',
                                               style: GoogleFonts.poppins(
-                                                fontSize: 12,
+                                                fontSize: 11,
                                                 color: Colors.blue[600],
                                               ),
                                             ),
@@ -484,7 +519,7 @@ class _LoginPageState extends State<LoginPage> {
                                               Text(
                                                 'Remember me',
                                                 style: GoogleFonts.poppins(
-                                                  fontSize: 12,
+                                                  fontSize: 11,
                                                   color: Colors.black87,
                                                 ),
                                               ),
@@ -509,7 +544,7 @@ class _LoginPageState extends State<LoginPage> {
                                       // Login Button
                                       SizedBox(
                                         width: double.infinity,
-                                        height: 50,
+                                        height: 40,
                                         child: ElevatedButton(
                                           onPressed: _isLoading
                                               ? null
@@ -519,7 +554,7 @@ class _LoginPageState extends State<LoginPage> {
                                             foregroundColor: Colors.white,
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
-                                                  BorderRadius.circular(12),
+                                                  BorderRadius.circular(10),
                                             ),
                                             elevation: 0,
                                           ),
@@ -548,7 +583,7 @@ class _LoginPageState extends State<LoginPage> {
                                       // Google Sign In Button
                                       SizedBox(
                                         width: double.infinity,
-                                        height: 50,
+                                        height: 40,
                                         child: OutlinedButton.icon(
                                           onPressed: _isGoogleLoading
                                               ? null
@@ -560,7 +595,7 @@ class _LoginPageState extends State<LoginPage> {
                                             ),
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
-                                                  BorderRadius.circular(12),
+                                                  BorderRadius.circular(10),
                                             ),
                                             backgroundColor: Colors.white,
                                           ),
@@ -593,7 +628,7 @@ class _LoginPageState extends State<LoginPage> {
                                           label: Text(
                                             'Sign in with Google',
                                             style: GoogleFonts.poppins(
-                                              fontSize: 14,
+                                              fontSize: 12,
                                               fontWeight: FontWeight.w500,
                                               color: Colors.black87,
                                             ),
@@ -619,7 +654,7 @@ class _LoginPageState extends State<LoginPage> {
                                               : Text(
                                                   'No Account? Continue as Guest',
                                                   style: GoogleFonts.poppins(
-                                                    fontSize: 13,
+                                                    fontSize: 11,
                                                     color: Colors.blue[600],
                                                   ),
                                                 ),
@@ -648,6 +683,14 @@ class _LoginPageState extends State<LoginPage> {
                   ],
                 ),
               ),
+              // Add this at the end of the Stack:
+              if (_isGoogleLoading)
+                Container(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: Colors.orange),
+                  ),
+                ),
             ],
           );
         },
