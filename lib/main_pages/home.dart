@@ -7,6 +7,10 @@ import 'package:itouru/main_pages/categories.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:itouru/login_components/guest_modal.dart';
+import 'package:itouru/login_components/guest_restriction_modal.dart';
+import 'dart:math';
+import 'dart:ui';
+import 'package:itouru/settings_pages/about.dart';
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -21,22 +25,44 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   late AnimationController _mapController;
   late AnimationController _searchCardController;
   late AnimationController _searchFieldController;
-  late AnimationController _aboutLogoController;
-  late AnimationController _aboutCardController;
   late PageController _featuredLocationsController;
 
   late Animation<double> _mapZoomAnimation;
   late Animation<double> _searchCardFadeAnimation;
   late Animation<double> _searchFieldFadeAnimation;
-  late Animation<double> _aboutLogoFadeAnimation;
-  late Animation<double> _aboutCardFadeAnimation;
-  late Animation<Offset> _aboutCardSlideAnimation;
 
   final List<AnimationController> _locationControllers = [];
   final List<Animation<double>> _locationFadeAnimations = [];
   final List<Animation<Offset>> _locationSlideAnimations = [];
 
   int _currentLocationIndex = 0;
+
+  // Feedback state
+  int _selectedRating = 0;
+  final TextEditingController _feedbackController = TextEditingController();
+  bool _isSubmitting = false;
+
+  final supabase = Supabase.instance.client;
+
+  bool _isGuestUser() {
+    final user = supabase.auth.currentUser;
+    if (user == null) return true;
+
+    final isAnonymous =
+        user.isAnonymous ||
+        user.appMetadata['provider'] == 'anonymous' ||
+        user.email == null ||
+        user.email!.isEmpty;
+
+    return isAnonymous;
+  }
+
+  void _showGuestRestriction() {
+    showDialog(
+      context: context,
+      builder: (context) => const GuestRestrictionModal(feature: 'Feedback'),
+    );
+  }
 
   final List<Map<String, dynamic>> featuredLocations = [
     {
@@ -107,33 +133,6 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
       end: 1.08,
     ).animate(CurvedAnimation(parent: _mapController, curve: Curves.easeInOut));
 
-    // About section animations
-    _aboutLogoController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-
-    _aboutLogoFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _aboutLogoController, curve: Curves.easeOut),
-    );
-
-    _aboutCardController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
-
-    _aboutCardFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _aboutCardController, curve: Curves.easeOut),
-    );
-
-    _aboutCardSlideAnimation =
-        Tween<Offset>(begin: const Offset(-0.3, 0), end: Offset.zero).animate(
-          CurvedAnimation(
-            parent: _aboutCardController,
-            curve: Curves.easeOutCubic,
-          ),
-        );
-
     // Featured locations page controller
     _featuredLocationsController = PageController(initialPage: 0);
 
@@ -167,22 +166,6 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
 
     // Check for guest modal
     _checkAndShowGuestModal();
-
-    // Add scroll listener for triggering animations
-    _scrollController.addListener(_onScroll);
-  }
-
-  void _onScroll() {
-    // Get screen height to calculate when card is 50% visible
-    final screenHeight = MediaQuery.of(context).size.height;
-
-    // Trigger about section animations
-    final aboutSectionHeight = screenHeight * 0.75 + 40 + screenHeight + 100;
-    if (_scrollController.offset > aboutSectionHeight - (screenHeight * 0.6) &&
-        !_aboutLogoController.isCompleted) {
-      _aboutLogoController.forward();
-      _aboutCardController.forward();
-    }
   }
 
   Future<void> _checkAndShowGuestModal() async {
@@ -222,9 +205,8 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     _mapController.dispose();
     _searchCardController.dispose();
     _searchFieldController.dispose();
-    _aboutLogoController.dispose();
-    _aboutCardController.dispose();
     _scrollController.dispose();
+    _feedbackController.dispose();
     _featuredLocationsController.dispose();
     for (var controller in _locationControllers) {
       controller.dispose();
@@ -269,6 +251,137 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     final location = featuredLocations[_currentLocationIndex];
     // Navigate to detailed info page
     print('Info for ${location['name']}');
+  }
+
+  void _showModal({
+    required String message,
+    required Color backgroundColor,
+    required Color textColor,
+    required IconData icon,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black26,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: textColor, size: 32),
+                SizedBox(height: 12),
+                Text(
+                  message,
+                  style: GoogleFonts.poppins(
+                    color: textColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    Future.delayed(Duration(seconds: 2), () {
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.of(context).pop();
+      }
+    });
+  }
+
+  Future<void> _submitFeedback() async {
+    if (_selectedRating == 0 || _feedbackController.text.trim().isEmpty) {
+      _showModal(
+        message: 'Please provide a rating and feedback',
+        backgroundColor: Colors.red[50]!,
+        textColor: const Color.fromARGB(255, 207, 80, 80),
+        icon: Icons.error,
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final userResponse = await supabase
+          .from('Users')
+          .select('user_id')
+          .eq('email', user.email!)
+          .single();
+
+      final userId = userResponse['user_id'];
+      final feedbackId = Random().nextInt(9007199254740991);
+
+      await supabase.from('Feedback').insert({
+        'feedback_id': feedbackId,
+        'user_id': userId,
+        'rating': _selectedRating,
+        'description': _feedbackController.text.trim(),
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      _showModal(
+        message: 'Thank you for your feedback!',
+        backgroundColor: Colors.green[50]!,
+        textColor: const Color.fromARGB(255, 91, 194, 96),
+        icon: Icons.check_circle,
+      );
+
+      Future.delayed(Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() {
+            _selectedRating = 0;
+            _feedbackController.clear();
+            _isSubmitting = false;
+          });
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _isSubmitting = false;
+      });
+
+      _showModal(
+        message: 'Failed to submit feedback. Please try again.',
+        backgroundColor: Colors.red[50]!,
+        textColor: const Color.fromARGB(255, 207, 80, 80),
+        icon: Icons.error,
+      );
+
+      print('Error submitting feedback: $e');
+    }
+  }
+
+  void _onStarTap(int rating) {
+    setState(() {
+      _selectedRating = rating;
+    });
   }
 
   @override
@@ -683,7 +796,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                   ),
 
                   // Extra spacing before about section
-                  SizedBox(height: isLandscape ? 20 : 30),
+                  SizedBox(height: isLandscape ? 10 : 15),
 
                   // About App Section
                   Container(
@@ -695,98 +808,339 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        FadeTransition(
-                          opacity: _aboutLogoFadeAnimation,
-                          child: Image.asset(
-                            'assets/images/i_logo.png',
-                            height: 150,
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Icon(
-                                Icons.location_on,
-                                size: 100,
-                                color: Colors.blue[800],
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 30),
-                        FadeTransition(
-                          opacity: _aboutCardFadeAnimation,
-                          child: SlideTransition(
-                            position: _aboutCardSlideAnimation,
-                            child: Container(
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.08),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
                                 children: [
+                                  Icon(
+                                    Icons.info_outline,
+                                    color: Colors.orange[400],
+                                    size: 24,
+                                  ),
+                                  SizedBox(width: 8),
                                   Text(
                                     'About iTOURu',
                                     style: GoogleFonts.poppins(
-                                      fontSize: 22,
+                                      fontSize: 18,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.black87,
                                     ),
                                   ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'iTOURu is an interactive campus navigation and tour application designed to help students, visitors, and staff explore Bicol University West Campus seamlessly. Discover academic facilities, buildings, amenities, and key locations all in one comprehensive digital guide.',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 14,
-                                      color: Colors.grey[700],
-                                      height: 1.6,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 24),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        // Add navigation to more info page
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.orange,
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 14,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        'Learn More',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
                                 ],
                               ),
-                            ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'iTOURu is an interactive campus navigation and tour application designed to help students, visitors, and staff explore Bicol University West Campus seamlessly. Discover academic facilities, buildings, amenities, and key locations all in one comprehensive digital guide.',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: Colors.grey[700],
+                                  height: 1.6,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+
+                              // In your Home page, the Learn More button code:
+                              SizedBox(
+                                width: double.infinity,
+                                height: 44,
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => AboutPage(),
+                                      ),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.orange[400],
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: Text(
+                                    'Learn More',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              // Make sure you have this import at the top of your home.dart file:
+                              // import 'package:itouru/settings_pages/about.dart';
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
 
+                  SizedBox(height: isLandscape ? 10 : 15),
+                  // Feedback Section (Compact)
+                  GestureDetector(
+                    onTap: _isGuestUser() ? _showGuestRestriction : null,
+                    child: Stack(
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 30,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Title
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.feedback_outlined,
+                                      color: Colors.orange[400],
+                                      size: 24,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Rate Our App',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'Share your experience with us',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                                Center(
+                                  child: Image.asset(
+                                    'assets/images/feedback_img.png',
+                                    height: 150,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        height: 150,
+                                        child: Icon(
+                                          Icons.rate_review,
+                                          size: 80,
+                                          color: Colors.grey[400],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                SizedBox(height: 16),
+
+                                // Current stars with animation on tap
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: List.generate(5, (index) {
+                                    return GestureDetector(
+                                      onTap: (_isSubmitting || _isGuestUser())
+                                          ? null
+                                          : () => _onStarTap(index + 1),
+                                      child: AnimatedContainer(
+                                        duration: Duration(milliseconds: 200),
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                        ),
+                                        child: Icon(
+                                          index < _selectedRating
+                                              ? Icons.star
+                                              : Icons.star_border,
+                                          size: index < _selectedRating
+                                              ? 36
+                                              : 32, // Grows when selected
+                                          color: index < _selectedRating
+                                              ? Colors.orange[400]
+                                              : Colors.grey[300],
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                ),
+
+                                SizedBox(height: 12),
+
+                                // Feedback text field
+                                Container(
+                                  height: 100,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: Colors.grey[300]!,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: TextField(
+                                    controller: _feedbackController,
+                                    enabled: !_isSubmitting && !_isGuestUser(),
+                                    maxLines: null,
+                                    expands: true,
+                                    textAlignVertical: TextAlignVertical.top,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      color: Colors.black87,
+                                    ),
+                                    decoration: InputDecoration(
+                                      hintText: _isGuestUser()
+                                          ? 'Sign in to share feedback...'
+                                          : 'Share your feedback...',
+                                      hintStyle: GoogleFonts.poppins(
+                                        color: Colors.grey[400],
+                                        fontSize: 13,
+                                      ),
+                                      border: InputBorder.none,
+                                      contentPadding: EdgeInsets.all(12),
+                                    ),
+                                  ),
+                                ),
+
+                                SizedBox(height: 16),
+
+                                // Submit button
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 44,
+                                  child: ElevatedButton(
+                                    onPressed: (_isSubmitting || _isGuestUser())
+                                        ? null
+                                        : _submitFeedback,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.orange[400],
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      elevation: 0,
+                                      disabledBackgroundColor: Colors.grey[300],
+                                    ),
+                                    child: _isSubmitting
+                                        ? SizedBox(
+                                            height: 18,
+                                            width: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation<Color>(
+                                                    Colors.white,
+                                                  ),
+                                            ),
+                                          )
+                                        : Text(
+                                            _isGuestUser()
+                                                ? 'Sign In Required'
+                                                : 'Submit Feedback',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // Blur overlay for guest users
+                        if (_isGuestUser())
+                          Positioned.fill(
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 30,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.7),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(
+                                    sigmaX: 3,
+                                    sigmaY: 3,
+                                  ),
+                                  child: Container(
+                                    color: Colors.white.withValues(alpha: 0.1),
+                                    child: Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.lock_outline,
+                                            size: 48,
+                                            color: Colors.orange[400],
+                                          ),
+                                          SizedBox(height: 12),
+                                          Text(
+                                            'Sign in to access',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                          SizedBox(height: 4),
+                                          Text(
+                                            'Tap to learn more',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                   // Extra spacing before map section
-                  SizedBox(height: isLandscape ? 20 : 30),
+                  SizedBox(height: isLandscape ? 20 : 20),
 
                   // Map Section
                   GestureDetector(

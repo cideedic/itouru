@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:itouru/login_components/login_option.dart';
 import 'package:itouru/login_components/reset_password.dart';
+import 'package:itouru/login_components/new_registration.dart';
 import 'package:itouru/main_pages/home.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_links/app_links.dart';
@@ -60,7 +61,17 @@ class _MyAppState extends State<MyApp> {
             _isCheckingSession = false;
           });
         } else {
-          // Non-anonymous user - check if authorized in Users table
+          // Check if email domain is @bicol-u.edu.ph
+          if (!session.user.email!.endsWith('@bicol-u.edu.ph')) {
+            await Supabase.instance.client.auth.signOut();
+            setState(() {
+              _initialPage = const LoginOptionPage();
+              _isCheckingSession = false;
+            });
+            return;
+          }
+
+          // Non-anonymous user with valid domain - check if registered
           try {
             final existingUser = await Supabase.instance.client
                 .from('Users')
@@ -69,22 +80,21 @@ class _MyAppState extends State<MyApp> {
                 .maybeSingle();
 
             if (existingUser != null) {
-              // User is authorized - go to Home
+              // User is registered - go to Home
               setState(() {
                 _initialPage = const Home();
                 _isCheckingSession = false;
               });
             } else {
-              // User not authorized - sign out and go to login
-              await Supabase.instance.client.auth.signOut();
+              // User not registered - go to registration page
               setState(() {
-                _initialPage = const LoginOptionPage();
+                _initialPage = NewUserPanels(email: session.user.email!);
                 _isCheckingSession = false;
               });
             }
           } catch (e) {
-            // Error checking authorization - sign out and go to login
-            print('Error checking user authorization: $e');
+            // Error checking registration - sign out and go to login
+            print('Error checking user registration: $e');
             await Supabase.instance.client.auth.signOut();
             setState(() {
               _initialPage = const LoginOptionPage();
@@ -140,7 +150,34 @@ class _MyAppState extends State<MyApp> {
           return;
         }
 
-        // For non-anonymous users, check authorization
+        // Check if email domain is @bicol-u.edu.ph
+        if (!user.email!.endsWith('@bicol-u.edu.ph')) {
+          await Supabase.instance.client.auth.signOut();
+
+          scheduleMicrotask(() {
+            if (_navigatorKey.currentState != null) {
+              _navigatorKey.currentState!.pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (context) => const LoginOptionPage(),
+                ),
+                (route) => false,
+              );
+
+              ScaffoldMessenger.of(_navigatorKey.currentContext!).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Only @bicol-u.edu.ph email addresses are allowed.',
+                  ),
+                  backgroundColor: Colors.red,
+                  duration: Duration(seconds: 5),
+                ),
+              );
+            }
+          });
+          return;
+        }
+
+        // For non-anonymous users with valid domain, check if registered
         try {
           final existingUser = await Supabase.instance.client
               .from('Users')
@@ -149,33 +186,19 @@ class _MyAppState extends State<MyApp> {
               .maybeSingle();
 
           if (existingUser == null) {
-            // User not authorized, sign them out
-            await Supabase.instance.client.auth.signOut();
-
+            // User not registered, navigate to registration page
             scheduleMicrotask(() {
               if (_navigatorKey.currentState != null) {
                 _navigatorKey.currentState!.pushAndRemoveUntil(
                   MaterialPageRoute(
-                    builder: (context) => const LoginOptionPage(),
+                    builder: (context) => NewUserPanels(email: user.email!),
                   ),
                   (route) => false,
-                );
-
-                ScaffoldMessenger.of(
-                  _navigatorKey.currentContext!,
-                ).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'This account is not authorized. Please contact an administrator.',
-                    ),
-                    backgroundColor: Colors.red,
-                    duration: Duration(seconds: 5),
-                  ),
                 );
               }
             });
           } else {
-            // User is authorized, navigate to home
+            // User is registered, navigate to home
             scheduleMicrotask(() {
               if (_navigatorKey.currentState != null) {
                 _navigatorKey.currentState!.pushAndRemoveUntil(

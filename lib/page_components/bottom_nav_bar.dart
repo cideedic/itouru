@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:itouru/main_pages/feedback.dart';
+import 'package:itouru/main_pages/tour.dart';
 import 'package:itouru/main_pages/settings.dart';
 import 'package:itouru/main_pages/maps.dart';
 import 'package:itouru/main_pages/categories.dart';
@@ -184,7 +184,7 @@ class ReusableBottomNavBar extends StatelessWidget {
               icon: Padding(
                 padding: EdgeInsets.only(bottom: 4),
                 child: Icon(
-                  Icons.feedback_outlined,
+                  Icons.tour_outlined,
                   size: 24,
                   shadows: currentIndex == 3
                       ? [Shadow(color: Color(0xFF87CEEB), blurRadius: 8)]
@@ -194,12 +194,12 @@ class ReusableBottomNavBar extends StatelessWidget {
               activeIcon: Padding(
                 padding: EdgeInsets.only(bottom: 4),
                 child: Icon(
-                  Icons.feedback,
+                  Icons.tour,
                   size: 24,
                   shadows: [Shadow(color: Color(0xFF87CEEB), blurRadius: 8)],
                 ),
               ),
-              label: 'Feedback',
+              label: 'Tour',
             ),
             BottomNavigationBarItem(
               icon: Padding(

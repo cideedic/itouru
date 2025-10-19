@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:itouru/settings_pages/privacy.dart';
 import 'package:itouru/login_components/guest_restriction_modal.dart';
 import 'package:itouru/settings_pages/support.dart';
+import 'package:itouru/settings_pages/about.dart';
 
 class Settings extends StatelessWidget {
   const Settings({super.key});
@@ -86,7 +87,12 @@ class Settings extends StatelessWidget {
                       subtitle:
                           'Know more about the application and its creators',
                       onTap: () {
-                        // Handle about section
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AboutPage(),
+                          ),
+                        );
                       },
                     ),
                     AnimatedSettingItem(

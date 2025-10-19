@@ -55,25 +55,18 @@ class CategoriesBody extends StatefulWidget {
 
 class CategoriesBodyState extends State<CategoriesBody>
     with TickerProviderStateMixin, ContentAnimationMixin {
-  String selectedCategory = 'All';
   late TextEditingController searchController;
   late FocusNode _searchFocusNode;
-
-  // Dropdown options
-  final List<String> categoryOptions = [
-    'All',
-    'College',
-    'Building & Landmarks',
-    'Offices',
-  ];
 
   // Data lists from Supabase
   List<CollegeItem> colleges = [];
   List<BuildingItem> buildings = [];
   List<OfficeItem> offices = [];
 
-  List<dynamic> filteredItems = [];
-  List<dynamic> allItems = [];
+  // Filtered data
+  String searchQuery = '';
+  String selectedCategory = 'All';
+  List<String> visibleCategories = [];
 
   bool isLoading = true;
   String? errorMessage;
@@ -127,7 +120,7 @@ class CategoriesBodyState extends State<CategoriesBody>
           return CollegeItem(
             name: item['college_name'] ?? '',
             description: item['college_about'] ?? '',
-            hasVideo: false, // Set based on your data if available
+            hasVideo: false,
           );
         }).toList();
 
@@ -135,10 +128,10 @@ class CategoriesBodyState extends State<CategoriesBody>
         buildings = (buildingsResponse as List).map((item) {
           return BuildingItem(
             name: item['building_name'] ?? '',
-            subtitle: '', // Add subtitle field if available in your database
-            imagePath: '', // Add image path field if available in your database
+            subtitle: '',
+            imagePath: '',
             description: item['description'] ?? '',
-            hasVideo: false, // Set based on your data if available
+            hasVideo: false,
           );
         }).toList();
 
@@ -146,20 +139,18 @@ class CategoriesBodyState extends State<CategoriesBody>
         offices = (officesResponse as List).map((item) {
           return OfficeItem(
             name: item['office_name'] ?? '',
-            description: item['office_about'] ?? '',
-            hasVideo: false, // Set based on your data if available
+            description: item['office_services'] ?? '',
+            hasVideo: false,
           );
         }).toList();
 
         isLoading = false;
-        _updateFilteredItems();
       });
     } catch (e) {
       setState(() {
         isLoading = false;
         errorMessage = 'Error loading data: $e';
       });
-      print('Error loading data from Supabase: $e');
     }
   }
 
@@ -170,64 +161,67 @@ class CategoriesBodyState extends State<CategoriesBody>
     super.dispose();
   }
 
-  void _updateFilteredItems() {
-    setState(() {
-      allItems.clear();
-
-      if (selectedCategory == 'All') {
-        allItems.addAll(colleges);
-        allItems.addAll(buildings);
-        allItems.addAll(offices);
-      } else if (selectedCategory == 'College') {
-        allItems.addAll(colleges);
-      } else if (selectedCategory == 'Building & Landmarks') {
-        allItems.addAll(buildings);
-      } else if (selectedCategory == 'Offices') {
-        allItems.addAll(offices);
-      }
-
-      filteredItems = allItems;
-    });
-
-    // Trigger content animation when category changes
-    if (!isFirstLoad) {
-      animateContentChange();
-    }
-  }
-
   void _filterItems(String query) {
     setState(() {
-      if (query.isEmpty) {
-        filteredItems = allItems;
-      } else {
-        filteredItems = allItems
-            .where(
-              (item) => item.name.toLowerCase().contains(query.toLowerCase()),
-            )
-            .toList();
-      }
+      searchQuery = query.toLowerCase();
+      _updateVisibleCategories();
     });
   }
 
-  String _getSearchHint() {
-    switch (selectedCategory) {
-      case 'College':
-        return 'Search College';
-      case 'Building & Landmarks':
-        return 'Search Building';
-      case 'Offices':
-        return 'Search Office';
-      default:
-        return 'Search';
+  void _updateVisibleCategories() {
+    if (searchQuery.isEmpty && selectedCategory == 'All') {
+      visibleCategories = [];
+    } else {
+      visibleCategories = [];
+
+      // Check which categories have matching items
+      bool hasCollegeMatch = colleges.any(
+        (item) => item.name.toLowerCase().contains(searchQuery),
+      );
+      bool hasBuildingMatch = buildings.any(
+        (item) => item.name.toLowerCase().contains(searchQuery),
+      );
+      bool hasOfficeMatch = offices.any(
+        (item) => item.name.toLowerCase().contains(searchQuery),
+      );
+
+      if (hasCollegeMatch) visibleCategories.add('College');
+      if (hasBuildingMatch) visibleCategories.add('Building & Landmarks');
+      if (hasOfficeMatch) visibleCategories.add('Offices');
     }
   }
 
-  void _onCategoryChanged(String newCategory) {
-    setState(() {
-      selectedCategory = newCategory;
-    });
-    _updateFilteredItems();
-    searchController.clear();
+  List<dynamic> _getFilteredItems(List<dynamic> items) {
+    if (searchQuery.isEmpty) {
+      return items;
+    }
+    return items
+        .where((item) => item.name.toLowerCase().contains(searchQuery))
+        .toList();
+  }
+
+  bool _shouldShowCategory(String category) {
+    // Apply category filter
+    if (selectedCategory != 'All') {
+      if (category != selectedCategory) return false;
+    }
+
+    // Apply search filter
+    if (searchQuery.isEmpty) return true;
+    return visibleCategories.contains(category);
+  }
+
+  bool _hasItemsInCategory(String category) {
+    switch (category) {
+      case 'College':
+        return colleges.isNotEmpty;
+      case 'Building & Landmarks':
+        return buildings.isNotEmpty;
+      case 'Offices':
+        return offices.isNotEmpty;
+      default:
+        return true;
+    }
   }
 
   @override
@@ -278,67 +272,64 @@ class CategoriesBodyState extends State<CategoriesBody>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(height: 15),
-
-          // Reusable Animated Dropdown
-          AnimatedDropdown(
-            items: categoryOptions,
-            selectedValue: selectedCategory,
-            onChanged: _onCategoryChanged,
-            hint: 'Select Category',
-            backgroundColor: Colors.white,
-            selectedBackgroundColor: Color(0xFFFFE7CA),
-            borderColor: Colors.grey.shade300,
-            selectedBorderColor: Colors.blue,
-            selectedItemColor: Color(0xFF2457C5),
-            unselectedItemColor: Color(0xFF65789F),
-            textStyle: GoogleFonts.poppins(fontWeight: FontWeight.bold),
-            borderRadius: 12,
-            elevation: 4,
-            animationDuration: Duration(milliseconds: 200),
-          ),
-
-          SizedBox(height: 16),
-
-          // Animated Search Field
-          buildAnimatedContent(
-            child: TextField(
-              controller: searchController,
-              focusNode: _searchFocusNode,
-              onChanged: _filterItems,
-              style: GoogleFonts.poppins(fontSize: 14),
-              decoration: InputDecoration(
-                hintText: _getSearchHint(),
-                hintStyle: GoogleFonts.poppins(
-                  color: Colors.grey[500],
-                  fontSize: 14,
-                ),
-                prefixIcon: Icon(Icons.search, color: Colors.grey[500]),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.blue, width: 2),
-                ),
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
+          // Search Field
+          TextField(
+            controller: searchController,
+            focusNode: _searchFocusNode,
+            onChanged: _filterItems,
+            style: GoogleFonts.poppins(fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'Search for colleges, buildings, or offices',
+              hintStyle: GoogleFonts.poppins(
+                color: Colors.grey[500],
+                fontSize: 14,
+              ),
+              prefixIcon: Icon(Icons.search, color: Colors.grey[500]),
+              suffixIcon: searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(Icons.clear, color: Colors.grey[500]),
+                      onPressed: () {
+                        searchController.clear();
+                        _filterItems('');
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.grey.shade300),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.blue, width: 2),
+              ),
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
               ),
             ),
           ),
-
+          SizedBox(height: 16),
+          // Category Filter Chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildCategoryChip('All'),
+                _buildCategoryChip('College'),
+                _buildCategoryChip('Building & Landmarks'),
+                _buildCategoryChip('Offices'),
+              ],
+            ),
+          ),
           SizedBox(height: 20),
-
-          // Show empty state if no items
-          if (filteredItems.isEmpty)
+          // Content Area - Show empty state if no results found
+          if (searchQuery.isNotEmpty && visibleCategories.isEmpty)
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(32.0),
@@ -347,83 +338,221 @@ class CategoriesBodyState extends State<CategoriesBody>
                     Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
                     SizedBox(height: 16),
                     Text(
-                      'No items found',
+                      'No results found for "$searchQuery"',
                       style: GoogleFonts.poppins(
                         fontSize: 16,
                         color: Colors.grey[600],
                       ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (selectedCategory != 'All' &&
+              !_hasItemsInCategory(selectedCategory))
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.inbox_outlined,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
+                    SizedBox(height: 16),
+                    Text(
+                      'No items in $selectedCategory',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        color: Colors.grey[600],
+                      ),
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
               ),
             )
           else
-            // Animated Items List with Staggered Animation
-            buildAnimatedContent(
-              child: buildStaggeredList(
-                children: filteredItems.asMap().entries.map((entry) {
-                  int index = entry.key;
-                  dynamic item = entry.value;
+            Column(
+              children: [
+                // College Category Card
+                if (_shouldShowCategory('College') && colleges.isNotEmpty)
+                  CategoryCard(
+                    title: 'College',
+                    icon: Icons.school,
+                    color: Color(0xFF2457C5),
+                    items: _getFilteredItems(colleges),
+                  ),
 
-                  return UniversalCard(item: item, isExpanded: index == 0);
-                }).toList(),
+                SizedBox(height: 16),
+
+                // Building & Landmarks Category Card
+                if (_shouldShowCategory('Building & Landmarks') &&
+                    buildings.isNotEmpty)
+                  CategoryCard(
+                    title: 'Building & Landmarks',
+                    icon: Icons.business,
+                    color: Colors.orange,
+                    items: _getFilteredItems(buildings),
+                  ),
+
+                SizedBox(height: 16),
+
+                // Offices Category Card
+                if (_shouldShowCategory('Offices') && offices.isNotEmpty)
+                  CategoryCard(
+                    title: 'Offices',
+                    icon: Icons.work_outline,
+                    color: Color(0xFF4CAF50),
+                    items: _getFilteredItems(offices),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryChip(String title) {
+    final isSelected = selectedCategory == title;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(title),
+        selected: isSelected,
+        onSelected: (selected) {
+          setState(() {
+            selectedCategory = title;
+            _updateVisibleCategories();
+          });
+        },
+        labelStyle: GoogleFonts.poppins(
+          fontSize: 13,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          color: isSelected ? Colors.white : Colors.black87,
+        ),
+        backgroundColor: Colors.grey[100],
+        selectedColor: Colors.orange,
+        checkmarkColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(
+            color: isSelected ? Colors.orange : Colors.grey[300]!,
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
+    );
+  }
+}
+
+// Category Card Widget
+class CategoryCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final List<dynamic> items;
+
+  const CategoryCard({
+    super.key,
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.items,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 3,
+      shadowColor: Colors.black.withValues(alpha: 0.1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Category Header
+          Container(
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
               ),
             ),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 24),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+                Spacer(),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${items.length}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Scrollable Items List (No Limit)
+          Container(
+            height: 280,
+            child: ListView.builder(
+              padding: EdgeInsets.all(16),
+              scrollDirection: Axis.horizontal,
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                return ItemCard(item: items[index], color: color);
+              },
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-// Universal Card Widget that handles all types
-class UniversalCard extends StatefulWidget {
+// Individual Item Card
+class ItemCard extends StatelessWidget {
   final dynamic item;
-  final bool isExpanded;
+  final Color color;
 
-  const UniversalCard({super.key, required this.item, this.isExpanded = false});
+  const ItemCard({super.key, required this.item, required this.color});
 
-  @override
-  UniversalCardState createState() => UniversalCardState();
-}
-
-class UniversalCardState extends State<UniversalCard>
-    with SingleTickerProviderStateMixin {
-  late bool _isExpanded;
-  late AnimationController _animationController;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _isExpanded = widget.isExpanded;
-    _animationController = AnimationController(
-      duration: Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _animation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    );
-
-    if (_isExpanded) {
-      _animationController.forward();
-    }
+  void _handleDirections(BuildContext context) {
+    print('Get directions to ${item.name}');
   }
 
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
-  void _handleDirections() {
-    print('Get directions to ${widget.item.name}');
-  }
-
-  void _handleInfo() {
-    // Check the item type and navigate to appropriate content page
-    if (widget.item is BuildingItem) {
-      BuildingItem building = widget.item as BuildingItem;
+  void _handleInfo(BuildContext context) {
+    if (item is BuildingItem) {
+      BuildingItem building = item as BuildingItem;
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -434,20 +563,20 @@ class UniversalCardState extends State<UniversalCard>
           ),
         ),
       );
-    } else if (widget.item is CollegeItem) {
+    } else if (item is CollegeItem) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => CollegeContent.ContentPage(
-            title: widget.item.name,
+            title: item.name,
             subtitle: 'NICE',
             imagePath: 'college_of_science.png',
             logoPath: 'cs_logo.png',
           ),
         ),
       );
-    } else if (widget.item is OfficeItem) {
-      OfficeItem office = widget.item as OfficeItem;
+    } else if (item is OfficeItem) {
+      OfficeItem office = item as OfficeItem;
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -458,204 +587,92 @@ class UniversalCardState extends State<UniversalCard>
           ),
         ),
       );
-    } else {
-      print('Info for ${widget.item.name}');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.only(bottom: 16),
-      elevation: 3,
-      shadowColor: Colors.black.withValues(alpha: 0.1),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          children: [
-            // Header
-            InkWell(
-              onTap: () {
-                setState(() {
-                  _isExpanded = !_isExpanded;
-                  if (_isExpanded) {
-                    _animationController.forward();
-                  } else {
-                    _animationController.reverse();
-                  }
-                });
-              },
-              child: Container(
-                padding: EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: _isExpanded
-                          ? Colors.grey.shade200
-                          : Colors.transparent,
-                      width: 1,
+    return Container(
+      width: 260,
+      margin: EdgeInsets.only(right: 12),
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Item Name
+              Text(
+                item.name,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              SizedBox(height: 10),
+
+              // Description
+              Expanded(
+                child: Text(
+                  item.description,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    height: 1.5,
+                  ),
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
+              SizedBox(height: 12),
+
+              // Action Buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // Directions Button
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      onPressed: () => _handleDirections(context),
+                      icon: Icon(
+                        Icons.directions,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      padding: EdgeInsets.zero,
                     ),
                   ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        widget.item.name,
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
+                  SizedBox(width: 8),
+                  // Info Button
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
                     ),
-                    AnimatedRotation(
-                      turns: _isExpanded ? 0.5 : 0,
-                      duration: Duration(milliseconds: 300),
-                      child: Icon(
-                        Icons.keyboard_arrow_down,
-                        color: Colors.grey.shade600,
-                        size: 24,
-                      ),
+                    child: IconButton(
+                      onPressed: () => _handleInfo(context),
+                      icon: Icon(Icons.info_outline, color: color, size: 20),
+                      padding: EdgeInsets.zero,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ),
-
-            // Expandable Content
-            SizeTransition(
-              sizeFactor: _animation,
-              child: Container(
-                color: Colors.grey.shade50,
-                padding: EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Video Placeholder (if has video)
-                    if (widget.item.hasVideo) ...[
-                      Container(
-                        height: 160,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Center(
-                          child: Container(
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.7),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.play_arrow,
-                              color: Colors.white,
-                              size: 30,
-                            ),
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                    ],
-
-                    // Description
-                    Text(
-                      widget.item.description,
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: Colors.grey.shade700,
-                        height: 1.6,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-
-                    SizedBox(height: 20),
-
-                    // Action Buttons Row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        // Directions Button
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 50,
-                              height: 50,
-                              decoration: BoxDecoration(
-                                color: Color(0xFF1A31C8),
-                                shape: BoxShape.circle,
-                              ),
-                              child: IconButton(
-                                onPressed: _handleDirections,
-                                icon: Icon(
-                                  Icons.directions,
-                                  color: Colors.white,
-                                  size: 24,
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              'Directions',
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(width: 20),
-                        // Info Button
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 50,
-                              height: 50,
-                              decoration: BoxDecoration(
-                                color: Color(0xFFFCF0CA),
-                                shape: BoxShape.circle,
-                              ),
-                              child: IconButton(
-                                onPressed: _handleInfo,
-                                icon: Icon(
-                                  Icons.info_outline,
-                                  color: const Color.fromARGB(
-                                    255,
-                                    103,
-                                    102,
-                                    102,
-                                  ),
-                                  size: 24,
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              'Info',
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(width: 10),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

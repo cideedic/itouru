@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/header.dart';
+import 'package:itouru/page_components/bottom_nav_bar.dart';
 
 class HelpSupportPage extends StatefulWidget {
   const HelpSupportPage({super.key});
@@ -207,7 +208,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'General Questions',
+                        'FAQs',
                         style: GoogleFonts.montserrat(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -305,6 +306,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
           ),
         ],
       ),
+      bottomNavigationBar: ReusableBottomNavBar(currentIndex: 4),
     );
   }
 
@@ -635,46 +637,4 @@ class HelpCategory {
     required this.title,
     required this.questions,
   });
-}
-
-// Back Button Widget
-class _BackButton extends StatefulWidget {
-  const _BackButton();
-
-  @override
-  State<_BackButton> createState() => _BackButtonState();
-}
-
-class _BackButtonState extends State<_BackButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: () => Navigator.of(context).pop(),
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(
-              color: _isHovered ? Colors.orange : Colors.blue,
-              width: 2,
-            ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Center(
-            child: Icon(
-              Icons.chevron_left,
-              color: _isHovered ? Colors.orange : Colors.blue,
-              size: 24,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }

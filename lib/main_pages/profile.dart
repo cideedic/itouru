@@ -20,7 +20,6 @@ class _ProfilePageState extends State<ProfilePage> {
   String sex = "";
   String contactNumber = "";
   String email = "";
-  String address = "";
   String? selectedAvatar;
 
   bool isLoading = true;
@@ -67,17 +66,7 @@ class _ProfilePageState extends State<ProfilePage> {
           sex,
           phone_number,
           email,
-          address_id,
-          avatar,
-          address:address_id (
-            house_number,
-            street,
-            subdivision,
-            barangay,
-            municipality,
-            province,
-            postal_code
-          )
+          avatar
         ''')
           .eq('email', widget.email)
           .maybeSingle()
@@ -124,25 +113,6 @@ class _ProfilePageState extends State<ProfilePage> {
           sex = response['sex']?.toString() ?? "N/A";
           contactNumber = response['phone_number']?.toString() ?? "N/A";
           email = response['email']?.toString() ?? "N/A";
-
-          if (response['address'] != null) {
-            final addr = response['address'];
-            final addressParts =
-                [
-                      addr['house_number'],
-                      addr['street'],
-                      addr['subdivision'],
-                      addr['barangay'],
-                      addr['municipality'],
-                      addr['province'],
-                      addr['postal_code'],
-                    ]
-                    .where((part) => part != null && part.toString().isNotEmpty)
-                    .join(', ');
-            address = addressParts.isNotEmpty ? addressParts : "N/A";
-          } else {
-            address = "N/A";
-          }
 
           // Load the saved avatar from database, or use default
           selectedAvatar = response['avatar']?.toString() ?? avatarOptions[0];
@@ -637,12 +607,6 @@ class _ProfilePageState extends State<ProfilePage> {
                                 iconColor: Colors.orange,
                                 label: 'Email',
                                 value: email,
-                              ),
-                              _buildInfoItem(
-                                icon: Icons.location_on,
-                                iconColor: Colors.orange,
-                                label: 'Address',
-                                value: address,
                               ),
                             ],
                           ),

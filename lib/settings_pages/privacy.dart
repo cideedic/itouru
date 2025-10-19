@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/header.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:itouru/page_components/bottom_nav_bar.dart';
 
 class PrivacyPage extends StatefulWidget {
   const PrivacyPage({super.key});
@@ -29,13 +30,15 @@ class _PrivacyPageState extends State<PrivacyPage> {
   // Controllers for read-only fields
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _nationalityController = TextEditingController();
-  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController(
+    text: 'BuAccount123!',
+  );
 
   String? selectedSex;
-  int? addressId;
   DateTime? selectedDate;
   String userEmail = "";
   bool _showEmail = false;
+  bool _showPassword = false;
 
   // Sex options (Male and Female only)
   static const List<String> sexs = ['Male', 'Female'];
@@ -60,7 +63,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
     _contactController.dispose();
     _emailController.dispose();
     _nationalityController.dispose();
-    _addressController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -82,17 +85,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
             nationality,
             sex,
             phone_number,
-            email,
-            address_id,
-            address:address_id (
-              house_number,
-              street,
-              subdivision,
-              barangay,
-              municipality,
-              province,
-              postal_code
-            )
+            email
           ''')
           .eq('email', userEmail)
           .maybeSingle();
@@ -126,32 +119,6 @@ class _PrivacyPageState extends State<PrivacyPage> {
           _emailController.text = response['email']?.toString() ?? "";
           _nationalityController.text =
               response['nationality']?.toString() ?? "";
-
-          // Address as complete string
-          addressId = response['address_id'];
-          if (response['address'] != null) {
-            final addr = response['address'];
-            final houseNumber = addr['house_number']?.toString() ?? "";
-            final street = addr['street']?.toString() ?? "";
-            final subdivision = addr['subdivision']?.toString() ?? "";
-            final barangay = addr['barangay']?.toString() ?? "";
-            final municipality = addr['municipality']?.toString() ?? "";
-            final province = addr['province']?.toString() ?? "";
-            final postalCode = addr['postal_code']?.toString() ?? "";
-
-            // Format complete address
-            final addressParts = [
-              if (houseNumber.isNotEmpty) houseNumber,
-              if (street.isNotEmpty) street,
-              if (subdivision.isNotEmpty) subdivision,
-              if (barangay.isNotEmpty) barangay,
-              if (municipality.isNotEmpty) municipality,
-              if (province.isNotEmpty) province,
-              if (postalCode.isNotEmpty) postalCode,
-            ];
-
-            _addressController.text = addressParts.join(', ');
-          }
 
           isLoading = false;
         });
@@ -246,6 +213,127 @@ class _PrivacyPageState extends State<PrivacyPage> {
         selectedDate = picked;
         _birthDateController.text = DateFormat('MMMM d, y').format(picked);
       });
+    }
+  }
+
+  void _showChangePasswordDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.lock_reset, color: Colors.orange, size: 32),
+              ),
+              const SizedBox(height: 16),
+
+              // Title
+              Text(
+                'Change Password?',
+                style: GoogleFonts.montserrat(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Description
+              Text(
+                'Do you want to change your password? This is recommended if you haven\'t changed the default password yet.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.grey[300]!),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        'No',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _sendPasswordResetEmail();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        'Yes',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendPasswordResetEmail() async {
+    try {
+      // Send password reset email
+      await Supabase.instance.client.auth.resetPasswordForEmail(userEmail);
+
+      if (mounted) {
+        _showSnackBar(
+          'Password reset link has been sent to your Gmail',
+          isError: false,
+        );
+      }
+    } catch (e) {
+      print('Error sending password reset email: $e');
+      if (mounted) {
+        _showSnackBar('Failed to send password reset email', isError: true);
+      }
     }
   }
 
@@ -635,10 +723,6 @@ class _PrivacyPageState extends State<PrivacyPage> {
                           ),
                           const SizedBox(height: 24),
 
-                          // Email (Read-only with masked display)
-                          _buildMaskedEmailField(),
-                          const SizedBox(height: 16),
-
                           // Nationality (Read-only)
                           _buildTextField(
                             label: 'Nationality',
@@ -647,14 +731,42 @@ class _PrivacyPageState extends State<PrivacyPage> {
                             enabled: false,
                           ),
                           const SizedBox(height: 16),
+                          // Email (Read-only with masked display)
+                          _buildMaskedEmailField(),
+                          const SizedBox(height: 16),
 
-                          // Complete Address (Read-only)
-                          _buildTextField(
-                            label: 'Complete Address',
-                            controller: _addressController,
-                            icon: Icons.location_on,
-                            enabled: false,
-                            maxLength: null,
+                          // Default Password (Read-only with masked display)
+                          _buildMaskedPasswordField(),
+                          const SizedBox(height: 12),
+
+                          // Change Password Button
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _showChangePasswordDialog,
+                              icon: Icon(
+                                Icons.lock_reset,
+                                size: 18,
+                                color: Colors.orange,
+                              ),
+                              label: Text(
+                                'Change Password',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: BorderSide(color: Colors.orange),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                              ),
+                            ),
                           ),
 
                           // Action Buttons
@@ -739,6 +851,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
           ),
         ],
       ),
+      bottomNavigationBar: ReusableBottomNavBar(currentIndex: 0),
     );
   }
 
@@ -880,6 +993,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
         DropdownButtonFormField<String>(
           value: value,
           isExpanded: true,
+          menuMaxHeight: 200,
           decoration: InputDecoration(
             prefixIcon: Icon(
               icon,
@@ -890,11 +1004,11 @@ class _PrivacyPageState extends State<PrivacyPage> {
             fillColor: enabled ? Colors.white : Colors.grey[100],
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide(color: Colors.orange, width: 1.5),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              borderSide: BorderSide(color: Colors.orange, width: 1.5),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -902,17 +1016,26 @@ class _PrivacyPageState extends State<PrivacyPage> {
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[200]!),
+              borderSide: BorderSide(color: Colors.grey[300]!, width: 1.5),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 16,
             ),
           ),
+          dropdownColor: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          icon: Icon(
+            Icons.keyboard_arrow_down,
+            color: enabled ? Colors.orange : Colors.grey[400],
+          ),
           items: items.map((String item) {
             return DropdownMenuItem<String>(
               value: item,
-              child: Text(item, style: GoogleFonts.poppins(fontSize: 14)),
+              child: Text(
+                item,
+                style: GoogleFonts.poppins(fontSize: 14, color: Colors.black87),
+              ),
             );
           }).toList(),
           onChanged: enabled ? onChanged : null,
@@ -987,6 +1110,66 @@ class _PrivacyPageState extends State<PrivacyPage> {
     );
   }
 
+  Widget _buildMaskedPasswordField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Default Password',
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _passwordController,
+          readOnly: true,
+          obscureText: !_showPassword,
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            color: Colors.grey[600],
+            letterSpacing: _showPassword ? 0 : 2,
+          ),
+          decoration: InputDecoration(
+            prefixIcon: Icon(Icons.lock, color: Colors.grey[400], size: 20),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _showPassword ? Icons.visibility : Icons.visibility_off,
+                size: 20,
+                color: Colors.orange,
+              ),
+              onPressed: () {
+                setState(() {
+                  _showPassword = !_showPassword;
+                });
+              },
+            ),
+            filled: true,
+            fillColor: Colors.grey[100],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[200]!),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildTextField({
     required String label,
     required TextEditingController controller,
@@ -1016,29 +1199,16 @@ class _PrivacyPageState extends State<PrivacyPage> {
           keyboardType: keyboardType,
           maxLength: maxLength,
           inputFormatters: inputFormatters,
-          maxLines: label == 'Complete Address' ? 3 : 1,
           style: GoogleFonts.poppins(
             fontSize: 14,
             color: enabled ? Colors.black87 : Colors.grey[600],
           ),
           decoration: InputDecoration(
-            prefixIcon: label == 'Complete Address'
-                ? Align(
-                    alignment: Alignment.topCenter,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 16.0),
-                      child: Icon(
-                        icon,
-                        color: enabled ? Colors.orange : Colors.grey[400],
-                        size: 20,
-                      ),
-                    ),
-                  )
-                : Icon(
-                    icon,
-                    color: enabled ? Colors.orange : Colors.grey[400],
-                    size: 20,
-                  ),
+            prefixIcon: Icon(
+              icon,
+              color: enabled ? Colors.orange : Colors.grey[400],
+              size: 20,
+            ),
             suffixIcon: suffixIcon,
             filled: true,
             fillColor: enabled ? Colors.white : Colors.grey[100],
