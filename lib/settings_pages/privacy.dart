@@ -851,7 +851,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
           ),
         ],
       ),
-      bottomNavigationBar: ReusableBottomNavBar(currentIndex: 0),
+      bottomNavigationBar: ReusableBottomNavBar(currentIndex: 4),
     );
   }
 

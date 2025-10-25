@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:itouru/main_pages/profile.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:itouru/login_components/guest_restriction_modal.dart';
+import 'package:itouru/main_pages/qr_scan.dart';
 
 class ReusableHeader extends StatefulWidget {
   final String? pageTitle;
@@ -231,16 +232,27 @@ class ReusableHeaderState extends State<ReusableHeader> {
                 ],
               ),
               Spacer(),
-              Container(
-                padding: EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.qr_code_scanner,
-                  color: Colors.white,
-                  size: 28,
+              GestureDetector(
+                onTap: () {
+                  // Navigate to QR scanner (available for all users including guests)
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const QRScannerPage(),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.qr_code_scanner,
+                    color: Colors.white,
+                    size: 28,
+                  ),
                 ),
               ),
             ],

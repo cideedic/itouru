@@ -48,6 +48,9 @@ dependencies:
   supabase_flutter: ^2.10.2
   app_links: ^6.3.2
   intl: ^0.18.1
+  url_launcher: ^6.2.0
+  mobile_scanner: ^5.2.3
+  video_player: ^2.8.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

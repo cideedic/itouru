@@ -1,293 +1,265 @@
-// rooms.dart (for buildings)
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class RoomsTab extends StatefulWidget {
-  const RoomsTab({super.key});
+class BuildingRoomsTab extends StatefulWidget {
+  final List<Map<String, dynamic>> rooms;
+
+  const BuildingRoomsTab({super.key, required this.rooms});
 
   @override
-  State<RoomsTab> createState() => _RoomsTabState();
+  State<BuildingRoomsTab> createState() => _BuildingRoomsTabState();
 }
 
-class _RoomsTabState extends State<RoomsTab> with TickerProviderStateMixin {
-  final Map<String, List<Map<String, String>>> floors = {
-    'Ground Floor': [
-      {
-        'room': 'Financial Management Division',
-        'type': 'Office',
-        'icon': 'business',
-      },
-      {
-        'room': 'Payroll Administration Office',
-        'type': 'Office',
-        'icon': 'business',
-      },
-      {
-        'room': 'University Cashier\'s Office',
-        'type': 'Office',
-        'icon': 'business',
-      },
-      {
-        'room': 'General Administration and Support Services',
-        'type': 'Office',
-        'icon': 'business',
-      },
-      {
-        'room': 'Motorpool Section',
-        'type': 'Service Area',
-        'icon': 'directions_car',
-      },
-    ],
-    'Second Floor': [
-      {'room': 'Room 201', 'type': 'Conference Room', 'icon': 'meeting_room'},
-      {'room': 'Room 202', 'type': 'Office Space', 'icon': 'business'},
-      {'room': 'Room 203', 'type': 'Storage Room', 'icon': 'inventory'},
-    ],
-    'Third Floor': [
-      {'room': 'Room 301', 'type': 'Executive Office', 'icon': 'business'},
-      {'room': 'Room 302', 'type': 'Meeting Room', 'icon': 'meeting_room'},
-      {'room': 'Room 303', 'type': 'Archive Room', 'icon': 'folder'},
-    ],
-  };
-
-  final Map<String, bool> expanded = {};
-  final Map<String, AnimationController> controllers = {};
+class _BuildingRoomsTabState extends State<BuildingRoomsTab> {
+  String selectedFloor = 'All';
+  List<int> availableFloors = [];
 
   @override
   void initState() {
     super.initState();
-    for (var key in floors.keys) {
-      expanded[key] = key == 'Ground Floor'; // Ground Floor starts expanded
-      controllers[key] = AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 350),
-        value: key == 'Ground Floor' ? 1.0 : 0.0, // Start Ground Floor expanded
-      );
-    }
+    _initializeFloors();
   }
 
-  @override
-  void dispose() {
-    for (var controller in controllers.values) {
-      controller.dispose();
+  void _initializeFloors() {
+    // Get unique floors from rooms data
+    Set<int> floors = {};
+    for (var room in widget.rooms) {
+      if (room['floor_level'] != null) {
+        floors.add(room['floor_level'] as int);
+      }
     }
-    super.dispose();
+    availableFloors = floors.toList()..sort();
   }
 
-  IconData _getRoomIcon(String iconType) {
-    switch (iconType) {
-      case 'business':
-        return Icons.business;
-      case 'directions_car':
-        return Icons.directions_car;
-      case 'meeting_room':
-        return Icons.meeting_room;
-      case 'inventory':
-        return Icons.inventory;
-      case 'folder':
-        return Icons.folder;
-      default:
-        return Icons.room;
+  List<Map<String, dynamic>> _getFilteredRooms() {
+    if (selectedFloor == 'All') {
+      return widget.rooms;
     }
-  }
 
-  String _getFloorIcon(String floor) {
-    if (floor.contains('Ground')) return '1';
-    if (floor.contains('Second')) return '2';
-    if (floor.contains('Third')) return '3';
-    return '1';
+    int floorNumber = int.parse(selectedFloor);
+    return widget.rooms
+        .where((room) => room['floor_level'] == floorNumber)
+        .toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(20),
+    if (widget.rooms.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Column(
+            children: [
+              Icon(
+                Icons.meeting_room_outlined,
+                size: 64,
+                color: Colors.grey[400],
+              ),
+              SizedBox(height: 16),
+              Text(
+                'No rooms available',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    List<Map<String, dynamic>> filteredRooms = _getFilteredRooms();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ...floors.entries.map((entry) {
-          final floor = entry.key;
-          final rooms = entry.value;
-          final isExpanded = expanded[floor] ?? false;
-          final controller = controllers[floor]!;
+        // Floor Filter Chips
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildFloorChip('All'),
+              ...availableFloors.map(
+                (floor) => _buildFloorChip(floor.toString()),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 20),
 
-          // Animate when expanded/collapsed
-          if (isExpanded) {
-            controller.forward();
-          } else {
-            controller.reverse();
-          }
-
-          return Card(
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+        // Room Count
+        Padding(
+          padding: EdgeInsets.only(bottom: 16),
+          child: Text(
+            '${filteredRooms.length} ${filteredRooms.length == 1 ? 'Room' : 'Rooms'}',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
             ),
-            elevation: 2,
-            color: Colors.white,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              child: Column(
-                children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Center(
-                        child: Text(
-                          _getFloorIcon(floor),
+          ),
+        ),
+
+        // Rooms List
+        ...filteredRooms.map((room) => _buildRoomCard(room)),
+      ],
+    );
+  }
+
+  Widget _buildFloorChip(String floor) {
+    final isSelected = selectedFloor == floor;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        label: Text(floor == 'All' ? 'All Floors' : 'Floor $floor'),
+        selected: isSelected,
+        onSelected: (selected) {
+          setState(() {
+            selectedFloor = floor;
+          });
+        },
+        labelStyle: GoogleFonts.poppins(
+          fontSize: 13,
+          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          color: isSelected ? Colors.white : Colors.black87,
+        ),
+        backgroundColor: Colors.grey[100],
+        selectedColor: Colors.orange[700],
+        checkmarkColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(
+            color: isSelected ? Colors.orange[700]! : Colors.grey[300]!,
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
+    );
+  }
+
+  Widget _buildRoomCard(Map<String, dynamic> room) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.door_front_door,
+                  color: Colors.orange[700],
+                  size: 20,
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Room ${room['room_number']?.toString() ?? 'N/A'}',
                           style: GoogleFonts.poppins(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange[100],
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'Floor ${room['floor_level']?.toString() ?? '?'}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.orange[900],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (room['room_name'] != null &&
+                        room['room_name'].toString().isNotEmpty)
+                      Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: Text(
+                          room['room_name'],
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey[600],
                           ),
                         ),
                       ),
-                    ),
-                    title: Text(
-                      floor,
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.blue[800],
-                      ),
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isExpanded)
-                          Container(
-                            padding: EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[100],
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.close,
-                              color: Colors.grey[600],
-                              size: 20,
-                            ),
-                          ),
-                        if (!isExpanded) ...[
-                          SizedBox(width: 8),
-                          AnimatedRotation(
-                            turns: isExpanded ? 0.5 : 0,
-                            duration: const Duration(milliseconds: 300),
-                            child: Icon(
-                              Icons.expand_more,
-                              color: Colors.blue[800],
-                              size: 28,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    onTap: () {
-                      setState(() {
-                        expanded[floor] = !isExpanded;
-                      });
-                    },
-                  ),
-                  SizeTransition(
-                    sizeFactor: CurvedAnimation(
-                      parent: controller,
-                      curve: Curves.easeOutCubic,
-                    ),
-                    child: FadeTransition(
-                      opacity: controller,
-                      child: Column(
-                        children: [
-                          Container(
-                            margin: const EdgeInsets.symmetric(vertical: 8),
-                            height: 1,
-                            color: Colors.grey[300],
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Column(
-                              children: rooms
-                                  .map(
-                                    (room) => Container(
-                                      margin: EdgeInsets.only(bottom: 12),
-                                      padding: EdgeInsets.all(16),
-                                      decoration: BoxDecoration(
-                                        color: Colors.orange.withValues(
-                                          alpha: 0.05,
-                                        ),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: Colors.orange.withValues(
-                                            alpha: 0.2,
-                                          ),
-                                          width: 1,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            padding: EdgeInsets.all(10),
-                                            decoration: BoxDecoration(
-                                              color: Colors.orange.withValues(
-                                                alpha: 0.2,
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                            ),
-                                            child: Icon(
-                                              _getRoomIcon(room['icon'] ?? ''),
-                                              color: Colors.orange,
-                                              size: 20,
-                                            ),
-                                          ),
-                                          SizedBox(width: 16),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  room['room'] ?? '',
-                                                  style: GoogleFonts.poppins(
-                                                    fontSize: 15,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: Colors.black87,
-                                                  ),
-                                                ),
-                                                if (room['type']!
-                                                    .isNotEmpty) ...[
-                                                  SizedBox(height: 4),
-                                                  Text(
-                                                    room['type'] ?? '',
-                                                    style: GoogleFonts.poppins(
-                                                      fontSize: 13,
-                                                      color: Colors.grey[600],
-                                                    ),
-                                                  ),
-                                                ],
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+            ],
+          ),
+          if (room['room_type'] != null || room['capacity'] != null) ...[
+            SizedBox(height: 12),
+            Divider(color: Colors.grey[300]),
+            SizedBox(height: 12),
+            Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              children: [
+                if (room['room_type'] != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.category, size: 16, color: Colors.grey[600]),
+                      SizedBox(width: 4),
+                      Text(
+                        room['room_type'],
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                if (room['capacity'] != null)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.people, size: 16, color: Colors.grey[600]),
+                      SizedBox(width: 4),
+                      Text(
+                        '${room['capacity']} capacity',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
             ),
-          );
-        }),
-        SizedBox(height: 20),
-      ],
+          ],
+        ],
+      ),
     );
   }
 }

@@ -1,102 +1,195 @@
-import 'package:itouru/page_components/info_card.dart'; // about.dart (for buildings)
+// about.dart (for Office)
 import 'package:flutter/material.dart';
-import 'package:itouru/page_components/footer.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:itouru/page_components/info_card.dart';
 
-class AboutTab extends StatelessWidget {
-  const AboutTab({super.key});
+class OfficeAboutTab extends StatelessWidget {
+  final String officeServices;
+  final String? buildingName;
+  final String? roomName;
+  final Map<String, dynamic>? headData;
+
+  const OfficeAboutTab({
+    super.key,
+    required this.officeServices,
+    this.buildingName,
+    this.roomName,
+    this.headData,
+  });
+
+  void _handleDirections(BuildContext context) {
+    // TODO: Implement directions functionality
+    print(
+      'Get directions to office at: $buildingName${roomName != null ? ", $roomName" : ""}',
+    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Opening directions...')));
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Video Preview Section
-        Container(
-          width: double.infinity,
-          height: 200,
-          decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Video preview background (placeholder)
-              Container(
-                width: double.infinity,
-                height: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(8),
-                ),
+        // Office Services (Description)
+        if (officeServices.isNotEmpty) ...[
+          _buildSectionCard(
+            'Description',
+            Icons.description,
+            Text(
+              officeServices,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                height: 1.6,
+                color: Colors.black87,
               ),
-              // Play button
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.7),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.play_arrow, color: Colors.white, size: 35),
-              ),
-            ],
+            ),
           ),
+          SizedBox(height: 16),
+        ],
+
+        // Location Card
+        _buildSectionCard(
+          'Location',
+          Icons.location_on,
+          _buildLocationContent(),
         ),
-
-        SizedBox(height: 20),
-
-        // Description text
-        Text(
-          'Ricardo A. Arcilla, lawyer and the first president of Bicol University (1969-1970), born in Oas, province of Camarines Sur. During his term, President Arcilla ensured the establishment of satellite campuses and turned the university into a training institution for professionals and a responsive social catalyst through the creation of several colleges such as the BU College of Education, the College of Engineering, the Graduate School, and the College of Nursing.',
-          style: TextStyle(fontSize: 14, color: Colors.black87, height: 1.5),
-          textAlign: TextAlign.justify,
-        ),
-
         SizedBox(height: 24),
 
         // Directions Button
         SizedBox(
           width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () {
-              // Add navigation to directions functionality
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Opening directions...')));
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+          child: ElevatedButton.icon(
+            onPressed: () => _handleDirections(context),
+            icon: Icon(Icons.directions, size: 20),
+            label: Text(
+              'Get Directions',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.directions, size: 20),
-                SizedBox(width: 8),
-                Text(
-                  'Directions',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                ),
-              ],
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange[700],
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
             ),
           ),
         ),
-        InfoCard(
-          name: 'Prof. Jocelyn E. Serrano',
-          title: 'Dean, College of Science',
-          socials: {
-            'email': 'serrano@bicoluniversity.edu.ph',
-            'facebook': 'https://facebook.com/deanserrano',
-            // 'instagram': 'https://instagram.com/deanserrano', // Uncomment if available
-            // 'x': 'https://x.com/deanserrano', // Uncomment if available
-          },
+
+        // Head Information Card
+        if (headData != null && headData!.isNotEmpty) ...[
+          SizedBox(height: 24),
+          InfoCard(headData: headData!),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSectionCard(String title, IconData icon, Widget content) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(title, icon),
+          SizedBox(height: 12),
+          content,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: Color(0xFFFF8C00), size: 24),
+        SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            style: GoogleFonts.montserrat(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Colors.black87,
+              letterSpacing: 0.5,
+            ),
+          ),
         ),
-        AppFooter(),
+      ],
+    );
+  }
+
+  Widget _buildLocationContent() {
+    if (buildingName == null && roomName == null) {
+      return Text(
+        'Location information not available',
+        style: GoogleFonts.poppins(
+          fontSize: 13,
+          color: Colors.grey[600],
+          fontStyle: FontStyle.italic,
+          height: 1.6,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (buildingName != null) ...[
+          Row(
+            children: [
+              Icon(Icons.apartment, size: 18, color: Colors.grey[600]),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  buildingName!,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: Colors.black87,
+                    height: 1.6,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+        if (buildingName != null && roomName != null) SizedBox(height: 8),
+        if (roomName != null) ...[
+          Row(
+            children: [
+              Icon(Icons.meeting_room, size: 18, color: Colors.grey[600]),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  roomName!,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: Colors.black87,
+                    height: 1.6,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }

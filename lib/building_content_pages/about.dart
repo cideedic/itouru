@@ -1,92 +1,178 @@
-// about.dart (for buildings)
 import 'package:flutter/material.dart';
-import 'package:itouru/page_components/footer.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-class AboutTab extends StatelessWidget {
-  const AboutTab({super.key});
+class BuildingAboutTab extends StatelessWidget {
+  final String? description;
+  final String? location;
+  final int? numberOfFloors;
+  final int numberOfRooms;
+  final bool hasRooms;
+
+  const BuildingAboutTab({
+    super.key,
+    this.description,
+    this.location,
+    this.numberOfFloors,
+    this.numberOfRooms = 0,
+    this.hasRooms = true,
+  });
+
+  void _handleDirections(BuildContext context) {
+    // TODO: Implement directions functionality
+    print('Get directions to building at: $location');
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Opening directions...')));
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Video Preview Section
-        Container(
-          width: double.infinity,
-          height: 200,
-          decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: BorderRadius.circular(8),
+        // Description Section
+        if (description != null && description!.isNotEmpty) ...[
+          _buildSectionCard(
+            'Description',
+            Icons.description,
+            Text(
+              description!,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                height: 1.6,
+                color: Colors.black87,
+              ),
+            ),
           ),
-          child: Stack(
-            alignment: Alignment.center,
+          SizedBox(height: 16),
+        ],
+
+        // Location Card
+        _buildSectionCard(
+          'Location',
+          Icons.location_on,
+          Text(
+            location ?? 'N/A',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              height: 1.6,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+
+        // Show Floors and Rooms only if building has rooms
+        if (hasRooms) ...[
+          SizedBox(height: 16),
+          Row(
             children: [
-              // Video preview background (placeholder)
-              Container(
-                width: double.infinity,
-                height: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(8),
+              Expanded(
+                child: _buildSectionCard(
+                  'Floors',
+                  Icons.layers,
+                  Text(
+                    numberOfFloors?.toString() ?? 'N/A',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      height: 1.6,
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
-              // Play button
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.7),
-                  shape: BoxShape.circle,
+              SizedBox(width: 16),
+              Expanded(
+                child: _buildSectionCard(
+                  'Rooms',
+                  Icons.meeting_room,
+                  Text(
+                    numberOfRooms.toString(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      height: 1.6,
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-                child: Icon(Icons.play_arrow, color: Colors.white, size: 35),
               ),
             ],
           ),
-        ),
-
-        SizedBox(height: 20),
-
-        // Description text
-        Text(
-          'Ricardo A. Arcilla, lawyer and the first president of Bicol University (1969-1970), born in Oas, province of Camarines Sur. During his term, President Arcilla ensured the establishment of satellite campuses and turned the university into a training institution for professionals and a responsive social catalyst through the creation of several colleges such as the BU College of Education, the College of Engineering, the Graduate School, and the College of Nursing.',
-          style: TextStyle(fontSize: 14, color: Colors.black87, height: 1.5),
-          textAlign: TextAlign.justify,
-        ),
+        ],
 
         SizedBox(height: 24),
 
         // Directions Button
         SizedBox(
           width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () {
-              // Add navigation to directions functionality
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Opening directions...')));
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+          child: ElevatedButton.icon(
+            onPressed: () => _handleDirections(context),
+            icon: Icon(Icons.directions, size: 20),
+            label: Text(
+              'Get Directions',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.directions, size: 20),
-                SizedBox(width: 8),
-                Text(
-                  'Directions',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                ),
-              ],
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange[700],
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 2,
             ),
           ),
         ),
-        AppFooter(),
+      ],
+    );
+  }
+
+  Widget _buildSectionCard(String title, IconData icon, Widget content) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle(title, icon),
+          SizedBox(height: 12),
+          content,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: Color(0xFFFF8C00), size: 24),
+        SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            style: GoogleFonts.montserrat(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              color: Colors.black87,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
       ],
     );
   }

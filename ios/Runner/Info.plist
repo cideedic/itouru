@@ -45,7 +45,10 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	    <!-- Add this section for deep links -->
+	<!-- Add these two lines -->
+    <key>NSCameraUsageDescription</key>
+    <string>Camera permission is required for QR code scanning</string>
+	<!-- Add this section for deep links -->
     <key>CFBundleURLTypes</key>
     <array>
         <dict>

@@ -129,7 +129,6 @@ class _ProfilePageState extends State<ProfilePage> {
         });
       }
     } catch (e) {
-      print('Error fetching user data: $e');
       setState(() {
         isLoading = false;
         studentName = "Error Loading";

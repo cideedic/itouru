@@ -102,22 +102,23 @@ class CategoriesBodyState extends State<CategoriesBody>
       // Fetch colleges
       final collegesResponse = await supabase
           .from('College')
-          .select('college_name, college_about');
+          .select('college_id, college_name, college_about');
 
       // Fetch buildings
       final buildingsResponse = await supabase
           .from('Building')
-          .select('building_name, description');
+          .select('building_id, building_name, description');
 
       // Fetch offices
       final officesResponse = await supabase
           .from('Office')
-          .select('office_name, office_services');
+          .select('office_id, office_name, office_services');
 
       setState(() {
         // Map colleges data
         colleges = (collegesResponse as List).map((item) {
           return CollegeItem(
+            collegeId: item['college_id'] ?? 0,
             name: item['college_name'] ?? '',
             description: item['college_about'] ?? '',
             hasVideo: false,
@@ -125,24 +126,36 @@ class CategoriesBodyState extends State<CategoriesBody>
         }).toList();
 
         // Map buildings data
-        buildings = (buildingsResponse as List).map((item) {
-          return BuildingItem(
-            name: item['building_name'] ?? '',
-            subtitle: '',
-            imagePath: '',
-            description: item['description'] ?? '',
-            hasVideo: false,
-          );
-        }).toList();
+        buildings = (buildingsResponse as List)
+            .where((item) {
+              // Filter out buildings without a valid building_id
+              return item['building_id'] != null;
+            })
+            .map((item) {
+              return BuildingItem(
+                buildingId: item['building_id'] as int,
+                name: item['building_name'] ?? '',
+                description: item['description'] ?? '',
+                hasVideo: false,
+              );
+            })
+            .toList();
 
         // Map offices data
-        offices = (officesResponse as List).map((item) {
-          return OfficeItem(
-            name: item['office_name'] ?? '',
-            description: item['office_services'] ?? '',
-            hasVideo: false,
-          );
-        }).toList();
+        offices = (officesResponse as List)
+            .where((item) {
+              // Filter out offices without a valid office_id
+              return item['office_id'] != null;
+            })
+            .map((item) {
+              return OfficeItem(
+                officeId: item['office_id'] as int,
+                name: item['office_name'] ?? '',
+                description: item['office_services'] ?? '',
+                hasVideo: false,
+              );
+            })
+            .toList();
 
         isLoading = false;
       });
@@ -279,7 +292,7 @@ class CategoriesBodyState extends State<CategoriesBody>
             onChanged: _filterItems,
             style: GoogleFonts.poppins(fontSize: 14),
             decoration: InputDecoration(
-              hintText: 'Search for colleges, buildings, or offices',
+              hintText: 'Search',
               hintStyle: GoogleFonts.poppins(
                 color: Colors.grey[500],
                 fontSize: 14,
@@ -405,7 +418,7 @@ class CategoriesBodyState extends State<CategoriesBody>
                   CategoryCard(
                     title: 'Offices',
                     icon: Icons.work_outline,
-                    color: Color(0xFF4CAF50),
+                    color: Color(0xFF2457C5),
                     items: _getFilteredItems(offices),
                   ),
               ],
@@ -556,22 +569,21 @@ class ItemCard extends StatelessWidget {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => BuildingContent.ContentPage(
+          builder: (context) => BuildingContent.BuildingDetailsPage(
+            buildingId: building.buildingId,
             title: building.name,
-            subtitle: building.subtitle,
-            imagePath: building.imagePath,
           ),
         ),
       );
     } else if (item is CollegeItem) {
+      CollegeItem college = item as CollegeItem;
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => CollegeContent.ContentPage(
-            title: item.name,
-            subtitle: 'NICE',
-            imagePath: 'college_of_science.png',
-            logoPath: 'cs_logo.png',
+          builder: (context) => CollegeContent.CollegeDetailsPage(
+            collegeId: college.collegeId,
+            collegeName: college.name,
+            title: college.name,
           ),
         ),
       );
@@ -580,10 +592,10 @@ class ItemCard extends StatelessWidget {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => OfficeContent.OfficeContentPage(
+          builder: (context) => OfficeContent.OfficeDetailsPage(
+            officeId: office.officeId,
+            officeName: office.name,
             title: office.name,
-            subtitle: 'University Office',
-            description: office.description,
           ),
         ),
       );
@@ -681,11 +693,13 @@ class ItemCard extends StatelessWidget {
 
 // Data Models
 class CollegeItem {
+  final int collegeId;
   final String name;
   final String description;
   final bool hasVideo;
 
   CollegeItem({
+    required this.collegeId,
     required this.name,
     required this.description,
     this.hasVideo = false,
@@ -693,27 +707,27 @@ class CollegeItem {
 }
 
 class BuildingItem {
+  final int buildingId;
   final String name;
-  final String subtitle;
-  final String imagePath;
   final String description;
   final bool hasVideo;
 
   BuildingItem({
+    required this.buildingId,
     required this.name,
-    required this.subtitle,
-    required this.imagePath,
     required this.description,
     this.hasVideo = false,
   });
 }
 
 class OfficeItem {
+  final int officeId;
   final String name;
   final String description;
   final bool hasVideo;
 
   OfficeItem({
+    required this.officeId,
     required this.name,
     required this.description,
     this.hasVideo = false,
