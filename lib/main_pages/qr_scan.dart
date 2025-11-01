@@ -53,7 +53,7 @@ class _QRScannerPageState extends State<QRScannerPage> {
       print('Fetching from Supabase...');
       final response = await supabase
           .from('Building')
-          .select('building_id, building_name, address')
+          .select('building_id, building_name')
           .eq('building_id', buildingId)
           .single();
 

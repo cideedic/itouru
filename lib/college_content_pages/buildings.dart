@@ -81,12 +81,48 @@ class _BuildingsTabState extends State<BuildingsTab>
     final rooms = widget.roomsByBuilding[buildingId] ?? [];
     final selectedFloor = selectedFloorPerBuilding[buildingId] ?? 'All';
 
+    List<Map<String, dynamic>> filtered;
     if (selectedFloor == 'All') {
-      return rooms;
+      filtered = List.from(rooms);
+    } else {
+      int floorNumber = int.parse(selectedFloor);
+      filtered = rooms
+          .where((room) => room['floor_level'] == floorNumber)
+          .toList();
     }
 
-    int floorNumber = int.parse(selectedFloor);
-    return rooms.where((room) => room['floor_level'] == floorNumber).toList();
+    // Sort rooms: first by whether they have room_number, then by room_number or room_name
+    filtered.sort((a, b) {
+      final aNumber = a['room_number']?.toString().trim() ?? '';
+      final bNumber = b['room_number']?.toString().trim() ?? '';
+      final aHasNumber = aNumber.isNotEmpty;
+      final bHasNumber = bNumber.isNotEmpty;
+
+      // Rooms with numbers come before rooms without numbers
+      if (aHasNumber && !bHasNumber) return -1;
+      if (!aHasNumber && bHasNumber) return 1;
+
+      // Both have room numbers - sort by room number
+      if (aHasNumber && bHasNumber) {
+        // Try to parse as numbers first for proper numeric sorting
+        final aNum = int.tryParse(aNumber);
+        final bNum = int.tryParse(bNumber);
+
+        if (aNum != null && bNum != null) {
+          return aNum.compareTo(bNum);
+        }
+
+        // If not both numbers, do string comparison
+        return aNumber.compareTo(bNumber);
+      }
+
+      // Both don't have room numbers - sort by room name
+      final aName = a['room_name']?.toString().trim() ?? '';
+      final bName = b['room_name']?.toString().trim() ?? '';
+      return aName.compareTo(bName);
+    });
+
+    return filtered;
   }
 
   @override
@@ -339,6 +375,12 @@ class _BuildingsTabState extends State<BuildingsTab>
   }
 
   Widget _buildRoomCard(Map<String, dynamic> room) {
+    final hasName =
+        room['room_name'] != null &&
+        room['room_name'].toString().trim().isNotEmpty;
+    final roomNumberRaw = room['room_number']?.toString().trim();
+    final roomNumberExists = roomNumberRaw != null && roomNumberRaw.isNotEmpty;
+
     return Container(
       margin: EdgeInsets.only(bottom: 8),
       padding: EdgeInsets.all(12),
@@ -369,14 +411,21 @@ class _BuildingsTabState extends State<BuildingsTab>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Title: show room_name if present, otherwise fallback to Room <number> or 'Room'
                     Row(
                       children: [
-                        Text(
-                          'Room ${room['room_number']?.toString() ?? 'N/A'}',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
+                        Expanded(
+                          child: Text(
+                            hasName
+                                ? room['room_name']
+                                : (roomNumberExists
+                                      ? 'Room $roomNumberRaw'
+                                      : 'Room'),
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
                           ),
                         ),
                         SizedBox(width: 8),
@@ -400,12 +449,13 @@ class _BuildingsTabState extends State<BuildingsTab>
                         ),
                       ],
                     ),
-                    if (room['room_name'] != null &&
-                        room['room_name'].toString().isNotEmpty)
+
+                    // Show room number BELOW the name only when a name exists AND a number exists
+                    if (hasName && roomNumberExists)
                       Padding(
                         padding: EdgeInsets.only(top: 4),
                         child: Text(
-                          room['room_name'],
+                          'Room $roomNumberRaw',
                           style: GoogleFonts.poppins(
                             fontSize: 11,
                             color: Colors.grey[600],

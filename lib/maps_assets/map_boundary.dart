@@ -1,11 +1,11 @@
 // lib/maps_assets/map_boundary.dart
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'dart:convert';
+import 'dart:math';
 
 class MapBoundary {
   // Bicol University West Campus center
-  static const LatLng bicolUniversityCenter = LatLng(13.1441, 123.7241);
+  static const LatLng bicolUniversityCenter = LatLng(13.14413932, 123.72296108);
 
   // Exact boundary points from GeoJSON export
   static List<LatLng> getCampusBoundaryPoints() {
@@ -21,8 +21,9 @@ class MapBoundary {
       const LatLng(13.1460985, 123.7222534),
       const LatLng(13.145675, 123.7218247),
       const LatLng(13.1456025, 123.7217525),
-      const LatLng(13.1449527, 123.7214289),
-      const LatLng(13.144593, 123.7214354),
+      const LatLng(13.14520684, 123.72113722),
+      const LatLng(13.14498325, 123.72104204),
+      const LatLng(13.14475900, 123.72094235),
       const LatLng(13.1444454, 123.7208822),
       const LatLng(13.1443412, 123.7201676),
       const LatLng(13.143907, 123.7196946),
@@ -99,47 +100,116 @@ class MapBoundary {
     return intersections % 2 == 1;
   }
 
-  // Get camera constraint with padding to prevent going outside campus
+  // ✅ STRICT BOUNDARY: Camera constraint that keeps view within campus
   static CameraConstraint getCameraConstraint() {
     final bounds = getCampusBounds();
 
-    // Add small padding to prevent edge cases
+    // Small padding to allow full building visibility at edges (≈50 meters)
     const double padding = 0.0005;
 
-    final paddedBounds = LatLngBounds(
+    final constrainedBounds = LatLngBounds(
       LatLng(bounds.south - padding, bounds.west - padding),
       LatLng(bounds.north + padding, bounds.east + padding),
     );
 
-    return CameraConstraint.contain(bounds: paddedBounds);
+    // Use contain to prevent ANY part of the view from going outside bounds
+    // This stops users from swiping/panning beyond the campus area
+    return CameraConstraint.contain(bounds: constrainedBounds);
   }
 
-  // Get minimum and maximum zoom levels appropriate for campus
-  static double getMinZoom() => 16.0; // Prevent zooming out too far
-  static double getMaxZoom() => 22.0; // Allow detailed view
-  static double getInitialZoom() => 18.0; // Good overview of campus
+  // ✅ FLEXIBLE BOUNDARY: For virtual tours that need to show gates/routes outside
+  static CameraConstraint getFlexibleCameraConstraint() {
+    final bounds = getCampusBounds();
 
-  // Parse GeoJSON data if you want to load it dynamically
-  static List<LatLng> parseGeoJsonBoundary(String geoJsonString) {
-    final Map<String, dynamic> geoJson = json.decode(geoJsonString);
-    final List<LatLng> points = [];
+    // Larger padding for virtual tours (≈700 meters)
+    const double padding = 0.007;
 
-    if (geoJson['features'] != null && geoJson['features'].isNotEmpty) {
-      final feature = geoJson['features'][0];
-      if (feature['geometry'] != null &&
-          feature['geometry']['type'] == 'Polygon' &&
-          feature['geometry']['coordinates'] != null) {
-        final coordinates = feature['geometry']['coordinates'][0];
+    final expandedBounds = LatLngBounds(
+      LatLng(bounds.south - padding, bounds.west - padding),
+      LatLng(bounds.north + padding, bounds.east + padding),
+    );
 
-        for (final coord in coordinates) {
-          if (coord is List && coord.length >= 2) {
-            // GeoJSON format is [longitude, latitude]
-            points.add(LatLng(coord[1].toDouble(), coord[0].toDouble()));
-          }
-        }
+    return CameraConstraint.contain(bounds: expandedBounds);
+  }
+
+  // ✅ UNCONSTRAINED: For special cases (testing, debugging)
+  static CameraConstraint getUnconstrainedCamera() {
+    return CameraConstraint.unconstrained();
+  }
+
+  // ✅ SMART SELECTOR: Get appropriate constraint based on context
+  static CameraConstraint getCameraConstraintForContext({
+    bool isVirtualTour = false,
+    bool allowExternal = false,
+  }) {
+    if (allowExternal) {
+      return getUnconstrainedCamera();
+    } else if (isVirtualTour) {
+      return getFlexibleCameraConstraint();
+    } else {
+      return getCameraConstraint(); // Strict by default
+    }
+  }
+
+  // ✅ STRICTER ZOOM LEVELS: More restrictive for campus-only view
+  // These prevent zooming out too far or in beyond OSM tile limits
+  static double getMinZoom() =>
+      17.0; // Can't zoom out too far (campus fills screen)
+  static double getMaxZoom() => 21.0; // Can't zoom in beyond OSM tiles
+  static double getInitialZoom() => 17.45; // Good starting view
+
+  // ✅ Check if point is reasonably close to campus (for routing)
+  static bool isNearCampus(LatLng point, {double radiusKm = 1.0}) {
+    return _distanceBetween(point, bicolUniversityCenter) <= radiusKm * 1000;
+  }
+
+  // ✅ Calculate distance between two points (Haversine formula)
+  static double _distanceBetween(LatLng point1, LatLng point2) {
+    const double earthRadius = 6371000; // meters
+
+    final lat1Rad = point1.latitude * pi / 180;
+    final lat2Rad = point2.latitude * pi / 180;
+    final deltaLatRad = (point2.latitude - point1.latitude) * pi / 180;
+    final deltaLngRad = (point2.longitude - point1.longitude) * pi / 180;
+
+    final a =
+        pow(sin(deltaLatRad / 2), 2) +
+        cos(lat1Rad) * cos(lat2Rad) * pow(sin(deltaLngRad / 2), 2);
+
+    final c = 2 * asin(sqrt(a));
+
+    return earthRadius * c;
+  }
+
+  // ✅ ACTIVE USE: Clamp a point to stay within campus bounds
+  // Used by: Location tracking, user positioning, route calculations
+  // Purpose: Ensures coordinates don't go outside valid campus area
+  static LatLng clampToCampusBounds(LatLng point) {
+    final bounds = getCampusBounds();
+
+    final clampedLat = point.latitude.clamp(bounds.south, bounds.north);
+    final clampedLng = point.longitude.clamp(bounds.west, bounds.east);
+
+    return LatLng(clampedLat, clampedLng);
+  }
+
+  // ✅ ACTIVE USE: Get the closest point on campus boundary to a given point
+  // Used by: Entrance/exit detection, gate finding, boundary snapping
+  // Purpose: Find nearest valid campus entry point for off-campus users
+  static LatLng getClosestPointOnBoundary(LatLng point) {
+    final boundaryPoints = getCampusBoundaryPoints();
+
+    LatLng closestPoint = boundaryPoints.first;
+    double minDistance = _distanceBetween(point, closestPoint);
+
+    for (final boundaryPoint in boundaryPoints) {
+      final distance = _distanceBetween(point, boundaryPoint);
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestPoint = boundaryPoint;
       }
     }
 
-    return points;
+    return closestPoint;
   }
 }

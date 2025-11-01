@@ -131,7 +131,7 @@ class _HistoryTabState extends State<HistoryTab> {
                         Text(
                           year,
                           style: GoogleFonts.poppins(
-                            fontSize: isSelected ? 13 : 11,
+                            fontSize: isSelected ? 18 : 13,
                             fontWeight: isSelected
                                 ? FontWeight.w700
                                 : FontWeight.w500,

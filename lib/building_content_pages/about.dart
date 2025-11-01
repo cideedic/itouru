@@ -1,28 +1,104 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:itouru/main_pages/maps.dart';
 
 class BuildingAboutTab extends StatelessWidget {
+  final int? buildingId;
+  final String buildingName;
+  final String? buildingType;
   final String? description;
-  final String? location;
   final int? numberOfFloors;
   final int numberOfRooms;
   final bool hasRooms;
 
   const BuildingAboutTab({
     super.key,
+    this.buildingId,
+    required this.buildingName,
+    this.buildingType,
     this.description,
-    this.location,
     this.numberOfFloors,
     this.numberOfRooms = 0,
     this.hasRooms = true,
   });
 
+  // ✅ UPDATED: Now allows directions for ALL building types including landmarks
+  bool get _canGetDirections {
+    // As long as we have a buildingId, we can get directions
+    return buildingId != null;
+  }
+
   void _handleDirections(BuildContext context) {
-    // TODO: Implement directions functionality
-    print('Get directions to building at: $location');
-    ScaffoldMessenger.of(
+    // Check if buildingId is available
+    if (buildingId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Building location not available'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    print('\n🚀 === GET DIRECTIONS BUTTON PRESSED ===');
+    print('📍 Building ID: $buildingId');
+    print('📍 Building Name: $buildingName');
+    print('📍 Building Type: $buildingType');
+    print('📍 Is Landmark: ${buildingType?.toLowerCase() == 'landmark'}');
+
+    // Show loading indicator
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('Opening map...'),
+          ],
+        ),
+        backgroundColor: Colors.blue,
+        duration: Duration(milliseconds: 1000),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    // Determine item type based on building_type
+    String itemType;
+    if (buildingType?.toLowerCase() == 'landmark') {
+      itemType = 'marker'; // Navigate to landmark marker
+      print('🏛️ Landmark - Will navigate to marker');
+    } else {
+      itemType = 'building'; // Navigate to building polygon
+      print('🏢 Building - Will navigate to polygon');
+    }
+
+    print('📋 Summary:');
+    print('   - Target Building ID: $buildingId');
+    print('   - Destination Name: $buildingName');
+    print('   - Item Type: $itemType');
+    print('🚀 === NAVIGATING TO MAPS PAGE ===\n');
+
+    // Navigate to Maps page with auto-navigation
+    Navigator.pushReplacement(
       context,
-    ).showSnackBar(SnackBar(content: Text('Opening directions...')));
+      MaterialPageRoute(
+        builder: (context) => Maps(
+          buildingId: buildingId,
+          destinationName: buildingName,
+          itemType:
+              itemType, // Uses 'marker' for landmarks, 'building' for regular buildings
+        ),
+      ),
+    );
   }
 
   @override
@@ -44,22 +120,8 @@ class BuildingAboutTab extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(height: 16),
+          SizedBox(height: 8),
         ],
-
-        // Location Card
-        _buildSectionCard(
-          'Location',
-          Icons.location_on,
-          Text(
-            location ?? 'N/A',
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              height: 1.6,
-              color: Colors.black87,
-            ),
-          ),
-        ),
 
         // Show Floors and Rooms only if building has rooms
         if (hasRooms) ...[
@@ -103,27 +165,33 @@ class BuildingAboutTab extends StatelessWidget {
 
         SizedBox(height: 24),
 
-        // Directions Button
+        // ✅ UPDATED: Directions Button now works for landmarks too
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: () => _handleDirections(context),
+            onPressed: _canGetDirections
+                ? () => _handleDirections(context)
+                : null,
             icon: Icon(Icons.directions, size: 20),
             label: Text(
-              'Get Directions',
+              _canGetDirections ? 'Get Directions' : 'Location Unavailable',
               style: GoogleFonts.poppins(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange[700],
+              backgroundColor: _canGetDirections
+                  ? Colors.orange[700]
+                  : Colors.grey[400],
               foregroundColor: Colors.white,
               padding: EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              elevation: 2,
+              elevation: _canGetDirections ? 2 : 0,
+              disabledBackgroundColor: Colors.grey[400],
+              disabledForegroundColor: Colors.white,
             ),
           ),
         ),

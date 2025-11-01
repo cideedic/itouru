@@ -8,6 +8,8 @@ class OfficeAboutTab extends StatelessWidget {
   final String? buildingName;
   final String? roomName;
   final Map<String, dynamic>? headData;
+  final int? buildingId;
+  final VoidCallback onDirectionsPressed;
 
   const OfficeAboutTab({
     super.key,
@@ -15,17 +17,9 @@ class OfficeAboutTab extends StatelessWidget {
     this.buildingName,
     this.roomName,
     this.headData,
+    this.buildingId,
+    required this.onDirectionsPressed,
   });
-
-  void _handleDirections(BuildContext context) {
-    // TODO: Implement directions functionality
-    print(
-      'Get directions to office at: $buildingName${roomName != null ? ", $roomName" : ""}',
-    );
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Opening directions...')));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,30 +51,58 @@ class OfficeAboutTab extends StatelessWidget {
         ),
         SizedBox(height: 24),
 
-        // Directions Button
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () => _handleDirections(context),
-            icon: Icon(Icons.directions, size: 20),
-            label: Text(
-              'Get Directions',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+        // Directions Button - Only show if building is assigned
+        if (buildingId != null)
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: onDirectionsPressed,
+              icon: Icon(Icons.directions, size: 20),
+              label: Text(
+                'Get Directions',
+                style: GoogleFonts.poppins(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange[700],
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange[700],
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
               ),
-              elevation: 2,
             ),
           ),
-        ),
+
+        // Show message if no building assigned
+        if (buildingId == null)
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange[300]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Location not available for navigation',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: Colors.orange[900],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
 
         // Head Information Card
         if (headData != null && headData!.isNotEmpty) ...[
