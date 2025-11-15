@@ -49,7 +49,7 @@ class OfficeAboutTab extends StatelessWidget {
           Icons.location_on,
           _buildLocationContent(),
         ),
-        SizedBox(height: 24),
+        SizedBox(height: 16),
 
         // Directions Button - Only show if building is assigned
         if (buildingId != null)
@@ -66,7 +66,7 @@ class OfficeAboutTab extends StatelessWidget {
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange[700],
+                backgroundColor: Color(0xFFFF8C00),
                 foregroundColor: Colors.white,
                 padding: EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
@@ -77,36 +77,9 @@ class OfficeAboutTab extends StatelessWidget {
             ),
           ),
 
-        // Show message if no building assigned
-        if (buildingId == null)
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.orange[50],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange[300]!),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, color: Colors.orange[700], size: 20),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Location not available for navigation',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      color: Colors.orange[900],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
         // Head Information Card
         if (headData != null && headData!.isNotEmpty) ...[
-          SizedBox(height: 24),
+          SizedBox(height: 16),
           InfoCard(headData: headData!),
         ],
       ],
@@ -148,7 +121,7 @@ class OfficeAboutTab extends StatelessWidget {
           child: Text(
             title,
             style: GoogleFonts.montserrat(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.w800,
               color: Colors.black87,
               letterSpacing: 0.5,

@@ -193,7 +193,7 @@ class MapWidgets {
                       ? _getBuildingTypeText(result)
                       : null;
                   icon = Icons.business;
-                  iconColor = Colors.orange;
+                  iconColor = Color(0xFFFF8C00);
                 } else if (result is BicolMarker) {
                   // College or Landmark
                   name = result.displayName;
@@ -401,7 +401,7 @@ class MapWidgets {
             isLocationConnected ? 'Connected' : 'Finding location...',
             style: TextStyle(
               fontSize: 12,
-              color: isLocationConnected ? Colors.green : Colors.orange,
+              color: isLocationConnected ? Colors.green : Color(0xFFFF8C00),
               fontWeight: FontWeight.w500,
             ),
           ),

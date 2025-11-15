@@ -96,7 +96,7 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
                   const SizedBox(height: 16),
                   _buildInfoCard(
                     icon: Icons.lightbulb_outline,
-                    iconColor: Colors.orange,
+                    iconColor: Color(0xFFFF8C00),
                     title: 'Our Inspiration',
                     description:
                         'The idea for iTOURu was born from observing the daily navigation challenges faced by our campus community. First-year students often struggle to locate their classrooms in unfamiliar buildings, spending precious time wandering through corridors. Faculty members frequently find themselves getting lost when offices are relocated to different locations across campus. Visitors and guests have difficulty navigating the sprawling campus grounds without proper guidance. New employees face the challenge of trying to familiarize themselves with the vast array of campus facilities and services. Recognizing these pain points, we envisioned a solution that would make campus navigation effortless while simultaneously promoting awareness of our university\'s cultural and historical significance.',
@@ -113,7 +113,7 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
                       children: [
                         Icon(
                           Icons.info_outline,
-                          color: Colors.orange[800],
+                          color: Color(0xFFFF8C00),
                           size: 24,
                         ),
                         const SizedBox(width: 12),
@@ -122,7 +122,7 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
                             'Note: iTOURu is designed for navigation purposes only. It serves as a guide to help you explore and discover Bicol University - West Campus.',
                             style: GoogleFonts.poppins(
                               fontSize: 12,
-                              color: Colors.orange[900],
+                              color: Color(0xFFFF8C00),
                               height: 1.5,
                             ),
                           ),
@@ -172,7 +172,7 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
                   const SizedBox(height: 40),
                   CreatorPanel(
                     key: _creatorKeys[3],
-                    name: 'JOHN\nCEDRicK',
+                    name: 'JOHN\nCEDRICK',
                     rolesText: 'Mobile Application Developer',
                     imagePath: 'assets/images/test1.png',
                     motto: 'ow yea',
@@ -385,9 +385,9 @@ class _CreatorPanelState extends State<CreatorPanel>
                               widget.name,
                               textAlign: TextAlign.right,
                               style: GoogleFonts.getFont(
-                                'Notable',
+                                'Montserrat',
                                 fontSize: 44,
-                                fontWeight: FontWeight.w400,
+                                fontWeight: FontWeight.w900,
                                 color: Colors.black87,
                                 height: 0.95,
                               ),
@@ -444,7 +444,7 @@ class _CreatorPanelState extends State<CreatorPanel>
                               color: Colors.orange[100],
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: Colors.orange[900]!,
+                                color: Color(0xFFFF8C00),
                                 width: 1.5,
                               ),
                             ),
@@ -453,7 +453,7 @@ class _CreatorPanelState extends State<CreatorPanel>
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.orange[900],
+                                color: Color(0xFFFF8C00),
                                 letterSpacing: 0.5,
                               ),
                             ),

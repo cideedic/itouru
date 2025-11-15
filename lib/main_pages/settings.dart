@@ -42,7 +42,7 @@ class Settings extends StatelessWidget {
 
                     AnimatedSettingItem(
                       icon: Icons.security,
-                      iconColor: Colors.orange[400]!,
+                      iconColor: Color(0xFFFF8C00),
                       title: 'Privacy & Security',
                       subtitle: 'Manage your privacy settings',
                       onTap: () {
@@ -68,7 +68,7 @@ class Settings extends StatelessWidget {
                     ),
                     AnimatedSettingItem(
                       icon: Icons.help_outline,
-                      iconColor: Colors.orange[400]!,
+                      iconColor: Color(0xFFFF8C00),
                       title: 'Help & Support',
                       subtitle: 'Get help and contact support',
                       onTap: () {
@@ -82,7 +82,7 @@ class Settings extends StatelessWidget {
                     ),
                     AnimatedSettingItem(
                       icon: Icons.info_outline,
-                      iconColor: Colors.orange[400]!,
+                      iconColor: Color(0xFFFF8C00),
                       title: 'About iTOURu',
                       subtitle:
                           'Know more about the application and its creators',
@@ -97,7 +97,7 @@ class Settings extends StatelessWidget {
                     ),
                     AnimatedSettingItem(
                       icon: Icons.logout,
-                      iconColor: Colors.orange[400]!,
+                      iconColor: Color(0xFFFF8C00),
                       title: 'Log Out',
                       subtitle: 'Exit Application',
                       onTap: () async {
@@ -120,15 +120,15 @@ class Settings extends StatelessWidget {
                                   Container(
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
-                                      color: Colors.orange.withValues(
-                                        alpha: 0.1,
-                                      ),
+                                      color: Color(
+                                        0xFFFF8C00,
+                                      ).withValues(alpha: 0.1),
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
                                       Icons.logout,
                                       size: 48,
-                                      color: Colors.orange,
+                                      color: Color(0xFFFF8C00),
                                     ),
                                   ),
                                   const SizedBox(height: 20),
@@ -192,7 +192,7 @@ class Settings extends StatelessWidget {
                                           onPressed: () =>
                                               Navigator.pop(context, true),
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.orange,
+                                            backgroundColor: Color(0xFFFF8C00),
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
                                                   BorderRadius.circular(12),
@@ -271,8 +271,8 @@ class _AnimatedSettingItemState extends State<AnimatedSettingItem> {
   bool _pressed = false;
 
   Color get _backgroundColor {
-    if (_pressed) return Colors.orange.withValues(alpha: 0.18);
-    if (_hovered) return Colors.orange.withValues(alpha: 0.12);
+    if (_pressed) return Color(0xFFFF8C00).withValues(alpha: 0.18);
+    if (_hovered) return Color(0xFFFF8C00).withValues(alpha: 0.12);
     return Colors.white;
   }
 

@@ -26,10 +26,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // Available avatars stored in Supabase Storage
   static const List<String> avatarOptions = [
-    'avatar_1.webp',
+    'avatar_1.png',
     'avatar_2.webp',
-    'avatar_3.webp',
-    'avatar_4.webp',
+    'avatar_3.png',
+    'avatar_4.png',
     'avatar_5.webp',
     'avatar_6.png',
   ];
@@ -443,8 +443,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                           decoration: BoxDecoration(
                                             shape: BoxShape.circle,
                                             border: Border.all(
-                                              color: Colors.orange,
-                                              width: 4,
+                                              color: Colors.blue,
+                                              width: 0.5,
                                             ),
                                             boxShadow: [
                                               BoxShadow(

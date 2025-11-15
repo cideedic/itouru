@@ -5,18 +5,14 @@ import 'package:itouru/page_components/info_card.dart';
 
 class AboutTab extends StatelessWidget {
   final String description;
-  final String vision;
-  final String mission;
-  final String goals;
+  final String learningOutcomes;
   final String objectives;
   final Map<String, dynamic>? headData;
 
   const AboutTab({
     super.key,
     required this.description,
-    required this.vision,
-    required this.mission,
-    required this.goals,
+    required this.learningOutcomes,
     required this.objectives,
     this.headData,
   });
@@ -40,28 +36,12 @@ class AboutTab extends StatelessWidget {
           SizedBox(height: 16),
         ],
 
-        // Vision
-        if (_isNotEmpty(vision)) ...[
+        // Learning Outcomes (previously Goals)
+        if (_isNotEmpty(learningOutcomes)) ...[
           _buildSectionCard(
-            'Vision',
-            Icons.visibility,
-            _buildTextContent(vision),
-          ),
-          SizedBox(height: 16),
-        ],
-
-        // Mission
-        if (_isNotEmpty(mission)) ...[
-          _buildSectionCard('Mission', Icons.flag, _buildTextContent(mission)),
-          SizedBox(height: 16),
-        ],
-
-        // Goals
-        if (_isNotEmpty(goals)) ...[
-          _buildSectionCard(
-            'Goals',
-            Icons.track_changes,
-            _buildTextContent(goals),
+            'Learning Outcomes',
+            Icons.psychology,
+            _buildTextContent(learningOutcomes),
           ),
           SizedBox(height: 16),
         ],
@@ -117,7 +97,7 @@ class AboutTab extends StatelessWidget {
           child: Text(
             title,
             style: GoogleFonts.montserrat(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.w800,
               color: Colors.black87,
               letterSpacing: 0.5,

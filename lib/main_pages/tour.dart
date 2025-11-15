@@ -3,8 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/header.dart';
 import 'package:itouru/page_components/bottom_nav_bar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:itouru/main_pages/maps.dart'; // ✨ Import Maps page
-import 'package:itouru/maps_assets/virtual_tour_manager.dart'; // ✨ Import VirtualTourManager
+import 'package:itouru/main_pages/maps.dart';
+import 'package:itouru/maps_assets/virtual_tour_manager.dart';
+import 'package:itouru/page_components/loading_widget.dart';
 
 class Tours extends StatefulWidget {
   const Tours({super.key});
@@ -17,11 +18,19 @@ class ToursState extends State<Tours> {
   final supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _tours = [];
   bool _isLoading = true;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _fetchTours();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchTours() async {
@@ -57,6 +66,19 @@ class ToursState extends State<Tours> {
     }
   }
 
+  List<Map<String, dynamic>> _getFilteredTours() {
+    if (_searchQuery.isEmpty) {
+      return _tours;
+    }
+
+    return _tours.where((tour) {
+      final name = tour['name']?.toString().toLowerCase() ?? '';
+      final query = _searchQuery.toLowerCase();
+
+      return name.contains(query);
+    }).toList();
+  }
+
   void _onTourTap(Map<String, dynamic> tour) {
     Navigator.push(
       context,
@@ -66,6 +88,8 @@ class ToursState extends State<Tours> {
 
   @override
   Widget build(BuildContext context) {
+    final filteredTours = _getFilteredTours();
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Column(
@@ -73,42 +97,127 @@ class ToursState extends State<Tours> {
           ReusableHeader(),
           Expanded(
             child: _isLoading
-                ? Center(
-                    child: CircularProgressIndicator(color: Colors.orange[400]),
+                ? LoadingScreen.dots(
+                    title: 'Loading Tours',
+                    subtitle: 'Please Wait',
                   )
-                : _tours.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.tour_outlined,
-                          size: 80,
-                          color: Colors.grey[300],
-                        ),
-                        SizedBox(height: 16),
-                        Text(
-                          'No tours available',
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
+                : Column(
+                    children: [
+                      // Search Bar
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(20, 20, 20, 16),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[300]!),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (value) {
+                              setState(() {
+                                _searchQuery = value;
+                              });
+                            },
+                            decoration: InputDecoration(
+                              hintText: 'Search tours...',
+                              hintStyle: GoogleFonts.poppins(
+                                fontSize: 14,
+                                color: Colors.grey[500],
+                              ),
+                              prefixIcon: Icon(
+                                Icons.search,
+                                color: Colors.grey[600],
+                                size: 22,
+                              ),
+                              suffixIcon: _searchQuery.isNotEmpty
+                                  ? IconButton(
+                                      icon: Icon(
+                                        Icons.clear,
+                                        color: Colors.grey[600],
+                                        size: 20,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _searchController.clear();
+                                          _searchQuery = '';
+                                        });
+                                      },
+                                    )
+                                  : null,
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 14,
+                              ),
+                            ),
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
                           ),
                         ),
-                      ],
-                    ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: _fetchTours,
-                    color: Colors.orange[400],
-                    child: ListView.builder(
-                      padding: EdgeInsets.all(20),
-                      itemCount: _tours.length,
-                      itemBuilder: (context, index) {
-                        final tour = _tours[index];
-                        return _buildTourCard(tour);
-                      },
-                    ),
+                      ),
+
+                      // Tours List
+                      Expanded(
+                        child: filteredTours.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      _searchQuery.isNotEmpty
+                                          ? Icons.search_off
+                                          : Icons.tour_outlined,
+                                      size: 80,
+                                      color: Colors.grey[300],
+                                    ),
+                                    SizedBox(height: 16),
+                                    Text(
+                                      _searchQuery.isNotEmpty
+                                          ? 'No tours found'
+                                          : 'No tours available',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 16,
+                                        color: Colors.grey[600],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    if (_searchQuery.isNotEmpty) ...[
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'Try adjusting your search',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 14,
+                                          color: Colors.grey[500],
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              )
+                            : RefreshIndicator(
+                                onRefresh: _fetchTours,
+                                color: Color(0xFFFF8C00),
+                                child: ListView.builder(
+                                  padding: EdgeInsets.fromLTRB(20, 0, 20, 20),
+                                  itemCount: filteredTours.length,
+                                  itemBuilder: (context, index) {
+                                    final tour = filteredTours[index];
+                                    return _buildTourCard(tour);
+                                  },
+                                ),
+                              ),
+                      ),
+                    ],
                   ),
           ),
         ],
@@ -152,7 +261,7 @@ class ToursState extends State<Tours> {
                     ),
                     child: Icon(
                       Icons.location_on_rounded,
-                      color: Colors.orange[400],
+                      color: Color(0xFFFF8C00),
                       size: 28,
                     ),
                   ),
@@ -329,7 +438,11 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
         ),
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: Colors.orange[400]))
+          ? LoadingScreen.dots(
+              title: 'Loading Tour Stops',
+              subtitle: 'Preparing your tour',
+              primaryColor: Color(0xFFFF8C00),
+            )
           : _buildings.isEmpty
           ? Center(
               child: Column(
@@ -421,7 +534,7 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
                         child: ElevatedButton(
                           onPressed: _startVirtualTour,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange[400],
+                            backgroundColor: Color(0xFFFF8C00),
                             padding: EdgeInsets.symmetric(vertical: 16),
                             elevation: 0,
                             shape: RoundedRectangleBorder(
@@ -457,7 +570,6 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
     );
   }
 
-  // ✨ NEW: Start virtual tour method
   void _startVirtualTour() {
     print('\n🎬 === PREPARING VIRTUAL TOUR ===');
     print('Tour: ${widget.tour['name']}');
@@ -478,7 +590,7 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
           buildingName: buildingData['building_name'] ?? 'Unknown Building',
           buildingNickname: buildingData['building_nickname'] ?? '',
           notes: building['notes'] as String?,
-          location: null, // Will be resolved in Maps page
+          location: null,
         ),
       );
     }
@@ -528,7 +640,7 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: Colors.orange[400],
+                color: Color(0xFFFF8C00),
                 shape: BoxShape.circle,
               ),
               child: Center(

@@ -1,8 +1,11 @@
+// virtual_tour_card.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../maps_assets/virtual_tour_manager.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
+import 'package:itouru/college_content_pages/content.dart' as CollegeContent;
+import 'package:itouru/building_content_pages/content.dart' as BuildingContent;
 
 class VirtualTourStopCard extends StatefulWidget {
   final VirtualTourStop stop;
@@ -36,6 +39,7 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
   int _currentImageIndex = 0;
   Timer? _autoPlayTimer;
   PageController? _pageController;
+  bool _isMinimized = false;
 
   @override
   void initState() {
@@ -52,13 +56,11 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
 
   Future<void> _loadBuildingImages() async {
     try {
-      // Get building name from the stop
       final buildingName = widget.stop.buildingName;
       final buildingNickname = widget.stop.buildingNickname;
 
       List<String> possibleFolderNames = [];
 
-      // Add building name as folder name
       final buildingFolderName = buildingName
           .toLowerCase()
           .replaceAll('.', '')
@@ -66,7 +68,6 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
           .trim();
       possibleFolderNames.add(buildingFolderName);
 
-      // Add nickname if available
       if (buildingNickname.isNotEmpty) {
         final nicknameFolderName = buildingNickname
             .toLowerCase()
@@ -80,7 +81,6 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
 
       List<dynamic> imagesResponse = [];
 
-      // Try each possible folder name
       for (var folderName in possibleFolderNames) {
         final response = await _supabase
             .from('storage_objects_snapshot')
@@ -104,7 +104,6 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
         final imagePath = imageData['name'] as String;
         final filename = imageData['filename'] as String;
 
-        // Skip placeholder and logo files
         if (filename == '.emptyFolderPlaceholder' ||
             imagePath.endsWith('.emptyFolderPlaceholder') ||
             filename.contains('_logo')) {
@@ -117,7 +116,6 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
         imageUrls.add(publicUrl);
       }
 
-      // Limit to 3 images
       if (imageUrls.length > 3) {
         imageUrls = imageUrls.sublist(0, 3);
       }
@@ -129,7 +127,6 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
         _isLoadingImages = false;
       });
 
-      // Start auto-play if multiple images
       if (imageUrls.length > 1) {
         _pageController = PageController();
         _startAutoPlay();
@@ -149,6 +146,10 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
         return;
       }
 
+      if (!_pageController!.hasClients) {
+        return;
+      }
+
       setState(() {
         _currentImageIndex = (_currentImageIndex + 1) % _imageUrls.length;
       });
@@ -161,176 +162,258 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
     });
   }
 
+  void _navigateToDetailsPage(BuildContext context) {
+    if (widget.stop.isMarker) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CollegeContent.CollegeDetailsPage(
+            collegeId: widget.stop.buildingId,
+            collegeName: widget.stop.buildingName,
+            title: widget.stop.buildingName,
+          ),
+        ),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => BuildingContent.BuildingDetailsPage(
+            buildingId: widget.stop.buildingId,
+            title: widget.stop.buildingName,
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header with progress
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Colors.orange[400]!, Colors.orange[600]!],
-              ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(20),
-              ),
+    // Minimized view
+    if (_isMinimized) {
+      return _buildMinimizedCard();
+    }
+
+    // Full card view - positioned at bottom
+    return Positioned(
+      left: 16,
+      right: 16,
+      bottom: 16,
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.7,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.2),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
             ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Stop ${widget.stop.stopNumber}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${widget.stop.stopNumber} of ${widget.totalStops}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Progress bar
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: widget.stop.stopNumber / widget.totalStops,
-                    backgroundColor: Colors.white.withValues(alpha: 0.3),
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      Colors.white,
-                    ),
-                    minHeight: 6,
+          ],
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header with progress and minimize button
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFFFF8C00), Color(0xFFFF8C00)],
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
                   ),
                 ),
-              ],
-            ),
-          ),
-
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Building name
-                Row(
+                child: Column(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.orange[50],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.location_city,
-                        color: Colors.orange[400],
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.stop.buildingName,
-                            style: GoogleFonts.poppins(
-                              fontSize: 18,
-                              color: Colors.black87,
-                              fontWeight: FontWeight.w700,
-                            ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Stop ${widget.stop.stopNumber}',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
                           ),
-                          if (widget.stop.buildingNickname.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              widget.stop.buildingNickname,
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                                fontWeight: FontWeight.w500,
+                        ),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.3),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${widget.stop.stopNumber} of ${widget.totalStops}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Minimize button
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () {
+                                  setState(() {
+                                    _isMinimized = true;
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.3),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.keyboard_arrow_down,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
                               ),
                             ),
                           ],
-                        ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Progress bar
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: widget.stop.stopNumber / widget.totalStops,
+                        backgroundColor: Colors.white.withValues(alpha: 0.3),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Colors.white,
+                        ),
+                        minHeight: 6,
                       ),
                     ),
                   ],
                 ),
+              ),
 
-                const SizedBox(height: 16),
-
-                // Images section
-                if (_isLoadingImages)
-                  Container(
-                    height: 180,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Center(
-                      child: CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Color(0xFF1A31C8),
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Building name with info button
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.orange[50],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.location_city,
+                            color: Color(0xFFFF8C00),
+                            size: 24,
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.stop.buildingName,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 18,
+                                  color: Colors.black87,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (widget.stop.buildingNickname.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  widget.stop.buildingNickname,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        // Info button
+                        GestureDetector(
+                          onTap: () => _navigateToDetailsPage(context),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.info_outline,
+                              color: Colors.blue[600],
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  )
-                else if (_imageUrls.isNotEmpty)
-                  Column(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: SizedBox(
-                          height: 180,
-                          child: PageView.builder(
-                            controller: _pageController,
-                            itemCount: _imageUrls.length,
-                            onPageChanged: (index) {
-                              setState(() {
-                                _currentImageIndex = index;
-                              });
-                            },
-                            itemBuilder: (context, index) {
-                              return Image.network(
-                                _imageUrls[index],
-                                fit: BoxFit.cover,
-                                loadingBuilder:
-                                    (context, child, loadingProgress) {
+
+                    const SizedBox(height: 16),
+
+                    // Images section
+                    if (_isLoadingImages)
+                      Container(
+                        height: 180,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Center(
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Color(0xFF1A31C8),
+                            ),
+                          ),
+                        ),
+                      )
+                    else if (_imageUrls.isNotEmpty)
+                      Column(
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: SizedBox(
+                              height: 180,
+                              child: PageView.builder(
+                                controller: _pageController,
+                                itemCount: _imageUrls.length,
+                                onPageChanged: (index) {
+                                  setState(() {
+                                    _currentImageIndex = index;
+                                  });
+                                },
+                                itemBuilder: (context, index) {
+                                  return Image.network(
+                                    _imageUrls[index],
+                                    fit: BoxFit.cover,
+                                    loadingBuilder: (context, child, loadingProgress) {
                                       if (loadingProgress == null) return child;
                                       return Container(
                                         color: Colors.grey[300],
@@ -349,220 +432,316 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
                                         ),
                                       );
                                     },
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: Colors.grey[300],
-                                    child: const Center(
-                                      child: Icon(
-                                        Icons.error_outline,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        color: Colors.grey[300],
+                                        child: const Center(
+                                          child: Icon(
+                                            Icons.error_outline,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   );
                                 },
-                              );
-                            },
+                              ),
+                            ),
+                          ),
+                          if (_imageUrls.length > 1) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(_imageUrls.length, (
+                                index,
+                              ) {
+                                return Container(
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: _currentImageIndex == index
+                                        ? Color(0xFFFF8C00)
+                                        : Colors.grey[300],
+                                  ),
+                                );
+                              }),
+                            ),
+                          ],
+                        ],
+                      ),
+
+                    // Notes section
+                    if (widget.stop.notes != null &&
+                        widget.stop.notes!.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.blue[200]!,
+                            width: 1,
                           ),
                         ),
-                      ),
-                      if (_imageUrls.length > 1) ...[
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: List.generate(_imageUrls.length, (index) {
-                            return Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: _currentImageIndex == index
-                                    ? Colors.orange[400]
-                                    : Colors.grey[300],
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: Colors.blue[700],
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                widget.stop.notes!,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: Colors.blue[900],
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.5,
+                                ),
                               ),
-                            );
-                          }),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ],
-                  ),
 
-                // Notes section
-                if (widget.stop.notes != null &&
-                    widget.stop.notes!.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.blue[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue[200]!, width: 1),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          color: Colors.blue[700],
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            widget.stop.notes!,
+                    const SizedBox(height: 20),
+
+                    // Navigation buttons
+                    if (widget.isLastStop)
+                      Column(
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: widget.onEndTour,
+                              icon: const Icon(Icons.check_circle, size: 18),
+                              label: Text(
+                                'Finish Tour',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green[500],
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: widget.onPrevious,
+                              icon: const Icon(Icons.arrow_back, size: 18),
+                              label: Text(
+                                'Previous',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                side: BorderSide(
+                                  color: Colors.grey[300]!,
+                                  width: 1.5,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      Row(
+                        children: [
+                          if (!widget.isFirstStop)
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: widget.onPrevious,
+                                icon: const Icon(Icons.arrow_back, size: 18),
+                                label: Text(
+                                  'Previous',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  side: BorderSide(
+                                    color: Colors.grey[300]!,
+                                    width: 1.5,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          if (!widget.isFirstStop) const SizedBox(width: 12),
+                          Expanded(
+                            flex: widget.isFirstStop ? 2 : 1,
+                            child: ElevatedButton.icon(
+                              onPressed: widget.onNext,
+                              icon: const Icon(Icons.arrow_forward, size: 18),
+                              label: Text(
+                                'Next Stop',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Color(0xFFFF8C00),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                    const SizedBox(height: 12),
+
+                    if (!widget.isLastStop)
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: widget.onEndTour,
+                          icon: const Icon(Icons.close, size: 16),
+                          label: Text(
+                            'End Virtual Tour',
                             style: GoogleFonts.poppins(
                               fontSize: 13,
-                              color: Colors.blue[900],
                               fontWeight: FontWeight.w500,
-                              height: 1.5,
                             ),
                           ),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red[400],
+                          ),
                         ),
-                      ],
-                    ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Minimized card view
+  Widget _buildMinimizedCard() {
+    return Positioned(
+      bottom: 16,
+      left: 16,
+      right: 16,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _isMinimized = false;
+            });
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Ink(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFFFF8C00), Color(0xFFFF8C00)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                ],
-
-                const SizedBox(height: 20),
-
-                // Navigation buttons
-                if (widget.isLastStop)
-                  // Last stop: Finish above Previous (vertical stack)
-                  Column(
-                    children: [
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: widget.onEndTour,
-                          icon: const Icon(Icons.check_circle, size: 18),
-                          label: Text(
-                            'Finish Tour',
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green[500],
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: widget.onPrevious,
-                          icon: const Icon(Icons.arrow_back, size: 18),
-                          label: Text(
-                            'Previous',
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            side: BorderSide(
-                              color: Colors.grey[300]!,
-                              width: 1.5,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                else
-                  // Other stops: Previous and Next side by side
-                  Row(
-                    children: [
-                      // Previous button
-                      if (!widget.isFirstStop)
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: widget.onPrevious,
-                            icon: const Icon(Icons.arrow_back, size: 18),
-                            label: Text(
-                              'Previous',
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              side: BorderSide(
-                                color: Colors.grey[300]!,
-                                width: 1.5,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
-
-                      if (!widget.isFirstStop) const SizedBox(width: 12),
-
-                      // Next button
-                      Expanded(
-                        flex: widget.isFirstStop ? 2 : 1,
-                        child: ElevatedButton.icon(
-                          onPressed: widget.onNext,
-                          icon: const Icon(Icons.arrow_forward, size: 18),
-                          label: Text(
-                            'Next Stop',
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange[400],
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  child: const Icon(
+                    Icons.location_city,
+                    color: Colors.white,
+                    size: 24,
                   ),
-
-                const SizedBox(height: 12),
-
-                // End tour button (only show if NOT the last stop)
-                if (!widget.isLastStop)
-                  Center(
-                    child: TextButton.icon(
-                      onPressed: widget.onEndTour,
-                      icon: const Icon(Icons.close, size: 16),
-                      label: Text(
-                        'End Virtual Tour',
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Stop ${widget.stop.stopNumber} of ${widget.totalStops}',
                         style: GoogleFonts.poppins(
-                          fontSize: 13,
+                          fontSize: 12,
+                          color: Colors.white.withValues(alpha: 0.9),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.red[400],
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.stop.buildingName,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
+                    ],
                   ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.keyboard_arrow_up,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -589,14 +768,13 @@ class TourCompletionDialog extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Colors.orange[400]!, Colors.orange[600]!],
+            colors: [Color(0xFFFF8C00), Color(0xFFFF8C00)],
           ),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Trophy icon
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -613,13 +791,10 @@ class TourCompletionDialog extends StatelessWidget {
               child: Icon(
                 Icons.emoji_events,
                 size: 64,
-                color: Colors.orange[600],
+                color: Color(0xFFFF8C00),
               ),
             ),
-
             const SizedBox(height: 24),
-
-            // Title
             Text(
               'Congratulations!',
               style: GoogleFonts.poppins(
@@ -629,10 +804,7 @@ class TourCompletionDialog extends StatelessWidget {
               ),
               textAlign: TextAlign.center,
             ),
-
             const SizedBox(height: 12),
-
-            // Message
             Text(
               'You\'ve completed the',
               style: GoogleFonts.poppins(
@@ -642,9 +814,7 @@ class TourCompletionDialog extends StatelessWidget {
               ),
               textAlign: TextAlign.center,
             ),
-
             const SizedBox(height: 4),
-
             Text(
               tourName,
               style: GoogleFonts.poppins(
@@ -654,10 +824,7 @@ class TourCompletionDialog extends StatelessWidget {
               ),
               textAlign: TextAlign.center,
             ),
-
             const SizedBox(height: 20),
-
-            // Stats
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -680,17 +847,14 @@ class TourCompletionDialog extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 24),
-
-            // Done button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
-                  foregroundColor: Colors.orange[600],
+                  foregroundColor: Color(0xFFFF8C00),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   elevation: 0,
                   shape: RoundedRectangleBorder(

@@ -8,11 +8,17 @@ import 'package:itouru/building_content_pages/content.dart' as BuildingContent;
 import 'package:itouru/office_content_pages/content.dart' as OfficeContent;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:itouru/main_pages/maps.dart';
+import 'package:itouru/page_components/loading_widget.dart';
 
 class Categories extends StatefulWidget {
   final bool autoFocusSearch;
+  final String? initialCategory; // ✨ New parameter for category navigation
 
-  const Categories({super.key, this.autoFocusSearch = false});
+  const Categories({
+    super.key,
+    this.autoFocusSearch = false,
+    this.initialCategory, // ✨ Accept initial category
+  });
 
   @override
   CategoriesState createState() => CategoriesState();
@@ -35,7 +41,10 @@ class CategoriesState extends State<Categories> {
                   colors: [Colors.grey[200]!, Colors.white],
                 ),
               ),
-              child: CategoriesBody(autoFocusSearch: widget.autoFocusSearch),
+              child: CategoriesBody(
+                autoFocusSearch: widget.autoFocusSearch,
+                initialCategory: widget.initialCategory, // ✨ Pass it down
+              ),
             ),
           ),
         ],
@@ -47,8 +56,13 @@ class CategoriesState extends State<Categories> {
 
 class CategoriesBody extends StatefulWidget {
   final bool autoFocusSearch;
+  final String? initialCategory; // ✨ New parameter
 
-  const CategoriesBody({super.key, this.autoFocusSearch = false});
+  const CategoriesBody({
+    super.key,
+    this.autoFocusSearch = false,
+    this.initialCategory, // ✨ Accept initial category
+  });
 
   @override
   CategoriesBodyState createState() => CategoriesBodyState();
@@ -62,7 +76,7 @@ class CategoriesBodyState extends State<CategoriesBody>
   // Data lists from Supabase
   List<CollegeItem> colleges = [];
   List<BuildingItem> buildings = [];
-  List<BuildingItem> landmarks = []; // ✨ Separate list for landmarks
+  List<BuildingItem> landmarks = [];
   List<OfficeItem> offices = [];
 
   // Filtered data
@@ -75,11 +89,25 @@ class CategoriesBodyState extends State<CategoriesBody>
 
   final supabase = Supabase.instance.client;
 
+  // ✨ Keys for category cards to enable scrolling
+  final Map<String, GlobalKey> _categoryKeys = {
+    'College': GlobalKey(),
+    'Buildings': GlobalKey(),
+    'Landmarks': GlobalKey(),
+    'Offices': GlobalKey(),
+  };
+
+  // ✨ ScrollController for the main content
+  final ScrollController _mainScrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
     searchController = TextEditingController();
     _searchFocusNode = FocusNode();
+
+    print('🔵 [INIT] CategoriesBody initState called');
+    print('🔵 [INIT] initialCategory: ${widget.initialCategory}');
 
     // Load data from Supabase
     _loadDataFromSupabase();
@@ -91,6 +119,121 @@ class CategoriesBodyState extends State<CategoriesBody>
           _searchFocusNode.requestFocus();
         }
       });
+    }
+
+    // ✨ Scroll to category after data loads and widgets are built
+    if (widget.initialCategory != null) {
+      print('🟢 [INIT] Will attempt to scroll to: ${widget.initialCategory}');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        print('🟡 [CALLBACK] Post frame callback executed');
+        // Increased delay to ensure rendering is complete
+        Future.delayed(const Duration(milliseconds: 1200), () {
+          print('🟠 [DELAY] Delay completed, checking mounted state');
+          if (mounted) {
+            print(
+              '🟣 [SCROLL] Calling _scrollToCategory for: ${widget.initialCategory}',
+            );
+            _scrollToCategory(widget.initialCategory!);
+          } else {
+            print('🔴 [ERROR] Widget not mounted!');
+          }
+        });
+      });
+    } else {
+      print('🔴 [INIT] No initialCategory provided');
+    }
+  }
+
+  // ✨ Method to scroll to a specific category card
+  void _scrollToCategory(String category) {
+    print('\n🚀 [SCROLL START] _scrollToCategory called with: $category');
+
+    final key = _categoryKeys[category];
+    print('📍 [KEY CHECK] Key exists: ${key != null}');
+
+    if (key == null) {
+      print('🔴 [ERROR] No key found for category: $category');
+      print('🔴 [ERROR] Available keys: ${_categoryKeys.keys.toList()}');
+      return;
+    }
+
+    final context = key.currentContext;
+    print('📍 [CONTEXT CHECK] Context exists: ${context != null}');
+
+    if (context == null) {
+      print('🔴 [ERROR] No context found for key - widget not yet rendered');
+      print('🔄 [RETRY] Attempting retry after additional delay...');
+
+      // Retry after another delay if context is not available
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          final retryContext = key.currentContext;
+          print('🔄 [RETRY] Context exists now: ${retryContext != null}');
+
+          if (retryContext != null) {
+            _performScroll(retryContext, key);
+          } else {
+            print('🔴 [RETRY FAILED] Context still not available');
+          }
+        }
+      });
+      return;
+    }
+
+    print('✅ [SUCCESS] Found context, proceeding with scroll');
+    _performScroll(context, key);
+  }
+
+  // ✨ Helper method to perform the actual scrolling
+  void _performScroll(BuildContext context, GlobalKey key) {
+    print('🎬 [ANIMATION] Starting Scrollable.ensureVisible');
+    Scrollable.ensureVisible(
+          context,
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeInOut,
+          alignment: 0.15, // Position with some padding from top
+          alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+        )
+        .then((_) {
+          print('✅ [ANIMATION] Scroll completed');
+          // ✨ Trigger bump animation after scrolling
+          _triggerBumpAnimation(key);
+        })
+        .catchError((error) {
+          print('🔴 [ERROR] Scroll failed: $error');
+        });
+  }
+
+  // ✨ Bump animation for the category card
+  void _triggerBumpAnimation(GlobalKey key) {
+    print('\n💥 [BUMP] _triggerBumpAnimation called');
+
+    final context = key.currentContext;
+    print('📍 [BUMP] Context exists: ${context != null}');
+
+    if (context != null) {
+      final renderBox = context.findRenderObject() as RenderBox?;
+      print('📍 [BUMP] RenderBox exists: ${renderBox != null}');
+
+      if (renderBox != null) {
+        // Find the CategoryCard state and trigger animation
+        final categoryCardState = context
+            .findAncestorStateOfType<_CategoryCardState>();
+        print(
+          '📍 [BUMP] CategoryCardState found: ${categoryCardState != null}',
+        );
+
+        if (categoryCardState != null) {
+          print('✅ [BUMP] Triggering bump animation');
+          categoryCardState.triggerBumpAnimation();
+        } else {
+          print('🔴 [BUMP ERROR] Could not find CategoryCardState');
+        }
+      } else {
+        print('🔴 [BUMP ERROR] RenderBox is null');
+      }
+    } else {
+      print('🔴 [BUMP ERROR] Context is null');
     }
   }
 
@@ -141,7 +284,6 @@ class CategoriesBodyState extends State<CategoriesBody>
             hasVideo: false,
           );
         }).toList();
-        // Sort colleges alphabetically
         colleges.sort(
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
         );
@@ -149,7 +291,6 @@ class CategoriesBodyState extends State<CategoriesBody>
         // Map buildings data - separate buildings and landmarks
         final allBuildings = (buildingsResponse as List)
             .where((item) {
-              // Filter out buildings without a valid building_id
               return item['building_id'] != null;
             })
             .map((item) {
@@ -159,12 +300,11 @@ class CategoriesBodyState extends State<CategoriesBody>
                 description: item['description'] ?? '',
                 nickname: item['building_nickname'],
                 hasVideo: false,
-                buildingType: item['building_type'], // ✨ Store building_type
+                buildingType: item['building_type'],
               );
             })
             .toList();
 
-        // ✨ Separate buildings and landmarks into different lists
         buildings = allBuildings
             .where((b) => b.buildingType?.toLowerCase() != 'landmark')
             .toList();
@@ -172,7 +312,6 @@ class CategoriesBodyState extends State<CategoriesBody>
             .where((b) => b.buildingType?.toLowerCase() == 'landmark')
             .toList();
 
-        // Sort both lists alphabetically
         buildings.sort(
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
         );
@@ -196,19 +335,15 @@ class CategoriesBodyState extends State<CategoriesBody>
               );
             })
             .toList();
-        // Sort offices alphabetically
         offices.sort(
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
         );
 
-        // Important: clear loading flag after successful load
         isLoading = false;
-        print('✅ All data loaded successfully!');
+        print('✅ [DATA LOAD] All data loaded successfully!');
         print('   Colleges: ${colleges.length}');
         print('   Buildings: ${buildings.length}');
-        print(
-          '   Landmarks: ${buildings.where((b) => b.buildingType?.toLowerCase() == 'landmark').length}',
-        );
+        print('   Landmarks: ${landmarks.length}');
         print('   Offices: ${offices.length}');
       });
     } catch (e) {
@@ -224,6 +359,7 @@ class CategoriesBodyState extends State<CategoriesBody>
   void dispose() {
     searchController.dispose();
     _searchFocusNode.dispose();
+    _mainScrollController.dispose();
     super.dispose();
   }
 
@@ -240,7 +376,6 @@ class CategoriesBodyState extends State<CategoriesBody>
     } else {
       visibleCategories = [];
 
-      // Check which categories have matching items
       bool hasCollegeMatch = colleges.any((item) => _matchesSearch(item));
       bool hasBuildingMatch = buildings.any((item) => _matchesSearch(item));
       bool hasLandmarkMatch = landmarks.any((item) => _matchesSearch(item));
@@ -253,16 +388,13 @@ class CategoriesBodyState extends State<CategoriesBody>
     }
   }
 
-  // Helper method to check if item matches search query
   bool _matchesSearch(dynamic item) {
     final query = searchQuery.toLowerCase();
 
-    // Check name
     if (item.name.toLowerCase().contains(query)) {
       return true;
     }
 
-    // Check shortcuts based on item type
     if (item is CollegeItem && item.abbreviation != null) {
       if (item.abbreviation!.toLowerCase().contains(query)) {
         return true;
@@ -288,12 +420,10 @@ class CategoriesBodyState extends State<CategoriesBody>
   }
 
   bool _shouldShowCategory(String category) {
-    // Apply category filter
     if (selectedCategory != 'All') {
       if (category != selectedCategory) return false;
     }
 
-    // Apply search filter
     if (searchQuery.isEmpty) return true;
     return visibleCategories.contains(category);
   }
@@ -315,24 +445,13 @@ class CategoriesBodyState extends State<CategoriesBody>
 
   @override
   Widget build(BuildContext context) {
-    // Show loading indicator
     if (isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text(
-              'Loading data...',
-              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
-            ),
-          ],
-        ),
+      return LoadingScreen.dots(
+        title: 'Loading Categories',
+        subtitle: 'Please Wait',
       );
     }
 
-    // Show error message
     if (errorMessage != null) {
       return Center(
         child: Column(
@@ -356,6 +475,7 @@ class CategoriesBodyState extends State<CategoriesBody>
     }
 
     return SingleChildScrollView(
+      controller: _mainScrollController,
       padding: const EdgeInsets.all(20.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -418,7 +538,7 @@ class CategoriesBodyState extends State<CategoriesBody>
             ),
           ),
           SizedBox(height: 20),
-          // Content Area - Show empty state if no results found
+          // Content Area
           if (searchQuery.isNotEmpty && visibleCategories.isEmpty)
             Center(
               child: Padding(
@@ -479,42 +599,46 @@ class CategoriesBodyState extends State<CategoriesBody>
                 // College Category Card
                 if (_shouldShowCategory('College') && colleges.isNotEmpty)
                   CategoryCard(
+                    key: _categoryKeys['College'], // ✨ Add key
                     title: 'Colleges',
                     icon: Icons.school,
-                    color: Colors.orange,
+                    color: Color(0xFFFF8C00),
                     items: _getFilteredItems(colleges),
                   ),
-
-                SizedBox(height: 16),
+                if (_shouldShowCategory('College') && colleges.isNotEmpty)
+                  SizedBox(height: 16),
 
                 // Buildings Category Card
                 if (_shouldShowCategory('Buildings') && buildings.isNotEmpty)
                   CategoryCard(
+                    key: _categoryKeys['Buildings'], // ✨ Add key
                     title: 'Buildings',
                     icon: Icons.business,
-                    color: Colors.orange,
+                    color: Color(0xFFFF8C00),
                     items: _getFilteredItems(buildings),
                   ),
-
-                SizedBox(height: 16),
+                if (_shouldShowCategory('Buildings') && buildings.isNotEmpty)
+                  SizedBox(height: 16),
 
                 // Landmarks Category Card
                 if (_shouldShowCategory('Landmarks') && landmarks.isNotEmpty)
                   CategoryCard(
-                    title: 'Landmarks',
+                    key: _categoryKeys['Landmarks'], // ✨ Add key
+                    title: 'Landmarks & Others',
                     icon: Icons.place,
-                    color: Colors.orange,
+                    color: Color(0xFFFF8C00),
                     items: _getFilteredItems(landmarks),
                   ),
-
-                SizedBox(height: 16),
+                if (_shouldShowCategory('Landmarks') && landmarks.isNotEmpty)
+                  SizedBox(height: 16),
 
                 // Offices Category Card
                 if (_shouldShowCategory('Offices') && offices.isNotEmpty)
                   CategoryCard(
+                    key: _categoryKeys['Offices'], // ✨ Add key
                     title: 'Offices',
                     icon: Icons.work_outline,
-                    color: Colors.orange,
+                    color: Color(0xFFFF8C00),
                     items: _getFilteredItems(offices),
                   ),
               ],
@@ -543,12 +667,12 @@ class CategoriesBodyState extends State<CategoriesBody>
           color: isSelected ? Colors.white : Colors.black87,
         ),
         backgroundColor: Colors.grey[100],
-        selectedColor: Colors.orange,
+        selectedColor: Color(0xFFFF8C00),
         checkmarkColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
           side: BorderSide(
-            color: isSelected ? Colors.orange : Colors.grey[300]!,
+            color: isSelected ? Color(0xFFFF8C00) : Colors.grey[300]!,
           ),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -557,8 +681,8 @@ class CategoriesBodyState extends State<CategoriesBody>
   }
 }
 
-// Category Card Widget
-class CategoryCard extends StatelessWidget {
+// Category Card Widget with Bump Animation
+class CategoryCard extends StatefulWidget {
   final String title;
   final IconData icon;
   final Color color;
@@ -573,76 +697,275 @@ class CategoryCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 3,
-      shadowColor: Colors.black.withValues(alpha: 0.1),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Category Header
-          Container(
-            padding: EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
+  State<CategoryCard> createState() => _CategoryCardState();
+}
+
+class _CategoryCardState extends State<CategoryCard>
+    with SingleTickerProviderStateMixin {
+  final ScrollController _scrollController = ScrollController();
+  late AnimationController _bumpController;
+  late Animation<double> _bumpAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    // ✨ Setup bump animation
+    _bumpController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _bumpAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 1.0,
+          end: 1.08,
+        ).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 1.08,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeIn)),
+        weight: 50,
+      ),
+    ]).animate(_bumpController);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _bumpController.dispose();
+    super.dispose();
+  }
+
+  // ✨ Method to trigger bump animation
+  void triggerBumpAnimation() {
+    print('🎯 [CARD ANIMATION] triggerBumpAnimation called on ${widget.title}');
+    _bumpController.forward(from: 0.0).then((_) {
+      print('✅ [CARD ANIMATION] Bump animation completed on ${widget.title}');
+    });
+  }
+
+  void _showItemsList(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, controller) => Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
             ),
-            child: Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, color: Colors.white, size: 24),
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: EdgeInsets.only(top: 12, bottom: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                SizedBox(width: 12),
-                Text(
-                  title,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                  ),
+              ),
+              Padding(
+                padding: EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: widget.color,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(widget.icon, color: Colors.white, size: 20),
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      widget.title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Spacer(),
+                    Text(
+                      '${widget.items.length} items',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
                 ),
-                Spacer(),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
+              ),
+              Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  controller: controller,
+                  itemCount: widget.items.length,
+                  itemBuilder: (context, index) {
+                    final item = widget.items[index];
+                    String shortcut = '';
+                    if (item is CollegeItem && item.abbreviation != null) {
+                      shortcut = item.abbreviation!;
+                    } else if (item is BuildingItem && item.nickname != null) {
+                      shortcut = item.nickname!;
+                    } else if (item is OfficeItem &&
+                        item.abbreviation != null) {
+                      shortcut = item.abbreviation!;
+                    }
+
+                    return InkWell(
+                      onTap: () {
+                        Navigator.pop(context);
+                        _scrollToItem(index);
+                      },
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: Colors.grey[200]!,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.name,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  if (shortcut.isNotEmpty) ...[
+                                    SizedBox(height: 4),
+                                    Text(
+                                      shortcut,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        color: widget.color,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.chevron_right, color: Colors.grey[400]),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _scrollToItem(int index) {
+    final double targetPosition = (index * 272.0);
+    _scrollController.animateTo(
+      targetPosition,
+      duration: Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _bumpAnimation,
+      child: Card(
+        elevation: 3,
+        shadowColor: Colors.black.withValues(alpha: 0.1),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: widget.color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: widget.color,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(widget.icon, color: Colors.white, size: 24),
                   ),
-                  child: Text(
-                    '${items.length}',
+                  SizedBox(width: 12),
+                  Text(
+                    widget.title,
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: color,
+                      color: widget.color,
                     ),
                   ),
-                ),
-              ],
+                  Spacer(),
+                  InkWell(
+                    onTap: () => _showItemsList(context),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: widget.color.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(Icons.list, color: widget.color, size: 24),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-
-          // Scrollable Items List (No Limit)
-          Container(
-            height: 280,
-            child: ListView.builder(
-              padding: EdgeInsets.all(16),
-              scrollDirection: Axis.horizontal,
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                return ItemCard(item: items[index], color: color);
-              },
+            Container(
+              height: 280,
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: EdgeInsets.all(16),
+                scrollDirection: Axis.horizontal,
+                itemCount: widget.items.length,
+                itemBuilder: (context, index) {
+                  return ItemCard(
+                    item: widget.items[index],
+                    color: widget.color,
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -660,7 +983,6 @@ class ItemCard extends StatelessWidget {
     print('📍 Item Type: ${item.runtimeType}');
     print('📍 Item Name: ${item.name}');
 
-    // Show loading indicator
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Row(
@@ -687,43 +1009,39 @@ class ItemCard extends StatelessWidget {
     String destinationName = item.name;
     String itemType = 'unknown';
 
-    // Get the appropriate building ID based on item type
     if (item is BuildingItem) {
       targetBuildingId = item.buildingId;
-      // ✨ Check building_type to determine if it's a landmark
       if (item.buildingType?.toLowerCase() == 'landmark') {
-        itemType = 'marker'; // Navigate to landmark marker
+        itemType = 'marker';
         print('🏛️ Landmark ID: $targetBuildingId');
         print('   Building Type: ${item.buildingType}');
         print('   Will navigate to landmark marker');
       } else {
-        itemType = 'building'; // Navigate to building polygon
+        itemType = 'building';
         print('🏢 Building ID: $targetBuildingId');
         print('   Building Type: ${item.buildingType}');
       }
     } else if (item is CollegeItem) {
       targetBuildingId = item.collegeId;
-      itemType = 'marker'; // Navigate to college marker
+      itemType = 'marker';
       print('🎓 College ID: $targetBuildingId');
       print('   Will navigate to college marker');
     } else if (item is OfficeItem) {
-      // Use the office's building_id instead of office_id
       targetBuildingId = item.buildingId;
       itemType = 'office';
       print('🏛️ Office: ${item.name}');
       print('   Office ID: ${item.officeId}');
       print('   Building ID: $targetBuildingId');
 
-      // Add warning if no building assigned
       if (targetBuildingId == null) {
         print('⚠️ Warning: Office has no building assigned!');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${item.name} has no building location assigned'),
-            backgroundColor: Colors.orange,
+            backgroundColor: Color(0xFFFF8C00),
           ),
         );
-        return; // Don't navigate if no building
+        return;
       }
     }
 
@@ -733,7 +1051,6 @@ class ItemCard extends StatelessWidget {
     print('   - Item Type: $itemType');
     print('🚀 === NAVIGATING TO MAPS PAGE ===\n');
 
-    // Navigate to Maps page with auto-navigation
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -811,7 +1128,6 @@ class ItemCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Item Name with landmark icon
               Row(
                 children: [
                   Expanded(
@@ -828,8 +1144,6 @@ class ItemCard extends StatelessWidget {
                   ),
                 ],
               ),
-
-              // Abbreviation/Shortcut underneath name
               if (shortcut.isNotEmpty) ...[
                 SizedBox(height: 6),
                 Container(
@@ -849,8 +1163,6 @@ class ItemCard extends StatelessWidget {
                 ),
               ],
               SizedBox(height: 10),
-
-              // Description
               Expanded(
                 child: Text(
                   item.description,
@@ -863,14 +1175,10 @@ class ItemCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-
               SizedBox(height: 12),
-
-              // Action Buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // Directions Button
                   Container(
                     width: 40,
                     height: 40,
@@ -889,7 +1197,6 @@ class ItemCard extends StatelessWidget {
                     ),
                   ),
                   SizedBox(width: 8),
-                  // Info Button
                   Container(
                     width: 40,
                     height: 40,
@@ -936,7 +1243,7 @@ class BuildingItem {
   final String description;
   final String? nickname;
   final bool hasVideo;
-  final String? buildingType; // ✨ Store building_type from database
+  final String? buildingType;
 
   BuildingItem({
     required this.buildingId,
@@ -944,7 +1251,7 @@ class BuildingItem {
     required this.description,
     this.nickname,
     this.hasVideo = false,
-    this.buildingType, // ✨ No boolean flag, just the type string
+    this.buildingType,
   });
 }
 

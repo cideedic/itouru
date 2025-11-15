@@ -40,7 +40,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     ),
     HelpCategory(
       icon: Icons.security,
-      iconColor: Colors.orange,
+      iconColor: Color(0xFFFF8C00),
       title: 'Privacy & Security',
       questions: [
         'How is my data protected?',
@@ -241,7 +241,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.orange.withValues(alpha: 0.3),
+                          color: Color(0xFFFF8C00).withValues(alpha: 0.3),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
@@ -279,7 +279,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white,
-                            foregroundColor: Colors.orange[600],
+                            foregroundColor: Color(0xFFFF8C00),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 32,
                               vertical: 12,
@@ -328,12 +328,12 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
           color: isSelected ? Colors.white : Colors.black87,
         ),
         backgroundColor: Colors.grey[100],
-        selectedColor: Colors.orange[400],
+        selectedColor: Color(0xFFFF8C00),
         checkmarkColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
           side: BorderSide(
-            color: isSelected ? Colors.orange[400]! : Colors.grey[300]!,
+            color: isSelected ? Color(0xFFFF8C00) : Colors.grey[300]!,
           ),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -492,10 +492,10 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.1),
+                          color: Color(0xFFFF8C00).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: Colors.orange.withValues(alpha: 0.3),
+                            color: Color(0xFFFF8C00).withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(
@@ -503,7 +503,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                           children: [
                             Icon(
                               Icons.info_outline,
-                              color: Colors.orange,
+                              color: Color(0xFFFF8C00),
                               size: 20,
                             ),
                             const SizedBox(width: 8),
@@ -512,7 +512,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                                 'For more assistance, you can contact our support team through the Contact Support button below.',
                                 style: GoogleFonts.poppins(
                                   fontSize: 12,
-                                  color: Colors.orange[900],
+                                  color: Color(0xFFFF8C00),
                                 ),
                               ),
                             ),
@@ -533,7 +533,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.of(context).pop(),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
+                    backgroundColor: Color(0xFFFF8C00),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -566,7 +566,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.email, size: 48, color: Colors.orange[400]),
+              Icon(Icons.email, size: 48, color: Color(0xFFFF8C00)),
               const SizedBox(height: 16),
               Text(
                 'Contact Support',
@@ -587,7 +587,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: Colors.orange[600],
+                  color: Color(0xFFFF8C00),
                 ),
               ),
               const SizedBox(height: 20),
@@ -596,7 +596,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange[400],
+                    backgroundColor: Color(0xFFFF8C00),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),

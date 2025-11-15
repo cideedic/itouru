@@ -7,7 +7,8 @@ class VirtualTourStop {
   final String buildingName;
   final String buildingNickname;
   final String? notes;
-  LatLng? location; // ✨ NOT final - will be resolved in Maps
+  LatLng? location; // Will be resolved in Maps
+  bool isMarker; // ✨ NEW: Track if this stop is a marker (landmark)
 
   VirtualTourStop({
     required this.stopNumber,
@@ -16,12 +17,23 @@ class VirtualTourStop {
     required this.buildingNickname,
     required this.notes,
     this.location,
+    this.isMarker = false, // ✨ NEW: Default to false
   });
 
-  // ✨ Helper method to update location
-  void setLocation(LatLng newLocation) {
+  /// Helper method to update location and type
+  void setLocation(LatLng newLocation, {bool isMarkerType = false}) {
+    location = newLocation;
+    isMarker = isMarkerType;
+  }
+
+  /// Helper method (legacy - for backward compatibility)
+  void updateLocation(LatLng newLocation) {
     location = newLocation;
   }
+
+  /// Display name for UI
+  String get displayName =>
+      buildingNickname.isNotEmpty ? buildingNickname : buildingName;
 }
 
 class VirtualTourManager extends ChangeNotifier {
@@ -75,6 +87,15 @@ class VirtualTourManager extends ChangeNotifier {
     _isActive = true;
     _isAnimatingToStop = false;
     _isShowingStopCard = false;
+
+    // ✨ Log stop types for debugging
+    for (var i = 0; i < stops.length; i++) {
+      final stop = stops[i];
+      print(
+        '   Stop ${i + 1}: ${stop.buildingName} (ID: ${stop.buildingId}, '
+        'IsMarker: ${stop.isMarker})',
+      );
+    }
 
     print('✅ Tour initialized');
     notifyListeners();

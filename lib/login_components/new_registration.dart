@@ -29,38 +29,68 @@ class _NewUserPanelsState extends State<NewUserPanels> {
   final _birthdayController = TextEditingController();
 
   String? _selectedUserType;
-  String? _selectedCollege;
+  String? _selectedCollegeAbbreviation;
   String? _selectedNationality;
   String? _selectedSex;
   DateTime? _selectedBirthday;
   bool _isSubmitting = false;
+  bool _isLoadingColleges = true;
 
   final List<String> _userTypes = ['Student', 'Faculty', 'Maintenance'];
-  final List<String> _colleges = [
-    'BUCAL',
-    'BUCBEM',
-    'BUCED',
-    'BUCOE',
-    'BUCIT',
-    'BUCON',
-    'BUCS',
-    'BUCSSP',
-    'BUIPESR',
-  ];
 
-  final Map<String, String> _collegeFullNames = {
-    'BUCAL': 'College of Arts and Letters',
-    'BUCBEM': 'College of Business Economics and Management',
-    'BUCED': 'College of Education',
-    'BUCOE': 'College of Engineering',
-    'BUCIT': 'College of Industrial Technology',
-    'BUCON': 'College of Nursing',
-    'BUCS': 'College of Science',
-    'BUCSSP': 'College of Social Sciences and Philosophy',
-    'BUIPESR': 'Institute of Physical Education, Sports and Recreation',
-  };
+  // Store colleges data from database
+  List<Map<String, dynamic>> _colleges = [];
+  Map<String, String> _collegeAbbreviationToName = {};
+
   final List<String> _nationalities = ['Filipino', 'Other'];
   final List<String> _sexOptions = ['Male', 'Female'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadColleges();
+  }
+
+  Future<void> _loadColleges() async {
+    try {
+      final response = await supabase
+          .from('College')
+          .select('college_abbreviation, college_name')
+          .order('college_abbreviation');
+
+      if (mounted) {
+        setState(() {
+          _colleges = List<Map<String, dynamic>>.from(response);
+          _collegeAbbreviationToName = {
+            for (var college in _colleges)
+              college['college_abbreviation'] as String:
+                  college['college_name'] as String,
+          };
+          _isLoadingColleges = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading colleges: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingColleges = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to load colleges',
+              style: GoogleFonts.montserrat(fontSize: 12),
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -88,6 +118,15 @@ class _NewUserPanelsState extends State<NewUserPanels> {
         MaterialPageRoute(builder: (context) => const Home()),
       );
     }
+  }
+
+  String _getDefaultAvatar(String? sex) {
+    if (sex == 'Male') {
+      return 'avatar_1.png';
+    } else if (sex == 'Female') {
+      return 'avatar_3.png';
+    }
+    return 'avatar_1.png'; // fallback default
   }
 
   Future<void> _selectDate() async {
@@ -140,10 +179,37 @@ class _NewUserPanelsState extends State<NewUserPanels> {
     setState(() => _isSubmitting = true);
 
     try {
-      const String defaultPassword = 'BuAccount123!';
-      await supabase.auth.updateUser(UserAttributes(password: defaultPassword));
+      final authUserId = supabase.auth.currentUser?.id;
 
-      await supabase.from('Users').insert({
+      if (authUserId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get the highest user_id from the database
+      final response = await supabase
+          .from('Users')
+          .select('user_id')
+          .order('user_id', ascending: false)
+          .limit(1);
+
+      int nextUserId = 1; // Default if no users exist
+
+      if (response.isNotEmpty) {
+        final maxId = response.first['user_id'] as int;
+        nextUserId = maxId + 1;
+      }
+
+      print('=== DEBUG: Next User ID ===');
+      print('Next user_id: $nextUserId');
+      print('========================');
+
+      // Get full college name from abbreviation
+      final collegeFullName = _selectedCollegeAbbreviation != null
+          ? _collegeAbbreviationToName[_selectedCollegeAbbreviation]
+          : null;
+
+      final insertData = {
+        'user_id': nextUserId,
         'first_name': _firstNameController.text.trim(),
         'middle_name': _middleNameController.text.trim().isEmpty
             ? null
@@ -154,17 +220,21 @@ class _NewUserPanelsState extends State<NewUserPanels> {
             : _suffixController.text.trim(),
         'email': widget.email,
         'user_type': _selectedUserType,
-        'college': _selectedCollege != null
-            ? _collegeFullNames[_selectedCollege]
-            : null,
+        'college': collegeFullName, // Store full name in database
         'birthday': _selectedBirthday?.toIso8601String().split('T')[0],
         'nationality': _selectedNationality,
         'sex': _selectedSex,
         'phone_number': _phoneController.text.trim(),
-      });
+        'avatar': _getDefaultAvatar(_selectedSex),
+      };
+
+      print('=== DEBUG: Insert Data ===');
+      print(insertData);
+      print('========================');
+
+      await supabase.from('Users').insert(insertData);
 
       if (mounted) {
-        // Navigate to success panel instead of showing snackbar and going to home
         _pageController.nextPage(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
@@ -172,6 +242,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
       }
     } catch (e) {
       print('Registration error: $e');
+      print('Error type: ${e.runtimeType}');
 
       String errorMessage = 'Registration failed';
       if (e.toString().contains('duplicate') ||
@@ -286,6 +357,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
     required List<String> items,
     required Function(String?) onChanged,
     bool required = true,
+    bool isLoading = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -316,7 +388,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
           value: value,
           isExpanded: true,
           decoration: InputDecoration(
-            hintText: hint,
+            hintText: isLoading ? 'Loading...' : hint,
             hintStyle: GoogleFonts.montserrat(
               fontSize: 12,
               color: Colors.grey[400],
@@ -340,21 +412,23 @@ class _NewUserPanelsState extends State<NewUserPanels> {
               vertical: 14,
             ),
           ),
-          items: items.map((String item) {
-            return DropdownMenuItem(
-              value: item,
-              child: SizedBox(
-                width: double.infinity,
-                child: Text(
-                  item,
-                  style: GoogleFonts.montserrat(fontSize: 13),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 2,
-                ),
-              ),
-            );
-          }).toList(),
-          onChanged: onChanged,
+          items: isLoading
+              ? []
+              : items.map((String item) {
+                  return DropdownMenuItem(
+                    value: item,
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Text(
+                        item,
+                        style: GoogleFonts.montserrat(fontSize: 13),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
+                      ),
+                    ),
+                  );
+                }).toList(),
+          onChanged: isLoading ? null : onChanged,
           validator: (value) {
             if (required && value == null) {
               return 'Please select an option';
@@ -767,10 +841,16 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                             _buildDropdown(
                               label: 'College',
                               hint: 'Select your college',
-                              value: _selectedCollege,
-                              items: _colleges,
-                              onChanged: (value) =>
-                                  setState(() => _selectedCollege = value),
+                              value: _selectedCollegeAbbreviation,
+                              items: _colleges
+                                  .map(
+                                    (c) => c['college_abbreviation'] as String,
+                                  )
+                                  .toList(),
+                              onChanged: (value) => setState(
+                                () => _selectedCollegeAbbreviation = value,
+                              ),
+                              isLoading: _isLoadingColleges,
                             ),
                             const SizedBox(height: 16),
                             Column(
@@ -975,8 +1055,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
               ),
             ],
           ),
-          const SizedBox(height: 100), // reduced from 60 to bring content up
-          // Use Flexible with mainAxisSize.min so column sizes to content (less vertical gap)
+          const SizedBox(height: 100),
           Flexible(
             fit: FlexFit.loose,
             child: Column(
@@ -987,7 +1066,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                   padding: const EdgeInsets.only(left: 30, right: 70),
                   child: Image.asset(
                     'assets/images/registration_img3.png',
-                    height: 210, // reduced from 250 to lessen vertical space
+                    height: 210,
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) {
                       return Container(
@@ -1005,9 +1084,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                     },
                   ),
                 ),
-                const SizedBox(
-                  height: 50,
-                ), // slightly increased spacing between image and title
+                const SizedBox(height: 50),
                 Text(
                   'Nice!',
                   style: GoogleFonts.notable(

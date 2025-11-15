@@ -7,6 +7,7 @@ class StickyHeader extends StatelessWidget {
   final String title;
   final String? abbreviation; // New: Pass the actual abbreviation/nickname
   final String? logoImageUrl;
+  final bool showLogo; // New: Control whether to show logo
   final VoidCallback? onBackPressed;
 
   const StickyHeader({
@@ -15,6 +16,7 @@ class StickyHeader extends StatelessWidget {
     required this.title,
     this.abbreviation,
     this.logoImageUrl,
+    this.showLogo = true, // Default to true for backward compatibility
     this.onBackPressed,
   });
 
@@ -84,37 +86,40 @@ class StickyHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Container(
-                width: 45,
-                height: 45,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: ClipOval(
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: logoImageUrl != null
-                        ? Image.network(
-                            logoImageUrl!,
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) {
-                              return const Icon(
-                                Icons.school,
-                                color: Colors.blue,
-                                size: 25,
-                              );
-                            },
-                          )
-                        : const Icon(
-                            Icons.school,
-                            color: Colors.blue,
-                            size: 25,
-                          ),
+              // Only show logo container if showLogo is true
+              if (showLogo) ...[
+                Container(
+                  width: 45,
+                  height: 45,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: ClipOval(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: logoImageUrl != null
+                          ? Image.network(
+                              logoImageUrl!,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(
+                                  Icons.school,
+                                  color: Colors.blue,
+                                  size: 25,
+                                );
+                              },
+                            )
+                          : const Icon(
+                              Icons.school,
+                              color: Colors.blue,
+                              size: 25,
+                            ),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
+                const SizedBox(width: 12),
+              ],
               Expanded(
                 child: Text(
                   displayTitle,

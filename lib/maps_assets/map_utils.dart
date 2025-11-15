@@ -384,18 +384,16 @@ class MapUtils {
     );
   }
 
-  /// Enhanced route animation with ultra-smooth line drawing
+  /// ✨ WAZE-STYLE: Camera follows route drawing in REAL-TIME
   static Future<void> animateAlongRouteWithCamera(
     MapController mapController,
     List<LatLng> routePoints, {
     required Function(List<LatLng>) onRouteUpdate,
-    double followZoom = 19.0,
+    double followZoom = 19.5,
     double destinationZoom = 19.5,
     Duration overviewDuration = const Duration(milliseconds: 1000),
     Duration zoomInDuration = const Duration(milliseconds: 800),
-    Duration routeDrawDuration = const Duration(
-      seconds: 8,
-    ), // ✨ NEW: Dedicated draw time
+    Duration routeDrawDuration = const Duration(seconds: 5),
     Duration finalZoomDuration = const Duration(milliseconds: 800),
   }) async {
     if (routePoints.isEmpty) {
@@ -409,7 +407,6 @@ class MapUtils {
       // Step 1: Show entire route overview (route NOT visible yet)
       await Future.delayed(const Duration(milliseconds: 500));
       onRouteUpdate([]);
-
       RoutingService.fitMapToRoute(mapController, routePoints);
       await Future.delayed(overviewDuration);
 
@@ -422,8 +419,8 @@ class MapUtils {
       );
       await Future.delayed(const Duration(milliseconds: 500));
 
-      // Step 3: ✨ SMOOTH route animation with camera follow
-      await _smoothRouteAnimationWithCamera(
+      // Step 3: ✨ CAMERA FOLLOWS LINE (Waze-style)
+      await _wazeStyleRouteAnimation(
         mapController,
         routePoints,
         onRouteUpdate: onRouteUpdate,
@@ -447,8 +444,8 @@ class MapUtils {
     }
   }
 
-  /// ✨ NEW: Smooth route animation using interpolation
-  static Future<void> _smoothRouteAnimationWithCamera(
+  /// ✨ NEW: Waze-style animation - camera FOLLOWS the drawing line
+  static Future<void> _wazeStyleRouteAnimation(
     MapController mapController,
     List<LatLng> routePoints, {
     required Function(List<LatLng>) onRouteUpdate,
@@ -460,7 +457,7 @@ class MapUtils {
       return;
     }
 
-    print('🎨 Starting smooth route animation');
+    print('🎨 Starting Waze-style route animation');
 
     // Calculate cumulative distances for smooth interpolation
     final distances = <double>[0.0];
@@ -475,35 +472,19 @@ class MapUtils {
     }
     final totalDistance = distances.last;
 
-    // Simplify camera points (every 5th point)
-    final cameraPoints = <LatLng>[];
-    for (int i = 0; i < routePoints.length; i += 5) {
-      cameraPoints.add(routePoints[i]);
-    }
-    if (cameraPoints.last != routePoints.last) {
-      cameraPoints.add(routePoints.last);
-    }
-
-    print('📹 Following ${cameraPoints.length} camera waypoints');
-
-    // Time per camera point
-    final msPerCameraPoint = duration.inMilliseconds ~/ cameraPoints.length;
-
-    // Animate through camera points while smoothly drawing route
     const fps = 60;
     final frameDelay = Duration(milliseconds: (1000 / fps).round());
     final startTime = DateTime.now();
 
-    int currentCameraIndex = 0;
-    LatLng currentCameraTarget = cameraPoints[0];
-    LatLng? nextCameraTarget = cameraPoints.length > 1 ? cameraPoints[1] : null;
+    LatLng? currentCameraTarget;
 
-    while (currentCameraIndex < cameraPoints.length) {
+    // ✨ CRITICAL: Camera FOLLOWS the endpoint of visible route
+    while (true) {
       final elapsed = DateTime.now().difference(startTime);
       final globalProgress = (elapsed.inMilliseconds / duration.inMilliseconds)
           .clamp(0.0, 1.0);
 
-      // ✨ Get smoothly interpolated route segment
+      // Get smoothly interpolated route segment
       final visibleRoute = _getSmoothRouteSegment(
         routePoints,
         distances,
@@ -514,44 +495,31 @@ class MapUtils {
       // Update visible route
       onRouteUpdate(visibleRoute);
 
-      // Smooth camera movement
-      if (nextCameraTarget != null) {
-        final cameraStartTime = currentCameraIndex * msPerCameraPoint;
-        final cameraEndTime = (currentCameraIndex + 1) * msPerCameraPoint;
-        final cameraElapsed = elapsed.inMilliseconds - cameraStartTime;
+      // ✨ CAMERA FOLLOWS: Move camera to endpoint of visible route
+      if (visibleRoute.isNotEmpty) {
+        final targetPoint = visibleRoute.last;
 
-        if (cameraElapsed >= 0 && cameraElapsed < msPerCameraPoint) {
-          final cameraProgress = (cameraElapsed / msPerCameraPoint).clamp(
-            0.0,
-            1.0,
-          );
-          final easedProgress = _easeInOutCubic(cameraProgress);
+        // Only update camera if target changed significantly
+        if (currentCameraTarget == null ||
+            RoutingService.calculateDistance(currentCameraTarget, targetPoint) >
+                2) {
+          // Calculate bearing from previous point to current
+          double bearing = 0;
+          if (visibleRoute.length >= 2) {
+            bearing = RoutingService.calculateBearing(
+              visibleRoute[visibleRoute.length - 2],
+              targetPoint,
+            );
+          }
 
-          // Interpolate camera position
-          final lat =
-              currentCameraTarget.latitude +
-              (nextCameraTarget.latitude - currentCameraTarget.latitude) *
-                  easedProgress;
-          final lng =
-              currentCameraTarget.longitude +
-              (nextCameraTarget.longitude - currentCameraTarget.longitude) *
-                  easedProgress;
-
-          // Calculate bearing
-          final bearing = RoutingService.calculateBearing(
-            currentCameraTarget,
-            nextCameraTarget,
+          // ✨ SMOOTH CAMERA: Move camera with rotation (like Waze)
+          mapController.moveAndRotate(
+            targetPoint,
+            zoom,
+            -bearing, // Negative because we want to rotate map, not marker
           );
 
-          // Move camera with rotation
-          mapController.moveAndRotate(LatLng(lat, lng), zoom, -bearing);
-        } else if (elapsed.inMilliseconds >= cameraEndTime) {
-          // Move to next camera segment
-          currentCameraIndex++;
-          currentCameraTarget = cameraPoints[currentCameraIndex];
-          nextCameraTarget = currentCameraIndex + 1 < cameraPoints.length
-              ? cameraPoints[currentCameraIndex + 1]
-              : null;
+          currentCameraTarget = targetPoint;
         }
       }
 
@@ -563,7 +531,7 @@ class MapUtils {
     onRouteUpdate(routePoints);
     mapController.moveAndRotate(routePoints.last, zoom, 0);
 
-    print('✅ Smooth route animation complete');
+    print('✅ Waze-style route animation complete');
   }
 
   static List<LatLng> _getSmoothRouteSegment(

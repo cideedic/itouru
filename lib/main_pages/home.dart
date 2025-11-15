@@ -2,15 +2,85 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/bottom_nav_bar.dart';
 import 'package:itouru/page_components/header.dart';
+import 'package:itouru/main_pages/featured_locations.dart';
 import 'package:itouru/main_pages/maps.dart';
 import 'package:itouru/main_pages/categories.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:itouru/login_components/guest_modal.dart';
-import 'package:itouru/login_components/guest_restriction_modal.dart';
-import 'dart:math';
-import 'dart:ui';
 import 'package:itouru/settings_pages/about.dart';
+import 'package:itouru/main_pages/history.dart';
+import 'package:itouru/main_pages/explore.dart';
+import 'package:itouru/main_pages/feedback.dart';
+
+// Polygon Background Painter
+class PolygonBackgroundPainter extends CustomPainter {
+  final double animationValue;
+
+  PolygonBackgroundPainter(this.animationValue);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    // Generate subtle polygons
+    final polygons = [
+      // Top right orange polygon
+      {
+        'color': Colors.orange.withValues(alpha: 0.03),
+        'points': [
+          Offset(size.width * 0.7, -50),
+          Offset(size.width * 1.2, size.height * 0.1),
+          Offset(size.width * 0.9, size.height * 0.25),
+        ],
+      },
+      // Top left blue polygon
+      {
+        'color': Colors.blue.withValues(alpha: 0.03),
+        'points': [
+          Offset(-50, size.height * 0.1),
+          Offset(size.width * 0.3, size.height * 0.05),
+          Offset(size.width * 0.15, size.height * 0.3),
+        ],
+      },
+      // Middle right polygon
+      {
+        'color': Colors.purple.withValues(alpha: 0.02),
+        'points': [
+          Offset(size.width * 0.85, size.height * 0.4),
+          Offset(size.width * 1.1, size.height * 0.5),
+          Offset(size.width * 0.95, size.height * 0.65),
+        ],
+      },
+      // Bottom left polygon
+      {
+        'color': Colors.teal.withValues(alpha: 0.025),
+        'points': [
+          Offset(-30, size.height * 0.7),
+          Offset(size.width * 0.25, size.height * 0.75),
+          Offset(size.width * 0.1, size.height * 0.9),
+        ],
+      },
+    ];
+
+    for (var polygon in polygons) {
+      paint.color = polygon['color'] as Color;
+      final path = Path();
+      final points = polygon['points'] as List<Offset>;
+
+      path.moveTo(points[0].dx, points[0].dy);
+      for (var i = 1; i < points.length; i++) {
+        path.lineTo(points[i].dx, points[i].dy);
+      }
+      path.close();
+
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(PolygonBackgroundPainter oldDelegate) => false;
+}
 
 class Home extends StatefulWidget {
   const Home({super.key});
@@ -23,104 +93,161 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
 
   late AnimationController _mapController;
-  late AnimationController _searchCardController;
-  late AnimationController _searchFieldController;
-  late PageController _featuredLocationsController;
+  AnimationController? _visionController;
+  AnimationController? _missionController;
+  AnimationController? _qualityController;
+  AnimationController? _historyController;
+  AnimationController? _featuredController;
+  AnimationController? _aboutController;
+  AnimationController? _feedbackAnimController;
+  AnimationController? _exploreController;
 
   late Animation<double> _mapZoomAnimation;
-  late Animation<double> _searchCardFadeAnimation;
-  late Animation<double> _searchFieldFadeAnimation;
+  Animation<Offset>? _visionSlideAnimation;
+  Animation<Offset>? _missionSlideAnimation;
+  Animation<Offset>? _qualitySlideAnimation;
+  Animation<Offset>? _historySlideAnimation;
+  Animation<Offset>? _featuredSlideAnimation;
+  Animation<Offset>? _aboutSlideAnimation;
+  Animation<Offset>? _feedbackSlideAnimation;
+  Animation<Offset>? _exploreSlideAnimation;
 
-  final List<AnimationController> _locationControllers = [];
-  final List<Animation<double>> _locationFadeAnimations = [];
-  final List<Animation<Offset>> _locationSlideAnimations = [];
+  Animation<double>? _visionFadeAnimation;
+  Animation<double>? _missionFadeAnimation;
+  Animation<double>? _qualityFadeAnimation;
+  Animation<double>? _historyFadeAnimation;
+  Animation<double>? _featuredFadeAnimation;
+  Animation<double>? _aboutFadeAnimation;
+  Animation<double>? _feedbackFadeAnimation;
+  Animation<double>? _exploreFadeAnimation;
 
-  int _currentLocationIndex = 0;
-
-  // Feedback state
-  int _selectedRating = 0;
-  final TextEditingController _feedbackController = TextEditingController();
-  bool _isSubmitting = false;
+  bool _visionVisible = false;
+  bool _missionVisible = false;
+  bool _qualityVisible = false;
+  bool _historyVisible = false;
+  bool _featuredVisible = false;
+  bool _aboutVisible = false;
+  bool _feedbackVisible = false;
+  bool _exploreVisible = false;
 
   final supabase = Supabase.instance.client;
 
-  bool _isGuestUser() {
-    final user = supabase.auth.currentUser;
-    if (user == null) return true;
-
-    final isAnonymous =
-        user.isAnonymous ||
-        user.appMetadata['provider'] == 'anonymous' ||
-        user.email == null ||
-        user.email!.isEmpty;
-
-    return isAnonymous;
-  }
-
-  void _showGuestRestriction() {
-    showDialog(
-      context: context,
-      builder: (context) => const GuestRestrictionModal(feature: 'Feedback'),
-    );
-  }
-
-  final List<Map<String, dynamic>> featuredLocations = [
-    {
-      'id': 2,
-      'name': 'College of Science',
-      'description':
-          'The College of Science building houses various science departments and laboratories for students pursuing scientific disciplines.',
-      'image': 'assets/images/college_of_science.png',
-      'category': 'College Building',
-    },
-    {
-      'id': 3,
-      'name': 'College of Engineering',
-      'description':
-          'Modern facilities and laboratories for engineering students with state-of-the-art equipment.',
-      'image': 'assets/images/college_of_engineering.jpg',
-      'category': 'College Building',
-    },
-    {
-      'id': 4,
-      'name': 'Library',
-      'description':
-          'The main university library with extensive collection of books, journals, and digital resources.',
-      'image': 'assets/images/library.jpg',
-      'category': 'Academic Facility',
-    },
-    {
-      'id': 5,
-      'name': 'Administration Building',
-      'description':
-          'Central administrative offices and student services are located in this building.',
-      'image': 'assets/images/admin_building.jpg',
-      'category': 'Administrative',
-    },
-  ];
+  final HistoryTimeline _historyTimeline = HistoryTimeline();
+  List<Map<String, dynamic>> _timelineData = [];
+  bool _isLoadingTimeline = false;
 
   @override
   void initState() {
     super.initState();
 
-    // Search card animation
-    _searchCardController = AnimationController(
+    _loadTimelineData();
+
+    // Vision slide and fade animation
+    _visionController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 800),
+    );
+    _visionSlideAnimation =
+        Tween<Offset>(begin: const Offset(-1.0, 0.0), end: Offset.zero).animate(
+          CurvedAnimation(parent: _visionController!, curve: Curves.easeOut),
+        );
+    _visionFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _visionController!, curve: Curves.easeIn),
     );
 
-    _searchCardFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _searchCardController, curve: Curves.easeOut),
-    );
-
-    // Search field animation
-    _searchFieldController = AnimationController(
+    // Mission slide and fade animation
+    _missionController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 800),
+    );
+    _missionSlideAnimation =
+        Tween<Offset>(begin: const Offset(-1.0, 0.0), end: Offset.zero).animate(
+          CurvedAnimation(parent: _missionController!, curve: Curves.easeOut),
+        );
+    _missionFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _missionController!, curve: Curves.easeIn),
     );
 
-    _searchFieldFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _searchFieldController, curve: Curves.easeOut),
+    // Quality Policy slide and fade animation
+    _qualityController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _qualitySlideAnimation =
+        Tween<Offset>(begin: const Offset(-1.0, 0.0), end: Offset.zero).animate(
+          CurvedAnimation(parent: _qualityController!, curve: Curves.easeOut),
+        );
+    _qualityFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _qualityController!, curve: Curves.easeIn),
+    );
+
+    // History slide and fade animation
+    _historyController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _historySlideAnimation =
+        Tween<Offset>(begin: const Offset(-1.0, 0.0), end: Offset.zero).animate(
+          CurvedAnimation(parent: _historyController!, curve: Curves.easeOut),
+        );
+    _historyFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _historyController!, curve: Curves.easeIn),
+    );
+
+    // Featured slide and fade animation
+    _featuredController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _featuredSlideAnimation =
+        Tween<Offset>(begin: const Offset(-1.0, 0.0), end: Offset.zero).animate(
+          CurvedAnimation(parent: _featuredController!, curve: Curves.easeOut),
+        );
+    _featuredFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _featuredController!, curve: Curves.easeIn),
+    );
+
+    // About slide and fade animation
+    _aboutController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _aboutSlideAnimation =
+        Tween<Offset>(begin: const Offset(-1.0, 0.0), end: Offset.zero).animate(
+          CurvedAnimation(parent: _aboutController!, curve: Curves.easeOut),
+        );
+    _aboutFadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _aboutController!, curve: Curves.easeIn));
+
+    // Feedback slide and fade animation
+    _feedbackAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _feedbackSlideAnimation =
+        Tween<Offset>(begin: const Offset(-1.0, 0.0), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _feedbackAnimController!,
+            curve: Curves.easeOut,
+          ),
+        );
+    _feedbackFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _feedbackAnimController!, curve: Curves.easeIn),
+    );
+
+    // Explore slide and fade animation
+    _exploreController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _exploreSlideAnimation =
+        Tween<Offset>(begin: const Offset(-1.0, 0.0), end: Offset.zero).animate(
+          CurvedAnimation(parent: _exploreController!, curve: Curves.easeOut),
+        );
+    _exploreFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _exploreController!, curve: Curves.easeIn),
     );
 
     // Map zoom animation
@@ -133,39 +260,73 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
       end: 1.08,
     ).animate(CurvedAnimation(parent: _mapController, curve: Curves.easeInOut));
 
-    // Featured locations page controller
-    _featuredLocationsController = PageController(initialPage: 0);
-
-    // Initialize animations for each location
-    for (int i = 0; i < featuredLocations.length; i++) {
-      final controller = AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 1800),
-      );
-
-      _locationControllers.add(controller);
-
-      _locationFadeAnimations.add(
-        Tween<double>(
-          begin: 0.0,
-          end: 1.0,
-        ).animate(CurvedAnimation(parent: controller, curve: Curves.easeOut)),
-      );
-
-      _locationSlideAnimations.add(
-        Tween<Offset>(begin: const Offset(-0.3, 0), end: Offset.zero).animate(
-          CurvedAnimation(parent: controller, curve: Curves.easeOutCubic),
-        ),
-      );
-    }
-
-    // Start search animations
-    _searchCardController.forward().then((_) {
-      _searchFieldController.forward();
-    });
+    // Add scroll listener
+    _scrollController.addListener(_onScroll);
 
     // Check for guest modal
     _checkAndShowGuestModal();
+  }
+
+  void _onScroll() {
+    final scrollPosition = _scrollController.position.pixels;
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    // Trigger vision animation
+    if (scrollPosition > screenHeight * 0.8 && !_visionVisible) {
+      setState(() => _visionVisible = true);
+      _visionController?.forward();
+    }
+
+    // Trigger mission animation
+    if (scrollPosition > screenHeight * 1.5 && !_missionVisible) {
+      setState(() => _missionVisible = true);
+      _missionController?.forward();
+    }
+
+    // Trigger quality policy animation
+    if (scrollPosition > screenHeight * 2.2 && !_qualityVisible) {
+      setState(() => _qualityVisible = true);
+      _qualityController?.forward();
+    }
+
+    // Trigger history animation
+    if (scrollPosition > screenHeight * 2.9 && !_historyVisible) {
+      setState(() => _historyVisible = true);
+      _historyController?.forward();
+    }
+
+    // Trigger featured animation
+    if (scrollPosition > screenHeight * 3.8 && !_featuredVisible) {
+      setState(() => _featuredVisible = true);
+      _featuredController?.forward();
+    }
+
+    // Trigger about animation
+    if (scrollPosition > screenHeight * 4.8 && !_aboutVisible) {
+      setState(() => _aboutVisible = true);
+      _aboutController?.forward();
+    }
+
+    // Trigger feedback animation
+    if (scrollPosition > screenHeight * 5.6 && !_feedbackVisible) {
+      setState(() => _feedbackVisible = true);
+      _feedbackAnimController?.forward();
+    }
+
+    // Trigger explore animation
+    if (scrollPosition > screenHeight * 6.4 && !_exploreVisible) {
+      setState(() => _exploreVisible = true);
+      _exploreController?.forward();
+    }
+  }
+
+  void _navigateToCategory(String category) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Categories(initialCategory: category),
+      ),
+    );
   }
 
   Future<void> _checkAndShowGuestModal() async {
@@ -200,17 +361,33 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _loadTimelineData() async {
+    setState(() {
+      _isLoadingTimeline = true;
+    });
+
+    final data = await _historyTimeline.fetchTimelineData();
+
+    if (mounted) {
+      setState(() {
+        _timelineData = data;
+        _isLoadingTimeline = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _mapController.dispose();
-    _searchCardController.dispose();
-    _searchFieldController.dispose();
+    _visionController?.dispose();
+    _missionController?.dispose();
+    _qualityController?.dispose();
+    _historyController?.dispose();
+    _featuredController?.dispose();
+    _aboutController?.dispose();
+    _feedbackAnimController?.dispose();
+    _exploreController?.dispose();
     _scrollController.dispose();
-    _feedbackController.dispose();
-    _featuredLocationsController.dispose();
-    for (var controller in _locationControllers) {
-      controller.dispose();
-    }
     super.dispose();
   }
 
@@ -237,151 +414,328 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     );
   }
 
-  void _onLocationExplore() {
-    // Navigate to Categories page with the current location
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => Categories(autoFocusSearch: true),
+  void _showTimelineDetails() {
+    _historyTimeline.showTimelineModal(context, _timelineData);
+  }
+
+  Widget _buildCategoryIcon({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(begin: 1.0, end: 1.0),
+        duration: const Duration(milliseconds: 200),
+        builder: (context, scale, child) {
+          return Transform.scale(scale: scale, child: child);
+        },
+        child: Column(
+          children: [
+            Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: color.withValues(alpha: 0.3),
+                  width: 1.5,
+                ),
+              ),
+              child: Icon(icon, size: 32, color: color),
+            ),
+            SizedBox(height: 8),
+            Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _onLocationInfo() {
-    final location = featuredLocations[_currentLocationIndex];
-    // Navigate to detailed info page
-    print('Info for ${location['name']}');
-  }
-
-  void _showModal({
-    required String message,
-    required Color backgroundColor,
-    required Color textColor,
+  // Enhanced Section Builder with gradient box style
+  Widget _buildEnhancedSection({
+    required String title,
+    required String subtitle,
+    required String content,
     required IconData icon,
+    required IconData backgroundIcon,
+    required Animation<Offset>? slideAnimation,
+    required Animation<double>? fadeAnimation,
+    Widget? customContent,
+    VoidCallback? onButtonPressed,
+    String? buttonText,
   }) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black26,
-      builder: (BuildContext context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 10,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, color: textColor, size: 32),
-                SizedBox(height: 12),
-                Text(
-                  message,
-                  style: GoogleFonts.poppins(
-                    color: textColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+      child: Column(
+        children: [
+          // Title with decorative elements
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              // Background Icon with glow effect
+              Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.orange.withValues(alpha: 0.15),
+                      Colors.orange.withValues(alpha: 0.03),
+                      Colors.transparent,
+                    ],
                   ),
-                  textAlign: TextAlign.center,
                 ),
-              ],
+                child: Center(
+                  child: Icon(
+                    backgroundIcon,
+                    size: 120,
+                    color: Colors.orange.withValues(alpha: 0.12),
+                  ),
+                ),
+              ),
+
+              // Title - ANIMATED
+              FadeTransition(
+                opacity: fadeAnimation ?? AlwaysStoppedAnimation(0.0),
+                child: SlideTransition(
+                  position:
+                      slideAnimation ?? AlwaysStoppedAnimation(Offset.zero),
+                  child: Column(
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.montserrat(
+                          fontSize: 48,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.black87,
+                          letterSpacing: 1.5,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 60,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.orange.shade400,
+                              Colors.orange.shade600,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 40),
+
+          // Enhanced content card
+          FadeTransition(
+            opacity: fadeAnimation ?? AlwaysStoppedAnimation(0.0),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white,
+                    Colors.orange.shade50.withValues(alpha: 0.3),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.orange.withValues(alpha: 0.2),
+                  width: 2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orange.withValues(alpha: 0.15),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  // Section header
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.orange.shade400,
+                              Colors.orange.shade600,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.orange.withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(icon, color: Colors.white, size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              subtitle,
+                              style: GoogleFonts.montserrat(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Divider with dots
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 1,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.transparent,
+                                Colors.orange.withValues(alpha: 0.3),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        width: 6,
+                        height: 6,
+                        margin: const EdgeInsets.symmetric(horizontal: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade400,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      Expanded(
+                        child: Container(
+                          height: 1,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.orange.withValues(alpha: 0.3),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Content or custom widget
+                  if (customContent != null)
+                    customContent
+                  else
+                    Text(
+                      content,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: Colors.grey[700],
+                        height: 1.7,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+
+                  // Optional button
+                  if (onButtonPressed != null && buttonText != null) ...[
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: onButtonPressed,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: EdgeInsets.zero,
+                        ),
+                        child: Ink(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.orange.shade400,
+                                Colors.orange.shade600,
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Container(
+                            alignment: Alignment.center,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  buttonText,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.arrow_forward_rounded,
+                                  size: 18,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
-        );
-      },
+        ],
+      ),
     );
-
-    Future.delayed(Duration(seconds: 2), () {
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.of(context).pop();
-      }
-    });
-  }
-
-  Future<void> _submitFeedback() async {
-    if (_selectedRating == 0 || _feedbackController.text.trim().isEmpty) {
-      _showModal(
-        message: 'Please provide a rating and feedback',
-        backgroundColor: Colors.red[50]!,
-        textColor: const Color.fromARGB(255, 207, 80, 80),
-        icon: Icons.error,
-      );
-      return;
-    }
-
-    setState(() {
-      _isSubmitting = true;
-    });
-
-    try {
-      final user = supabase.auth.currentUser;
-      if (user == null) {
-        throw Exception('User not authenticated');
-      }
-
-      final userResponse = await supabase
-          .from('Users')
-          .select('user_id')
-          .eq('email', user.email!)
-          .single();
-
-      final userId = userResponse['user_id'];
-      final feedbackId = Random().nextInt(9007199254740991);
-
-      await supabase.from('Feedback').insert({
-        'feedback_id': feedbackId,
-        'user_id': userId,
-        'rating': _selectedRating,
-        'description': _feedbackController.text.trim(),
-        'created_at': DateTime.now().toIso8601String(),
-      });
-
-      _showModal(
-        message: 'Thank you for your feedback!',
-        backgroundColor: Colors.green[50]!,
-        textColor: const Color.fromARGB(255, 91, 194, 96),
-        icon: Icons.check_circle,
-      );
-
-      Future.delayed(Duration(seconds: 2), () {
-        if (mounted) {
-          setState(() {
-            _selectedRating = 0;
-            _feedbackController.clear();
-            _isSubmitting = false;
-          });
-        }
-      });
-    } catch (e) {
-      setState(() {
-        _isSubmitting = false;
-      });
-
-      _showModal(
-        message: 'Failed to submit feedback. Please try again.',
-        backgroundColor: Colors.red[50]!,
-        textColor: const Color.fromARGB(255, 207, 80, 80),
-        icon: Icons.error,
-      );
-
-      print('Error submitting feedback: $e');
-    }
-  }
-
-  void _onStarTap(int rating) {
-    setState(() {
-      _selectedRating = rating;
-    });
   }
 
   @override
@@ -392,856 +746,865 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Column(
+      body: Stack(
         children: [
-          ReusableHeader(),
-          Expanded(
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              child: Column(
-                children: [
-                  // Welcome Banner Section
-                  Container(
-                    height: isLandscape
-                        ? screenHeight * 0.35
-                        : screenHeight * 0.78,
-                    width: double.infinity,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: isLandscape ? 8 : 0,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          constraints: const BoxConstraints(maxWidth: 350),
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: isLandscape ? 12 : 30,
-                          ),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(32),
-                            gradient: RadialGradient(
-                              center: const Alignment(-1.0, -1.0),
-                              radius: 1.5,
-                              colors: [
-                                const Color(
-                                  0xFFFFC86C,
-                                ).withValues(alpha: 0.535),
-                                const Color(0xFF6ABAF4).withValues(alpha: 0.26),
-                              ],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.1),
-                                blurRadius: 20,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            children: [
-                              Image.asset(
-                                'assets/images/home_image.png',
-                                height: isLandscape ? 120 : 200,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    height: isLandscape ? 100 : 150,
-                                    child: Icon(
-                                      Icons.home,
-                                      size: isLandscape ? 50 : 80,
-                                      color: Colors.grey[400],
-                                    ),
-                                  );
-                                },
-                              ),
-                              SizedBox(height: isLandscape ? 8 : 16),
-                              Text(
-                                'Welcome to',
-                                style: GoogleFonts.poppins(
-                                  fontSize: isLandscape ? 16 : 20,
-                                  fontWeight: FontWeight.w400,
-                                  color: Colors.black87,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              Image.asset(
-                                'assets/images/itouru_logo.png',
-                                height: isLandscape ? 50 : 80,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Text(
-                                    'iTOURu',
-                                    style: GoogleFonts.bubblegumSans(
-                                      fontSize: isLandscape ? 36 : 48,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.blue[800],
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (!isLandscape) ...[
-                          const SizedBox(height: 40),
-                          Container(
-                            constraints: const BoxConstraints(maxWidth: 350),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                FadeTransition(
-                                  opacity: _searchCardFadeAnimation,
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(
-                                      left: 4,
-                                      bottom: 8,
-                                    ),
-                                    child: Text(
-                                      'Search Location of Interest',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                FadeTransition(
-                                  opacity: _searchFieldFadeAnimation,
-                                  child: GestureDetector(
-                                    onTap: _onSearchTap,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(12),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.08,
-                                            ),
-                                            blurRadius: 10,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 14,
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            Icons.search,
-                                            color: Colors.grey[600],
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Text(
-                                            'Search',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 14,
-                                              color: Colors.grey[400],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+          // Polygon background
+          Positioned.fill(
+            child: CustomPaint(painter: PolygonBackgroundPainter(0)),
+          ),
 
-                  // Featured Locations Slideshow Section
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(
-                      24,
-                    ), // Round the entire section
-                    child: Container(
-                      height: isLandscape ? screenHeight * 0.7 : screenHeight,
-                      width: double.infinity,
-                      color: Colors.black,
-                      child: Stack(
-                        children: [
-                          // PageView for slideshow
-                          PageView.builder(
-                            controller: _featuredLocationsController,
-                            onPageChanged: (index) {
-                              setState(() {
-                                _currentLocationIndex = index;
-                              });
-                            },
-                            itemCount: featuredLocations.length,
-                            itemBuilder: (context, index) {
-                              final location = featuredLocations[index];
-                              return Stack(
+          // Main content
+          Column(
+            children: [
+              ReusableHeader(),
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  child: Column(
+                    children: [
+                      // Welcome Banner Card
+                      Container(
+                        width: double.infinity,
+                        margin: EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 20,
+                        ),
+                        padding: EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.orange.shade400,
+                              Colors.orange.shade600,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.orange.withValues(alpha: 0.3),
+                              blurRadius: 12,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Background Image
-                                  Image.asset(
-                                    location['image'],
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        color: Colors.grey[400],
-                                        child: Center(
-                                          child: Icon(
-                                            Icons.location_city,
-                                            size: 80,
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                      );
-                                    },
+                                  Text(
+                                    'Welcome to iTOURu',
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
                                   ),
-                                  // Gradient Overlay
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: [
-                                          const Color.fromARGB(
-                                            255,
-                                            0,
-                                            1,
-                                            46,
-                                          ).withValues(alpha: 0.2),
-                                          const Color.fromARGB(
-                                            255,
-                                            0,
-                                            1,
-                                            46,
-                                          ).withValues(alpha: 0.7),
-                                        ],
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Your Digital Campus Guide',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: Colors.white.withValues(
+                                        alpha: 0.9,
                                       ),
                                     ),
                                   ),
                                 ],
-                              );
-                            },
-                          ),
+                              ),
+                            ),
+                            Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.explore,
+                                size: 32,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
 
-                          // Right side buttons - positioned at bottom right but not at the very bottom
-                          Positioned(
-                            right: 20,
-                            bottom: 90, // Moved up from center to bottom area
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Info Button
-                                Container(
-                                  width: 60,
-                                  height: 60,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.5,
-                                      ),
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      onTap: _onLocationInfo,
-                                      borderRadius: BorderRadius.circular(25),
-                                      child: Icon(
-                                        Icons.info_outline,
-                                        color: Colors.white,
-                                        size: 35,
-                                      ),
-                                    ),
-                                  ),
+                      // Search Bar
+                      Container(
+                        margin: EdgeInsets.symmetric(horizontal: 20),
+                        child: GestureDetector(
+                          onTap: _onSearchTap,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.grey.shade300,
+                                width: 1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: 8,
+                                  offset: Offset(0, 2),
                                 ),
-                                const SizedBox(height: 16),
-                                // Explore Button
-                                Container(
-                                  width: 60,
-                                  height: 60,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.5,
-                                      ),
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: InkWell(
-                                      onTap: _onLocationExplore,
-                                      borderRadius: BorderRadius.circular(25),
-                                      child: Icon(
-                                        Icons.explore_outlined,
-                                        color: Colors.white,
-                                        size: 35,
-                                      ),
-                                    ),
+                              ],
+                            ),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.search,
+                                  color: Colors.grey[400],
+                                  size: 22,
+                                ),
+                                SizedBox(width: 12),
+                                Text(
+                                  'Search',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    color: Colors.grey[400],
                                   ),
                                 ),
                               ],
                             ),
                           ),
+                        ),
+                      ),
 
-                          // Location Info at Bottom
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(24),
+                      SizedBox(height: 24),
+
+                      // Categories Section
+                      Container(
+                        margin: EdgeInsets.symmetric(horizontal: 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Categories',
+                              style: GoogleFonts.montserrat(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                _buildCategoryIcon(
+                                  icon: Icons.school,
+                                  label: 'College',
+                                  color: Colors.blue,
+                                  onTap: () => _navigateToCategory('College'),
+                                ),
+                                _buildCategoryIcon(
+                                  icon: Icons.business,
+                                  label: 'Buildings',
+                                  color: Colors.blue,
+                                  onTap: () => _navigateToCategory('Buildings'),
+                                ),
+                                _buildCategoryIcon(
+                                  icon: Icons.place,
+                                  label: 'Landmarks',
+                                  color: Colors.blue,
+                                  onTap: () => _navigateToCategory('Landmarks'),
+                                ),
+                                _buildCategoryIcon(
+                                  icon: Icons.work_outline,
+                                  label: 'Offices',
+                                  color: Colors.blue,
+                                  onTap: () => _navigateToCategory('Offices'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      SizedBox(height: 32),
+
+                      // Discover BU West Campus Section
+                      Container(
+                        width: double.infinity,
+                        margin: EdgeInsets.symmetric(horizontal: 20),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              width: double.infinity,
+                              padding: EdgeInsets.only(
+                                left: 20,
+                                top: 20,
+                                bottom: 20,
+                                right: 100,
+                              ),
                               decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.black.withValues(alpha: 0),
-                                    Colors.black.withValues(alpha: 0.3),
-                                  ],
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: Colors.orange.withValues(alpha: 0.2),
+                                  width: 1,
                                 ),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color.fromARGB(
-                                        255,
-                                        199,
-                                        152,
-                                        76,
-                                      ).withValues(alpha: 0.3),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: const Color.fromARGB(
-                                          255,
-                                          199,
-                                          152,
-                                          76,
-                                        ),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      featuredLocations[_currentLocationIndex]['category'],
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color.fromARGB(
-                                          255,
-                                          199,
-                                          152,
-                                          76,
-                                        ),
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
                                   Text(
-                                    featuredLocations[_currentLocationIndex]['name'],
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 32,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 24),
-                                  // Indicator Dots
-                                  Row(
-                                    children: List.generate(
-                                      featuredLocations.length,
-                                      (index) => Container(
-                                        margin: const EdgeInsets.only(right: 8),
-                                        width: index == _currentLocationIndex
-                                            ? 24
-                                            : 8,
-                                        height: 4,
-                                        decoration: BoxDecoration(
-                                          color: index == _currentLocationIndex
-                                              ? Colors.cyan
-                                              : Colors.white.withValues(
-                                                  alpha: 0.3,
-                                                ),
-                                          borderRadius: BorderRadius.circular(
-                                            2,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // Extra spacing before about section
-                  SizedBox(height: isLandscape ? 10 : 15),
-
-                  // About App Section
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 40,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.08),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.info_outline,
-                                    color: Colors.orange[400],
-                                    size: 24,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'About iTOURu',
+                                    'Discover BU West Campus',
                                     style: GoogleFonts.poppins(
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.black87,
                                     ),
                                   ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Explore our state-of-the-art facilities, academic buildings, and vibrant campus life',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 11,
+                                      color: Colors.grey[700],
+                                      height: 1.4,
+                                    ),
+                                  ),
                                 ],
                               ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'iTOURu is an interactive campus navigation and tour application designed to help students, visitors, and staff explore Bicol University West Campus seamlessly. Discover academic facilities, buildings, amenities, and key locations all in one comprehensive digital guide.',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  color: Colors.grey[700],
-                                  height: 1.6,
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-
-                              // In your Home page, the Learn More button code:
-                              SizedBox(
-                                width: double.infinity,
-                                height: 44,
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => AboutPage(),
+                            ),
+                            Positioned(
+                              right: 15,
+                              top: -10,
+                              bottom: 0,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Image.asset(
+                                  'assets/images/bu_torch.png',
+                                  width: 105,
+                                  height: 120,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      width: 120,
+                                      height: 140,
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.shade100,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        Icons.image,
+                                        size: 50,
+                                        color: Colors.orange.shade300,
                                       ),
                                     );
                                   },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.orange[400],
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      SizedBox(height: 40),
+
+                      // Open space with BU logo background
+                      Container(
+                        height: screenHeight * 0.5,
+                        width: double.infinity,
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: Opacity(
+                                opacity: 0.5,
+                                child: Image.asset(
+                                  'assets/images/bu_logo.png',
+                                  height: 200,
+                                  width: 200,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Icon(
+                                      Icons.school,
+                                      size: 200,
+                                      color: Colors.grey[300],
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // VISION SECTION - Replace the existing vision section
+                      _buildEnhancedSection(
+                        title: 'Vision',
+                        subtitle: 'Our Future Aspiration',
+                        content:
+                            'A University for Humanity characterized by productive scholarship, transformative leadership, collaborative service, and distinctive character for sustainable societies.',
+                        icon: Icons.lightbulb_outline,
+                        backgroundIcon: Icons.visibility,
+                        slideAnimation: _visionSlideAnimation,
+                        fadeAnimation: _visionFadeAnimation,
+                      ),
+
+                      const SizedBox(height: 40),
+
+                      // MISSION SECTION - Replace the existing mission section
+                      _buildEnhancedSection(
+                        title: 'Mission',
+                        subtitle: 'Our Core Purpose',
+                        content:
+                            'The Bicol University shall give professional and technical training, and provide advanced and specialized instruction in literature, philosophy, the sciences and arts, besides providing for the promotion of scientific and technological researches (RA 5521, Sec. 3.0).',
+                        icon: Icons.flag_outlined,
+                        backgroundIcon: Icons.flag,
+                        slideAnimation: _missionSlideAnimation,
+                        fadeAnimation: _missionFadeAnimation,
+                      ),
+
+                      const SizedBox(height: 40),
+
+                      // QUALITY POLICY SECTION - Replace the existing quality policy section
+                      _buildEnhancedSection(
+                        title: 'Quality Policy',
+                        subtitle: 'Our Commitment to Excellence',
+                        content:
+                            'Bicol University commits to continually strive for excellence in instruction, research, and extension by meeting the highest level of clientele satisfaction and adhering to quality standards and applicable statutory and regulatory requirements.',
+                        icon: Icons.verified_outlined,
+                        backgroundIcon: Icons.workspace_premium,
+                        slideAnimation: _qualitySlideAnimation,
+                        fadeAnimation: _qualityFadeAnimation,
+                      ),
+
+                      const SizedBox(height: 40),
+
+                      SizedBox(height: 40),
+
+                      // History Section
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 40,
+                        ),
+                        child: Column(
+                          children: [
+                            // Title with decorative elements
+                            Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                // Background Icon - STATIC with glow effect
+                                Container(
+                                  width: 200,
+                                  height: 200,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: RadialGradient(
+                                      colors: [
+                                        Colors.orange.withValues(alpha: 0.15),
+                                        Colors.orange.withValues(alpha: 0.03),
+                                        Colors.transparent,
+                                      ],
                                     ),
-                                    elevation: 0,
                                   ),
-                                  child: Text(
-                                    'Learn More',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.history_edu,
+                                      size: 120,
+                                      color: Colors.orange.withValues(
+                                        alpha: 0.12,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
 
-                              // Make sure you have this import at the top of your home.dart file:
-                              // import 'package:itouru/settings_pages/about.dart';
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  SizedBox(height: isLandscape ? 10 : 15),
-                  // Feedback Section (Compact)
-                  GestureDetector(
-                    onTap: _isGuestUser() ? _showGuestRestriction : null,
-                    child: Stack(
-                      children: [
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 30,
-                          ),
-                          child: Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.08),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
+                                // Title - ANIMATED
+                                FadeTransition(
+                                  opacity:
+                                      _historyFadeAnimation ??
+                                      AlwaysStoppedAnimation(0.0),
+                                  child: SlideTransition(
+                                    position:
+                                        _historySlideAnimation ??
+                                        AlwaysStoppedAnimation(Offset.zero),
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          'History',
+                                          style: GoogleFonts.montserrat(
+                                            fontSize: 48,
+                                            fontWeight: FontWeight.w900,
+                                            color: Colors.black87,
+                                            letterSpacing: 1.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Container(
+                                          width: 60,
+                                          height: 4,
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                Colors.orange.shade400,
+                                                Colors.orange.shade600,
+                                              ],
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              2,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Title
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.feedback_outlined,
-                                      color: Colors.orange[400],
-                                      size: 24,
+
+                            const SizedBox(height: 40),
+
+                            // Enhanced content card
+                            FadeTransition(
+                              opacity:
+                                  _historyFadeAnimation ??
+                                  AlwaysStoppedAnimation(0.0),
+                              child: Container(
+                                padding: const EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Colors.white,
+                                      Colors.orange.shade50.withValues(
+                                        alpha: 0.3,
+                                      ),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Colors.orange.withValues(alpha: 0.2),
+                                    width: 2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.orange.withValues(
+                                        alpha: 0.15,
+                                      ),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 8),
                                     ),
-                                    SizedBox(width: 8),
+                                  ],
+                                ),
+                                child: Column(
+                                  children: [
+                                    // Section header
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                Colors.orange.shade400,
+                                                Colors.orange.shade600,
+                                              ],
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.orange.withValues(
+                                                  alpha: 0.3,
+                                                ),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          child: const Icon(
+                                            Icons.timeline,
+                                            color: Colors.white,
+                                            size: 24,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Journey Through Time',
+                                                style: GoogleFonts.montserrat(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.black87,
+                                                ),
+                                              ),
+                                              Text(
+                                                'Explore BU\'s rich heritage',
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 11,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+
+                                    const SizedBox(height: 24),
+
+                                    // Divider with dots
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Container(
+                                            height: 1,
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                colors: [
+                                                  Colors.transparent,
+                                                  Colors.orange.withValues(
+                                                    alpha: 0.3,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        Container(
+                                          width: 6,
+                                          height: 6,
+                                          margin: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.orange.shade400,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Container(
+                                            height: 1,
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                colors: [
+                                                  Colors.orange.withValues(
+                                                    alpha: 0.3,
+                                                  ),
+                                                  Colors.transparent,
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+
+                                    const SizedBox(height: 24),
+
+                                    // Timeline preview or loading
+                                    _isLoadingTimeline
+                                        ? Container(
+                                            height: 180,
+                                            child: Center(
+                                              child: Column(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  SizedBox(
+                                                    width: 40,
+                                                    height: 40,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          color: Colors
+                                                              .orange[400],
+                                                          strokeWidth: 3,
+                                                        ),
+                                                  ),
+                                                  const SizedBox(height: 16),
+                                                  Text(
+                                                    'Loading timeline...',
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 12,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          )
+                                        : _historyTimeline.buildPreviewTimeline(
+                                            _timelineData,
+                                            3,
+                                          ),
+
+                                    const SizedBox(height: 24),
+
+                                    // Action button with icon
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 50,
+                                      child: ElevatedButton(
+                                        onPressed: _timelineData.isEmpty
+                                            ? null
+                                            : _showTimelineDetails,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.transparent,
+                                          foregroundColor: Colors.white,
+                                          elevation: 0,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          padding: EdgeInsets.zero,
+                                        ),
+                                        child: Ink(
+                                          decoration: BoxDecoration(
+                                            gradient: _timelineData.isEmpty
+                                                ? null
+                                                : LinearGradient(
+                                                    colors: [
+                                                      Colors.orange.shade400,
+                                                      Colors.orange.shade600,
+                                                    ],
+                                                  ),
+                                            color: _timelineData.isEmpty
+                                                ? Colors.grey[300]
+                                                : null,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          child: Container(
+                                            alignment: Alignment.center,
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                const Icon(
+                                                  Icons.explore,
+                                                  size: 20,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  'Explore Full Timeline',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                const Icon(
+                                                  Icons.arrow_forward_rounded,
+                                                  size: 18,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+
+                                    // Info text
+                                    const SizedBox(height: 12),
                                     Text(
-                                      'Rate Our App',
+                                      '${_timelineData.length} milestone${_timelineData.length != 1 ? 's' : ''} in BU history',
                                       style: GoogleFonts.poppins(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black87,
+                                        fontSize: 11,
+                                        color: Colors.grey[600],
+                                        fontStyle: FontStyle.italic,
                                       ),
                                     ),
                                   ],
                                 ),
-                                SizedBox(height: 4),
-                                Text(
-                                  'Share your experience with us',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                SizedBox(height: 8),
-                                Center(
-                                  child: Image.asset(
-                                    'assets/images/feedback_img.png',
-                                    height: 150,
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        height: 150,
-                                        child: Icon(
-                                          Icons.rate_review,
-                                          size: 80,
-                                          color: Colors.grey[400],
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                                SizedBox(height: 16),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
 
-                                // Current stars with animation on tap
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: List.generate(5, (index) {
-                                    return GestureDetector(
-                                      onTap: (_isSubmitting || _isGuestUser())
-                                          ? null
-                                          : () => _onStarTap(index + 1),
-                                      child: AnimatedContainer(
-                                        duration: Duration(milliseconds: 200),
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 4,
-                                        ),
-                                        child: Icon(
-                                          index < _selectedRating
-                                              ? Icons.star
-                                              : Icons.star_border,
-                                          size: index < _selectedRating
-                                              ? 36
-                                              : 32, // Grows when selected
-                                          color: index < _selectedRating
-                                              ? Colors.orange[400]
-                                              : Colors.grey[300],
-                                        ),
-                                      ),
-                                    );
-                                  }),
-                                ),
+                      SizedBox(height: 40),
 
-                                SizedBox(height: 12),
-
-                                // Feedback text field
+                      // Featured Locations Section
+                      // Replace this section:
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 40,
+                        ),
+                        child: Column(
+                          children: [
+                            // Title with decorative elements
+                            Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                // Background Icon with glow effect
                                 Container(
-                                  height: 100,
+                                  width: 200,
+                                  height: 200,
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Colors.grey[300]!,
-                                      width: 1,
+                                    shape: BoxShape.circle,
+                                    gradient: RadialGradient(
+                                      colors: [
+                                        Colors.orange.withValues(alpha: 0.15),
+                                        Colors.orange.withValues(alpha: 0.03),
+                                        Colors.transparent,
+                                      ],
                                     ),
                                   ),
-                                  child: TextField(
-                                    controller: _feedbackController,
-                                    enabled: !_isSubmitting && !_isGuestUser(),
-                                    maxLines: null,
-                                    expands: true,
-                                    textAlignVertical: TextAlignVertical.top,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 13,
-                                      color: Colors.black87,
-                                    ),
-                                    decoration: InputDecoration(
-                                      hintText: _isGuestUser()
-                                          ? 'Sign in to share feedback...'
-                                          : 'Share your feedback...',
-                                      hintStyle: GoogleFonts.poppins(
-                                        color: Colors.grey[400],
-                                        fontSize: 13,
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.location_city,
+                                      size: 120,
+                                      color: Colors.orange.withValues(
+                                        alpha: 0.12,
                                       ),
-                                      border: InputBorder.none,
-                                      contentPadding: EdgeInsets.all(12),
                                     ),
                                   ),
                                 ),
 
-                                SizedBox(height: 16),
-
-                                // Submit button
-                                SizedBox(
-                                  width: double.infinity,
-                                  height: 44,
-                                  child: ElevatedButton(
-                                    onPressed: (_isSubmitting || _isGuestUser())
-                                        ? null
-                                        : _submitFeedback,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.orange[400],
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      elevation: 0,
-                                      disabledBackgroundColor: Colors.grey[300],
-                                    ),
-                                    child: _isSubmitting
-                                        ? SizedBox(
-                                            height: 18,
-                                            width: 18,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              valueColor:
-                                                  AlwaysStoppedAnimation<Color>(
-                                                    Colors.white,
-                                                  ),
+                                // Title - ANIMATED
+                                FadeTransition(
+                                  opacity:
+                                      _featuredFadeAnimation ??
+                                      AlwaysStoppedAnimation(0.0),
+                                  child: SlideTransition(
+                                    position:
+                                        _featuredSlideAnimation ??
+                                        AlwaysStoppedAnimation(Offset.zero),
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          'Featured Locations',
+                                          style: GoogleFonts.montserrat(
+                                            fontSize: 48,
+                                            fontWeight: FontWeight.w900,
+                                            color: Colors.black87,
+                                            letterSpacing: 1.5,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Container(
+                                          width: 60,
+                                          height: 4,
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                Colors.orange.shade400,
+                                                Colors.orange.shade600,
+                                              ],
                                             ),
-                                          )
-                                        : Text(
-                                            _isGuestUser()
-                                                ? 'Sign In Required'
-                                                : 'Submit Feedback',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w600,
+                                            borderRadius: BorderRadius.circular(
+                                              2,
                                             ),
                                           ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                        ),
-                        // Blur overlay for guest users
-                        if (_isGuestUser())
-                          Positioned.fill(
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 30,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.7),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(16),
-                                child: BackdropFilter(
-                                  filter: ImageFilter.blur(
-                                    sigmaX: 3,
-                                    sigmaY: 3,
-                                  ),
-                                  child: Container(
-                                    color: Colors.white.withValues(alpha: 0.1),
-                                    child: Center(
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.lock_outline,
-                                            size: 48,
-                                            color: Colors.orange[400],
-                                          ),
-                                          SizedBox(height: 12),
-                                          Text(
-                                            'Sign in to access',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
-                                              color: Colors.black87,
-                                            ),
-                                          ),
-                                          SizedBox(height: 4),
-                                          Text(
-                                            'Tap to learn more',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 12,
-                                              color: Colors.grey[600],
-                                            ),
-                                          ),
-                                        ],
+                            const SizedBox(height: 40),
+                            FadeTransition(
+                              opacity:
+                                  _featuredFadeAnimation ??
+                                  AlwaysStoppedAnimation(0.0),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Colors.white,
+                                      Colors.orange.shade50.withValues(
+                                        alpha: 0.3,
                                       ),
-                                    ),
+                                    ],
                                   ),
+                                  borderRadius: BorderRadius.circular(28),
+                                  border: Border.all(
+                                    color: Colors.orange.withValues(alpha: 0.2),
+                                    width: 2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.orange.withValues(
+                                        alpha: 0.15,
+                                      ),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: FeaturedLocationsSection(
+                                  height: isLandscape
+                                      ? screenHeight * 0.6
+                                      : screenHeight * 0.65,
                                 ),
                               ),
                             ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  // Extra spacing before map section
-                  SizedBox(height: isLandscape ? 20 : 20),
-
-                  // Map Section
-                  GestureDetector(
-                    onTap: _onMapTap,
-                    child: AnimatedBuilder(
-                      animation: _mapZoomAnimation,
-                      builder: (context, child) {
-                        return Transform.scale(
-                          scale: _mapZoomAnimation.value,
-                          child: child,
-                        );
-                      },
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(20),
-                          topRight: Radius.circular(20),
-                        ),
-                        child: Container(
-                          width: double.infinity,
-                          height: 200,
-                          decoration: BoxDecoration(
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.2),
-                                blurRadius: 10,
-                                offset: const Offset(0, -3),
-                              ),
-                            ],
-                          ),
-                          child: Stack(
-                            children: [
-                              Image.asset(
-                                'assets/images/footer_map.jpg',
-                                width: double.infinity,
-                                height: 200,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: Colors.grey[300],
-                                    child: const Center(
-                                      child: Icon(
-                                        Icons.map,
-                                        size: 60,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                              Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Colors.black.withValues(alpha: 0.3),
-                                      Colors.black.withValues(alpha: 0.6),
-                                    ],
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.map_outlined,
-                                        size: 50,
-                                        color: Colors.white,
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Text(
-                                        'Explore Campus Map',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 5),
-                                      Text(
-                                        'Tap to navigate',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 12,
-                                          color: Colors.white.withValues(
-                                            alpha: 0.9,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
                       ),
-                    ),
+
+                      SizedBox(height: 60),
+
+                      // About iTOURu Section
+                      _buildEnhancedSection(
+                        title: 'About iTOURu',
+                        subtitle: 'Your Digital Campus Guide',
+                        content:
+                            'iTOURu is an interactive campus navigation and tour application designed to help students, visitors, and staff explore Bicol University West Campus seamlessly. Discover academic facilities, buildings, amenities, and key locations all in one comprehensive digital guide.',
+                        icon: Icons.info_outline,
+                        backgroundIcon: Icons.info,
+                        slideAnimation: _aboutSlideAnimation,
+                        fadeAnimation: _aboutFadeAnimation,
+                        buttonText: 'Learn More',
+                        onButtonPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => AboutPage(),
+                            ),
+                          );
+                        },
+                      ),
+
+                      SizedBox(height: 60),
+
+                      // Feedback Section
+                      FeedbackSection(
+                        slideAnimation: _feedbackSlideAnimation,
+                        fadeAnimation: _feedbackFadeAnimation,
+                      ),
+
+                      SizedBox(height: 60),
+
+                      ExploreSection(
+                        slideAnimation: _exploreSlideAnimation,
+                        fadeAnimation: _exploreFadeAnimation,
+                        mapZoomAnimation: _mapZoomAnimation,
+                        onMapTap: _onMapTap,
+                      ),
+
+                      SizedBox(height: 40),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),

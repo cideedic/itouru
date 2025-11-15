@@ -11,7 +11,7 @@ class PulsingDestinationMarker extends StatefulWidget {
   const PulsingDestinationMarker({
     super.key,
     required this.stopNumber,
-    this.color = const Color(0xFFFF9800), // Orange
+    this.color = const Color(0xFFFF8C00), // Orange
     this.borderColor = Colors.white,
     this.size = 50.0,
   });

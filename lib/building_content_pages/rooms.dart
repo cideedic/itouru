@@ -13,11 +13,19 @@ class BuildingRoomsTab extends StatefulWidget {
 class _BuildingRoomsTabState extends State<BuildingRoomsTab> {
   String selectedFloor = 'All';
   List<int> availableFloors = [];
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _initializeFloors();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _initializeFloors() {
@@ -34,6 +42,7 @@ class _BuildingRoomsTabState extends State<BuildingRoomsTab> {
   List<Map<String, dynamic>> _getFilteredRooms() {
     List<Map<String, dynamic>> filtered;
 
+    // First filter by floor
     if (selectedFloor == 'All') {
       filtered = List.from(widget.rooms);
     } else {
@@ -41,6 +50,17 @@ class _BuildingRoomsTabState extends State<BuildingRoomsTab> {
       filtered = widget.rooms
           .where((room) => room['floor_level'] == floorNumber)
           .toList();
+    }
+
+    // Then filter by search query
+    if (_searchQuery.isNotEmpty) {
+      filtered = filtered.where((room) {
+        final roomName = room['room_name']?.toString().toLowerCase() ?? '';
+        final roomNumber = room['room_number']?.toString().toLowerCase() ?? '';
+        final query = _searchQuery.toLowerCase();
+
+        return roomName.contains(query) || roomNumber.contains(query);
+      }).toList();
     }
 
     // Sort rooms: first by whether they have room_number, then by room_number or room_name
@@ -109,6 +129,60 @@ class _BuildingRoomsTabState extends State<BuildingRoomsTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Search Bar
+        Container(
+          margin: EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[300]!),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: TextField(
+            controller: _searchController,
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value;
+              });
+            },
+            decoration: InputDecoration(
+              hintText: 'Search by room name or number...',
+              hintStyle: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+              prefixIcon: Icon(Icons.search, color: Colors.grey[600], size: 22),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(
+                        Icons.clear,
+                        color: Colors.grey[600],
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _searchController.clear();
+                          _searchQuery = '';
+                        });
+                      },
+                    )
+                  : null,
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+            ),
+            style: GoogleFonts.poppins(fontSize: 14, color: Colors.black87),
+          ),
+        ),
+
         // Floor Filter Chips
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -127,7 +201,7 @@ class _BuildingRoomsTabState extends State<BuildingRoomsTab> {
         Padding(
           padding: EdgeInsets.only(bottom: 16),
           child: Text(
-            '${filteredRooms.length} ${filteredRooms.length == 1 ? 'Room' : 'Rooms'}',
+            '${filteredRooms.length} ${filteredRooms.length == 1 ? 'Room' : 'Rooms'}${_searchQuery.isNotEmpty ? ' found' : ''}',
             style: GoogleFonts.poppins(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -136,8 +210,37 @@ class _BuildingRoomsTabState extends State<BuildingRoomsTab> {
           ),
         ),
 
-        // Rooms List
-        ...filteredRooms.map((room) => _buildRoomCard(room)),
+        // Rooms List or No Results
+        if (filteredRooms.isEmpty && _searchQuery.isNotEmpty)
+          Center(
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: Column(
+                children: [
+                  Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+                  SizedBox(height: 16),
+                  Text(
+                    'No rooms found',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Try adjusting your search',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.grey[500],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          ...filteredRooms.map((room) => _buildRoomCard(room)),
       ],
     );
   }

@@ -198,7 +198,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Colors.orange,
+              primary: Color(0xFFFF8C00),
               onPrimary: Colors.white,
               onSurface: Colors.black,
             ),
@@ -231,10 +231,14 @@ class _PrivacyPageState extends State<PrivacyPage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.1),
+                  color: Color(0xFFFF8C00).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.lock_reset, color: Colors.orange, size: 32),
+                child: Icon(
+                  Icons.lock_reset,
+                  color: Color(0xFFFF8C00),
+                  size: 32,
+                ),
               ),
               const SizedBox(height: 16),
 
@@ -292,7 +296,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
                         _sendPasswordResetEmail();
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
+                        backgroundColor: Color(0xFFFF8C00),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -359,12 +363,12 @@ class _PrivacyPageState extends State<PrivacyPage> {
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.orange.withValues(alpha: 0.1),
+                            color: Color(0xFFFF8C00).withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
                             Icons.security,
-                            color: Colors.orange,
+                            color: Color(0xFFFF8C00),
                             size: 32,
                           ),
                         ),
@@ -476,7 +480,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.of(context).pop(),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
+                    backgroundColor: Color(0xFFFF8C00),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -580,9 +584,10 @@ class _PrivacyPageState extends State<PrivacyPage> {
                                       },
                                       icon: const Icon(Icons.edit),
                                       style: IconButton.styleFrom(
-                                        backgroundColor: Colors.orange
-                                            .withValues(alpha: 0.1),
-                                        foregroundColor: Colors.orange,
+                                        backgroundColor: Color(
+                                          0xFFFF8C00,
+                                        ).withValues(alpha: 0.1),
+                                        foregroundColor: Color(0xFFFF8C00),
                                       ),
                                       tooltip: 'Edit Profile',
                                     ),
@@ -747,18 +752,18 @@ class _PrivacyPageState extends State<PrivacyPage> {
                               icon: Icon(
                                 Icons.lock_reset,
                                 size: 18,
-                                color: Colors.orange,
+                                color: Color(0xFFFF8C00),
                               ),
                               label: Text(
                                 'Change Password',
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.orange,
+                                  color: Color(0xFFFF8C00),
                                 ),
                               ),
                               style: OutlinedButton.styleFrom(
-                                side: BorderSide(color: Colors.orange),
+                                side: BorderSide(color: Color(0xFFFF8C00)),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -810,7 +815,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
                                   child: ElevatedButton(
                                     onPressed: isSaving ? null : _saveChanges,
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.orange,
+                                      backgroundColor: Color(0xFFFF8C00),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
                                       ),
@@ -890,7 +895,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
             '• ',
             style: GoogleFonts.poppins(
               fontSize: 13,
-              color: Colors.orange,
+              color: Color(0xFFFF8C00),
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -933,7 +938,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
           decoration: InputDecoration(
             prefixIcon: Icon(
               Icons.calendar_today,
-              color: isEditing ? Colors.orange : Colors.grey[400],
+              color: isEditing ? Color(0xFFFF8C00) : Colors.grey[400],
               size: 20,
             ),
             filled: true,
@@ -948,7 +953,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.orange, width: 2),
+              borderSide: const BorderSide(color: Color(0xFFFF8C00), width: 2),
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -997,26 +1002,35 @@ class _PrivacyPageState extends State<PrivacyPage> {
           decoration: InputDecoration(
             prefixIcon: Icon(
               icon,
-              color: enabled ? Colors.orange : Colors.grey[400],
+              color: enabled ? Color(0xFFFF8C00) : Colors.grey[400],
               size: 20,
             ),
             filled: true,
             fillColor: enabled ? Colors.white : Colors.grey[100],
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.orange, width: 1.5),
+              borderSide: BorderSide(
+                color: Colors.grey[300]!,
+                width: 1.5,
+              ), // Changed from orange
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.orange, width: 1.5),
+              borderSide: BorderSide(
+                color: Colors.grey[300]!,
+                width: 1.5,
+              ), // Changed from orange
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.orange, width: 2),
+              borderSide: const BorderSide(color: Color(0xFFFF8C00), width: 2),
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!, width: 1.5),
+              borderSide: BorderSide(
+                color: Colors.grey[300]!,
+                width: 1.5,
+              ), // Changed from grey[200]
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -1027,7 +1041,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
           borderRadius: BorderRadius.circular(12),
           icon: Icon(
             Icons.keyboard_arrow_down,
-            color: enabled ? Colors.orange : Colors.grey[400],
+            color: enabled ? Color(0xFFFF8C00) : Colors.grey[400],
           ),
           items: items.map((String item) {
             return DropdownMenuItem<String>(
@@ -1078,7 +1092,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
               icon: Icon(
                 _showEmail ? Icons.visibility : Icons.visibility_off,
                 size: 20,
-                color: Colors.orange,
+                color: Color(0xFFFF8C00),
               ),
               onPressed: () {
                 setState(() {
@@ -1138,7 +1152,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
               icon: Icon(
                 _showPassword ? Icons.visibility : Icons.visibility_off,
                 size: 20,
-                color: Colors.orange,
+                color: Color(0xFFFF8C00),
               ),
               onPressed: () {
                 setState(() {
@@ -1206,7 +1220,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
           decoration: InputDecoration(
             prefixIcon: Icon(
               icon,
-              color: enabled ? Colors.orange : Colors.grey[400],
+              color: enabled ? Color(0xFFFF8C00) : Colors.grey[400],
               size: 20,
             ),
             suffixIcon: suffixIcon,
@@ -1222,7 +1236,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.orange, width: 2),
+              borderSide: const BorderSide(color: Color(0xFFFF8C00), width: 2),
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),

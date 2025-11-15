@@ -7,6 +7,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/image_layout.dart';
 
+// Color constants for consistency
+const kPrimaryOrange = Color(0xFFFF8C00);
+const kPrimaryBlue = Color(0xFF2196F3);
+
 class BottomSheets {
   static final _supabase = Supabase.instance.client;
 
@@ -48,49 +52,73 @@ class BottomSheets {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
         ),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildBottomSheetHandle(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Row(
               children: [
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 56,
+                  height: 56,
                   decoration: BoxDecoration(
-                    color: Colors.orange,
-                    borderRadius: BorderRadius.circular(12),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF8C00), Color(0xFFFF6B00)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: kPrimaryOrange.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
                   child: const Icon(
                     Icons.directions,
                     color: Colors.white,
-                    size: 24,
+                    size: 28,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Route to',
-                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         buildingName,
-                        style: const TextStyle(
-                          fontSize: 16,
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
+                          color: Colors.black87,
                         ),
                       ),
                     ],
@@ -98,49 +126,122 @@ class BottomSheets {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.orange[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange[200]!),
+                gradient: LinearGradient(
+                  colors: [
+                    kPrimaryOrange.withOpacity(0.08),
+                    kPrimaryOrange.withOpacity(0.05),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: kPrimaryOrange.withOpacity(0.2),
+                  width: 1.5,
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  Column(
-                    children: [
-                      const Icon(Icons.straighten, color: Colors.orange),
-                      const SizedBox(height: 4),
-                      Text(
-                        distance,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: kPrimaryOrange.withOpacity(0.1),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.straighten,
+                            color: kPrimaryOrange,
+                            size: 24,
+                          ),
                         ),
-                      ),
-                      const Text('Distance', style: TextStyle(fontSize: 12)),
-                    ],
+                        const SizedBox(height: 10),
+                        Text(
+                          distance,
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Distance',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  Column(
-                    children: [
-                      const Icon(Icons.access_time, color: Colors.orange),
-                      const SizedBox(height: 4),
-                      Text(
-                        duration,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                  Container(
+                    width: 1,
+                    height: 60,
+                    color: kPrimaryOrange.withOpacity(0.2),
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: kPrimaryOrange.withOpacity(0.1),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.access_time,
+                            color: kPrimaryOrange,
+                            size: 24,
+                          ),
                         ),
-                      ),
-                      const Text('Duration', style: TextStyle(fontSize: 12)),
-                    ],
+                        const SizedBox(height: 10),
+                        Text(
+                          duration,
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Duration',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             Row(
               children: [
                 Expanded(
@@ -149,14 +250,21 @@ class BottomSheets {
                       Navigator.pop(context);
                       onStartNavigation?.call();
                     },
-                    icon: const Icon(Icons.navigation, size: 18),
-                    label: const Text('Start Navigation'),
+                    icon: const Icon(Icons.navigation, size: 20),
+                    label: Text(
+                      'Start Navigation',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
+                      backgroundColor: kPrimaryOrange,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),
@@ -168,12 +276,20 @@ class BottomSheets {
                       Navigator.pop(context);
                       onClearRoute?.call();
                     },
-                    icon: const Icon(Icons.clear, size: 18),
-                    label: const Text('Clear Route'),
+                    icon: const Icon(Icons.clear, size: 20),
+                    label: Text(
+                      'Clear Route',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      foregroundColor: Colors.grey[700],
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      side: BorderSide(color: Colors.grey[300]!, width: 1.5),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),
@@ -450,12 +566,9 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
         final imagePath = imageData['name'] as String;
         final filename = imageData['filename'] as String;
 
-        print('📸 Checking image: $filename'); // ← Add this
-
         if (filename == '.emptyFolderPlaceholder' ||
             imagePath.endsWith('.emptyFolderPlaceholder') ||
             filename.contains('_logo')) {
-          print('❌ Skipping: $filename'); // ← Add this
           continue;
         }
 
@@ -464,14 +577,12 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
             .getPublicUrl(imagePath);
 
         imageUrls.add(publicUrl);
-        print('✅ Added image: $filename'); // ← Add this
       }
-      // ✅ ADD THESE 3 LINES HERE
+
       if (imageUrls.length > 3) {
         imageUrls = imageUrls.sublist(0, 3);
       }
 
-      print('🎯 Total images loaded: ${imageUrls.length}'); // ← Add this
       if (!mounted) return;
 
       setState(() {
@@ -480,7 +591,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
       });
 
       if (imageUrls.length > 1) {
-        _pageController = PageController(); // Remove viewportFraction
+        _pageController = PageController();
       }
     } catch (e) {
       print('❌ Error loading college images: $e');
@@ -544,12 +655,9 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
         final imagePath = imageData['name'] as String;
         final filename = imageData['filename'] as String;
 
-        print('📸 Checking image: $filename'); // ← Add this
-
         if (filename == '.emptyFolderPlaceholder' ||
             imagePath.endsWith('.emptyFolderPlaceholder') ||
             filename.contains('_logo')) {
-          print('❌ Skipping: $filename'); // ← Add this
           continue;
         }
 
@@ -558,11 +666,8 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
             .getPublicUrl(imagePath);
 
         imageUrls.add(publicUrl);
-        print('✅ Added image: $filename'); // ← Add this
       }
 
-      print('🎯 Total images loaded: ${imageUrls.length}'); // ← Add this
-      // ✅ ADD THESE 3 LINES HERE
       if (imageUrls.length > 3) {
         imageUrls = imageUrls.sublist(0, 3);
       }
@@ -575,7 +680,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
       });
 
       if (imageUrls.length > 1) {
-        _pageController = PageController(); // Remove viewportFraction
+        _pageController = PageController();
       }
     } catch (e) {
       print('❌ Error loading building images: $e');
@@ -590,12 +695,19 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.8,
       ),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -605,7 +717,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
           const SizedBox(height: 16),
 
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -613,7 +725,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                   const Center(
                     child: Padding(
                       padding: EdgeInsets.all(20.0),
-                      child: CircularProgressIndicator(),
+                      child: CircularProgressIndicator(color: kPrimaryOrange),
                     ),
                   )
                 else
@@ -635,7 +747,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
             ),
 
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: Column(
               children: [
                 if (widget.isLoadingRoute)
@@ -643,28 +755,37 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                     padding: const EdgeInsets.all(16),
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: Colors.blue[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue[200]!),
+                      gradient: LinearGradient(
+                        colors: [
+                          kPrimaryBlue.withOpacity(0.1),
+                          kPrimaryBlue.withOpacity(0.05),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: kPrimaryBlue.withOpacity(0.2),
+                        width: 1.5,
+                      ),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
                         SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.blue,
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              kPrimaryBlue,
                             ),
                           ),
                         ),
-                        SizedBox(width: 12),
+                        const SizedBox(width: 12),
                         Text(
                           'Getting directions...',
-                          style: TextStyle(
-                            color: Colors.blue,
-                            fontWeight: FontWeight.w500,
+                          style: GoogleFonts.poppins(
+                            color: kPrimaryBlue,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
                           ),
                         ),
                       ],
@@ -688,40 +809,49 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.08),
+              gradient: LinearGradient(
+                colors: [
+                  kPrimaryBlue.withOpacity(0.1),
+                  kPrimaryBlue.withOpacity(0.05),
+                ],
+              ),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.withOpacity(0.2)),
+              border: Border.all(
+                color: kPrimaryBlue.withOpacity(0.3),
+                width: 1.5,
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.school, size: 14, color: Colors.blue),
+                const Icon(Icons.school, size: 14, color: kPrimaryBlue),
                 const SizedBox(width: 4),
                 Text(
                   'College',
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Colors.blue,
+                    color: kPrimaryBlue,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
 
           Text(
             _collegeName ?? widget.building.name,
             style: GoogleFonts.montserrat(
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
+              height: 1.2,
             ),
           ),
 
           if (_collegeAbbreviation != null &&
               _collegeAbbreviation!.isNotEmpty) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               _collegeAbbreviation!,
               style: GoogleFonts.poppins(
@@ -740,45 +870,54 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.08),
+              gradient: LinearGradient(
+                colors: [
+                  kPrimaryBlue.withOpacity(0.1),
+                  kPrimaryBlue.withOpacity(0.05),
+                ],
+              ),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.withOpacity(0.2)),
+              border: Border.all(
+                color: kPrimaryBlue.withOpacity(0.3),
+                width: 1.5,
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.place, size: 14, color: Colors.blue),
+                const Icon(Icons.place, size: 14, color: kPrimaryBlue),
                 const SizedBox(width: 4),
                 Text(
                   _buildingType ?? 'Landmark',
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Colors.blue,
+                    color: kPrimaryBlue,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
 
           Text(
             _buildingName ?? widget.building.name,
             style: GoogleFonts.montserrat(
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
+              height: 1.2,
             ),
           ),
 
           if (_buildingNickname != null && _buildingNickname!.isNotEmpty) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Text(
               _buildingNickname!,
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 color: Colors.grey[600],
-                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -799,40 +938,49 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.08),
+                      gradient: LinearGradient(
+                        colors: [
+                          kPrimaryBlue.withOpacity(0.1),
+                          kPrimaryBlue.withOpacity(0.05),
+                        ],
+                      ),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                      border: Border.all(
+                        color: kPrimaryBlue.withOpacity(0.3),
+                        width: 1.5,
+                      ),
                     ),
                     child: Text(
                       _buildingType!,
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: Colors.blue,
+                        color: kPrimaryBlue,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                 ],
 
                 Text(
                   _buildingName ?? widget.building.name,
                   style: GoogleFonts.montserrat(
-                    fontSize: 18,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
+                    height: 1.2,
                   ),
                 ),
 
                 if (_buildingNickname != null &&
                     _buildingNickname!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
                     _buildingNickname!,
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       color: Colors.grey[600],
-                      fontStyle: FontStyle.italic,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
@@ -869,14 +1017,21 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                           ),
                         );
                       },
-                icon: const Icon(Icons.info_outline, size: 18),
-                label: const Text('Info'),
+                icon: const Icon(Icons.info_outline, size: 20),
+                label: Text(
+                  'Info',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
+                  backgroundColor: kPrimaryOrange,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
               ),
@@ -885,7 +1040,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
           if (hasValidId) const SizedBox(width: 12),
 
           Expanded(
-            child: OutlinedButton.icon(
+            child: ElevatedButton.icon(
               onPressed: widget.isLoadingRoute
                   ? null
                   : () {
@@ -898,15 +1053,24 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                       height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                  : const Icon(Icons.directions, size: 18),
-              label: Text(widget.isLoadingRoute ? 'Loading...' : 'Directions'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                  : const Icon(Icons.directions, size: 20),
+              label: Text(
+                widget.isLoadingRoute ? 'Loading...' : 'Directions',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPrimaryBlue,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
@@ -940,14 +1104,21 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                           ),
                         );
                       },
-                icon: const Icon(Icons.info_outline, size: 18),
-                label: const Text('Info'),
+                icon: const Icon(Icons.info_outline, size: 20),
+                label: Text(
+                  'Info',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
+                  backgroundColor: kPrimaryOrange,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
               ),
@@ -956,7 +1127,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
           if (hasValidId) const SizedBox(width: 12),
 
           Expanded(
-            child: OutlinedButton.icon(
+            child: ElevatedButton.icon(
               onPressed: widget.isLoadingRoute
                   ? null
                   : () {
@@ -969,15 +1140,24 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                       height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                  : const Icon(Icons.directions, size: 18),
-              label: Text(widget.isLoadingRoute ? 'Loading...' : 'Directions'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                  : const Icon(Icons.directions, size: 20),
+              label: Text(
+                widget.isLoadingRoute ? 'Loading...' : 'Directions',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPrimaryBlue,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
@@ -1007,14 +1187,21 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                         ),
                       );
                     },
-              icon: const Icon(Icons.info_outline, size: 18),
-              label: const Text('Info'),
+              icon: const Icon(Icons.info_outline, size: 20),
+              label: Text(
+                'Info',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
+                backgroundColor: kPrimaryOrange,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
@@ -1023,7 +1210,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
           const SizedBox(width: 12),
 
           Expanded(
-            child: OutlinedButton.icon(
+            child: ElevatedButton.icon(
               onPressed: widget.isLoadingRoute
                   ? null
                   : () {
@@ -1036,15 +1223,24 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                       height: 18,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                  : const Icon(Icons.directions, size: 18),
-              label: Text(widget.isLoadingRoute ? 'Loading...' : 'Directions'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                  : const Icon(Icons.directions, size: 20),
+              label: Text(
+                widget.isLoadingRoute ? 'Loading...' : 'Directions',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPrimaryBlue,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
@@ -1053,11 +1249,11 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
       );
     }
 
-    // ✨ FIXED: For buildings without detailed info - wrap in Row with Expanded
+    // For buildings without detailed info - wrap in Row with Expanded
     return Row(
       children: [
         Expanded(
-          child: OutlinedButton.icon(
+          child: ElevatedButton.icon(
             onPressed: widget.isLoadingRoute
                 ? null
                 : () {
@@ -1070,15 +1266,24 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   )
-                : const Icon(Icons.directions, size: 18),
-            label: Text(widget.isLoadingRoute ? 'Loading...' : 'Directions'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+                : const Icon(Icons.directions, size: 20),
+            label: Text(
+              widget.isLoadingRoute ? 'Loading...' : 'Directions',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w600,
+                fontSize: 15,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kPrimaryBlue,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
               ),
             ),
           ),
@@ -1092,14 +1297,16 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
       children: [
         Container(
           height: 180,
-          margin: const EdgeInsets.symmetric(horizontal: 16),
+          margin: const EdgeInsets.symmetric(horizontal: 20),
           decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: BorderRadius.circular(12),
+            gradient: LinearGradient(
+              colors: [Colors.grey[200]!, Colors.grey[100]!],
+            ),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: const Center(
             child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1A31C8)),
+              valueColor: AlwaysStoppedAnimation<Color>(kPrimaryOrange),
             ),
           ),
         ),

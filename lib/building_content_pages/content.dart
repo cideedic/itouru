@@ -6,6 +6,7 @@ import 'package:itouru/page_components/bottom_nav_bar.dart';
 import 'package:itouru/page_components/video_layout.dart';
 import 'package:itouru/page_components/image_layout.dart';
 import 'package:itouru/page_components/sticky_header.dart';
+import 'package:itouru/page_components/loading_widget.dart';
 // Import tab widgets
 import 'about.dart';
 import 'rooms.dart';
@@ -47,9 +48,8 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
   int _currentVideoPage = 0;
   static const int _infiniteMultiplier = 10000;
 
-  // Gallery carousel controller
+  // Gallery carousel controller (no longer infinite)
   PageController? _pageController;
-  int _currentPage = 0;
 
   // Scroll controller for sticky header
   final ScrollController _scrollController = ScrollController();
@@ -121,20 +121,8 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
   void _initializePageController() {
     if (buildingImages.isEmpty || buildingImages.length == 1) return;
 
-    final initialPage = _infiniteMultiplier * buildingImages.length;
-    _pageController = PageController(
-      viewportFraction: 0.8,
-      initialPage: initialPage,
-    );
-
-    _pageController!.addListener(() {
-      int next = _pageController!.page!.round() % buildingImages.length;
-      if (_currentPage != next) {
-        setState(() {
-          _currentPage = next;
-        });
-      }
-    });
+    // No longer using infinite scrolling
+    _pageController = PageController(viewportFraction: 0.8, initialPage: 0);
   }
 
   // Helper to check if building has rooms
@@ -145,6 +133,18 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
     return buildingType == 'academic' ||
         buildingType == 'non-academic' ||
         buildingType == 'academic and non-academic';
+  }
+
+  // Helper to check if ABOUT section has any data
+  bool _hasAboutData() {
+    final hasDescription =
+        buildingData?['description'] != null &&
+        buildingData!['description'].toString().trim().isNotEmpty;
+    final hasType = buildingData?['building_type'] != null;
+    final hasFloors = buildingData?['calculated_floors'] != null;
+    final hasRoomsCount = roomsData != null && roomsData!.isNotEmpty;
+
+    return hasDescription || hasType || hasFloors || hasRoomsCount;
   }
 
   Future<void> _loadBuildingData() async {
@@ -325,8 +325,8 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
         }
         print('🖼️ Total images added: ${imageUrls.length}');
 
-        // Try each possible folder name until we find a logo
-        print('🏷️ Fetching logo from folders: $possibleFolderNames');
+        // Try each possible folder name until we find a building logo
+        print('🏷️ Fetching building logo from folders: $possibleFolderNames');
         for (var folderName in possibleFolderNames) {
           try {
             final logoResponse = await supabase
@@ -356,20 +356,39 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
           print('❌ No building logo found in any folder');
         }
 
-        // If no building logo, try to fetch college logo
+        // If no building logo found, try to fetch college logo as fallback
         if (fetchedLogoUrl == null && response['College'] != null) {
-          print('🏫 Fetching college logo for building');
+          print('🏫 No building logo - Checking for college logo');
           final collegeName = response['College']['college_name'] as String?;
+          final collegeAbbr =
+              response['College']['college_abbreviation'] as String?;
+
+          // Create list of possible college folder names
+          List<String> collegeFolderNames = [];
 
           if (collegeName != null) {
-            final collegeFolderName = collegeName
+            final nameFolderName = collegeName
                 .toLowerCase()
                 .replaceAll(' ', '-')
                 .replaceAll('college of', 'college-of')
                 .trim();
+            collegeFolderNames.add(nameFolderName);
+          }
 
-            print('🏫 College folder name: $collegeFolderName');
+          if (collegeAbbr != null) {
+            final abbrFolderName = collegeAbbr
+                .toLowerCase()
+                .replaceAll(' ', '-')
+                .trim();
+            if (!collegeFolderNames.contains(abbrFolderName)) {
+              collegeFolderNames.add(abbrFolderName);
+            }
+          }
 
+          print('🏫 Possible college folder names: $collegeFolderNames');
+
+          // Try each possible college folder name
+          for (var collegeFolderName in collegeFolderNames) {
             try {
               final collegeLogoResponse = await supabase
                   .from('storage_objects_snapshot')
@@ -384,13 +403,18 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
                 fetchedLogoUrl = supabase.storage
                     .from('images')
                     .getPublicUrl(collegeLogoPath);
-                print('✅ College logo found: $fetchedLogoUrl');
-              } else {
-                print('❌ No college logo found');
+                print(
+                  '✅ College logo found in folder $collegeFolderName: $fetchedLogoUrl',
+                );
+                break; // Stop searching once logo is found
               }
             } catch (e) {
-              print('❌ College logo error: $e');
+              print('⚠️ No college logo in folder $collegeFolderName: $e');
             }
+          }
+
+          if (fetchedLogoUrl == null) {
+            print('❌ No college logo found in any folder');
           }
         }
       }
@@ -432,58 +456,9 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
   Widget build(BuildContext context) {
     // Show full screen loading animation
     if (isLoading) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF5F5F5),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Animated loading circle
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Color(0xFF1A31C8),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Loading ${widget.title}...',
-                style: GoogleFonts.montserrat(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF1A31C8),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Please wait',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ),
+      return LoadingScreen.dots(
+        title: ' ${widget.title}',
+        subtitle: 'Please wait',
       );
     }
 
@@ -549,7 +524,7 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
                 const SizedBox(height: 40),
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 0,
+                    horizontal: 16,
                     vertical: 0,
                   ),
                   child: Column(
@@ -570,29 +545,34 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
                         ),
                         const SizedBox(height: 30),
                       ],
-                      _buildExpandableSection(
-                        'ABOUT',
-                        '${buildingData?['building_name'] ?? widget.title}\'s Information',
-                        BuildingAboutTab(
-                          buildingId: widget.buildingId,
-                          buildingName: widget.title,
-                          buildingType: buildingData?['building_type'],
-                          description: buildingData?['description'],
-                          numberOfFloors: buildingData?['calculated_floors'],
-                          numberOfRooms: roomsData?.length ?? 0,
-                          hasRooms: _hasRooms,
+                      // Only show ABOUT section if there's data
+                      if (_hasAboutData()) ...[
+                        _buildExpandableSection(
+                          'ABOUT',
+                          '${buildingData?['building_name'] ?? widget.title}\'s Information',
+                          BuildingAboutTab(
+                            buildingId: widget.buildingId,
+                            buildingName: widget.title,
+                            buildingType: buildingData?['building_type'],
+                            description: buildingData?['description'],
+                            numberOfFloors: buildingData?['calculated_floors'],
+                            numberOfRooms: roomsData?.length ?? 0,
+                            hasRooms: _hasRooms,
+                          ),
                         ),
-                      ),
-                      // Only show ROOMS section if building has rooms
-                      if (_hasRooms) ...[
                         const SizedBox(height: 30),
+                      ],
+                      // Only show ROOMS section if building has rooms
+                      if (_hasRooms &&
+                          roomsData != null &&
+                          roomsData!.isNotEmpty) ...[
                         _buildExpandableSection(
                           'ROOMS',
                           '${buildingData?['building_name'] ?? widget.title}\'s Rooms',
                           BuildingRoomsTab(rooms: roomsData ?? []),
                         ),
+                        const SizedBox(height: 30),
                       ],
-                      const SizedBox(height: 30),
                     ],
                   ),
                 ),
@@ -604,6 +584,7 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
             title: widget.title,
             abbreviation: buildingData?['building_nickname'],
             logoImageUrl: logoImageUrl,
+            showLogo: logoImageUrl != null,
           ),
         ],
       ),
@@ -635,57 +616,70 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
         ],
       ),
       child: Row(
+        mainAxisAlignment: logoImageUrl != null
+            ? MainAxisAlignment.start
+            : MainAxisAlignment.center,
         children: [
-          // Icon or Logo
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: ClipOval(
-              child: Padding(
-                padding: EdgeInsets.all(10),
-                child: logoImageUrl != null
-                    ? Image.network(
-                        logoImageUrl!,
-                        fit: BoxFit.contain,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return const Center(
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Color(0xFF1A31C8),
-                              ),
-                            ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.business,
-                            color: Colors.blue[900],
-                            size: 35,
-                          );
-                        },
-                      )
-                    : Icon(Icons.business, color: Colors.blue[900], size: 35),
-              ),
-            ),
-          ),
-          SizedBox(width: 20),
-          // Title
-          Expanded(
-            child: Text(
-              widget.title,
-              style: GoogleFonts.montserrat(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
+          // Only show icon/logo if logoImageUrl exists
+          if (logoImageUrl != null) ...[
+            Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
                 color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: ClipOval(
+                child: Padding(
+                  padding: EdgeInsets.all(10),
+                  child: Image.network(
+                    logoImageUrl!,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Color(0xFF1A31C8),
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Icon(
+                        Icons.business,
+                        color: Colors.blue[900],
+                        size: 35,
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
-          ),
+            SizedBox(width: 20),
+            Expanded(
+              child: Text(
+                widget.title,
+                style: GoogleFonts.montserrat(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ] else
+            Flexible(
+              child: Text(
+                widget.title,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.montserrat(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
+              ),
+            ),
         ],
       ),
     );

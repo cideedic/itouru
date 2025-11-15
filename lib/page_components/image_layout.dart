@@ -29,14 +29,43 @@ class ImageLayout extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'GALLERY',
-            style: GoogleFonts.montserrat(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF1A31C8),
-              letterSpacing: 1.2,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'GALLERY',
+                style: GoogleFonts.montserrat(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF1A31C8),
+                  letterSpacing: 1.2,
+                ),
+              ),
+              if (imageUrls.length > 1)
+                TextButton(
+                  onPressed: () => _showAllImagesDialog(context),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    backgroundColor: const Color(
+                      0xFF1A31C8,
+                    ).withValues(alpha: 0.1),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    'View All',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1A31C8),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 16),
           imageUrls.length == 1
@@ -48,7 +77,6 @@ class ImageLayout extends StatelessWidget {
   }
 
   Widget _buildMapImageCarousel(BuildContext context) {
-    // Create controller reference
     final controller = pageController ?? PageController();
 
     return Column(
@@ -65,10 +93,7 @@ class ImageLayout extends StatelessWidget {
         ),
         if (imageUrls.length > 1) ...[
           const SizedBox(height: 12),
-          _buildPageIndicator(
-            imageUrls.length,
-            controller,
-          ), // Pass controller here
+          _buildPageIndicator(imageUrls.length, controller),
           const SizedBox(height: 8),
         ],
       ],
@@ -98,6 +123,7 @@ class ImageLayout extends StatelessWidget {
               Image.network(
                 imageUrls[index],
                 fit: BoxFit.cover,
+                cacheWidth: 800,
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
                   return Container(
@@ -158,7 +184,6 @@ class ImageLayout extends StatelessWidget {
               final page = controller.page ?? controller.initialPage.toDouble();
               selectedness = 1.0 - (page - index).abs().clamp(0.0, 1.0);
             } else if (index == 0) {
-              // Default first indicator as selected when not initialized
               selectedness = 1.0;
             }
             return Container(
@@ -203,6 +228,7 @@ class ImageLayout extends StatelessWidget {
               Image.network(
                 imageUrls[0],
                 fit: BoxFit.cover,
+                cacheWidth: 1200,
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
                   return Container(
@@ -256,10 +282,9 @@ class ImageLayout extends StatelessWidget {
       child: PageView.builder(
         controller: pageController,
         scrollDirection: Axis.horizontal,
-        itemCount: null,
+        itemCount: imageUrls.length,
         itemBuilder: (context, index) {
-          final actualIndex = index % imageUrls.length;
-          return _buildCarouselItem(context, actualIndex, index);
+          return _buildCarouselItem(context, index, index);
         },
       ),
     );
@@ -332,6 +357,7 @@ class ImageLayout extends StatelessWidget {
               Image.network(
                 imageUrls[index],
                 fit: BoxFit.cover,
+                cacheWidth: 1200,
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
                   return Container(
@@ -384,6 +410,138 @@ class ImageLayout extends StatelessWidget {
       context: context,
       builder: (context) =>
           ImageCarouselDialog(imageUrls: imageUrls, initialIndex: initialIndex),
+    );
+  }
+
+  void _showAllImagesDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => ImageGridDialog(imageUrls: imageUrls),
+    );
+  }
+}
+
+// Image Grid Dialog Widget
+class ImageGridDialog extends StatelessWidget {
+  final List<String> imageUrls;
+
+  const ImageGridDialog({super.key, required this.imageUrls});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A31C8),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(12),
+                topRight: Radius.circular(12),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'All Images (${imageUrls.length})',
+                  style: GoogleFonts.montserrat(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+          ),
+          // Grid
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+                childAspectRatio: 1,
+              ),
+              itemCount: imageUrls.length,
+              itemBuilder: (context, index) {
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.pop(context);
+                    showDialog(
+                      context: context,
+                      builder: (context) => ImageCarouselDialog(
+                        imageUrls: imageUrls,
+                        initialIndex: index,
+                      ),
+                    );
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        imageUrls[index],
+                        fit: BoxFit.cover,
+                        cacheWidth: 400,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            color: Colors.grey[300],
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                value:
+                                    loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                    : null,
+                                strokeWidth: 2,
+                                color: const Color(0xFF1A31C8),
+                              ),
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: Colors.grey[300],
+                            child: const Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                size: 30,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

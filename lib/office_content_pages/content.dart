@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:itouru/page_components/bottom_nav_bar.dart';
 import 'package:itouru/page_components/sticky_header.dart';
 import 'package:itouru/main_pages/maps.dart';
+import 'package:itouru/page_components/loading_widget.dart';
 // Import tab widget
 import 'about.dart';
 
@@ -144,9 +145,9 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
 
         if (roomResponse != null) {
           // Use room_number instead of room_name
-          fetchedRoomName = roomResponse['room_number'] != null
-              ? 'Room ${roomResponse['room_number']}'
-              : null;
+          if (roomResponse['room_number'] != null) {
+            fetchedRoomName = 'Room ${roomResponse['room_number']}';
+          }
 
           // Fetch building separately if building_id exists
           if (roomResponse['building_id'] != null) {
@@ -214,9 +215,7 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
 
         // Create list of possible building folder names (name and nickname)
         List<String> possibleBuildingFolderNames = [];
-        if (buildingFolderName != null) {
-          possibleBuildingFolderNames.add(buildingFolderName);
-        }
+        possibleBuildingFolderNames.add(buildingFolderName);
         if (buildingNicknameFolderName != null &&
             buildingNicknameFolderName != buildingFolderName) {
           possibleBuildingFolderNames.add(buildingNicknameFolderName);
@@ -355,7 +354,7 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
         buildingName = fetchedBuildingName;
         roomName = fetchedRoomName;
         headerImageUrl = fetchedHeaderUrl;
-        logoImageUrl = fetchedLogoUrl; // ✨ NEW
+        logoImageUrl = fetchedLogoUrl;
         buildingId = fetchedBuildingId;
         isLoading = false;
       });
@@ -381,7 +380,7 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${widget.title} has no building location assigned'),
-          backgroundColor: Colors.orange,
+          backgroundColor: Color(0xFFFF8C00),
         ),
       );
       return;
@@ -420,7 +419,7 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
       context,
       MaterialPageRoute(
         builder: (context) => Maps(
-          buildingId: buildingId,
+          buildingId: buildingId!,
           destinationName: buildingName ?? widget.title,
           itemType: 'office',
         ),
@@ -432,61 +431,11 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
   Widget build(BuildContext context) {
     // Show full screen loading animation
     if (isLoading) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF5F5F5),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Animated loading circle
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Color(0xFF1A31C8),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Loading ${widget.title}...',
-                style: GoogleFonts.montserrat(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF1A31C8),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Please wait',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ),
+      return LoadingScreen.dots(
+        title: ' ${widget.title}',
+        subtitle: 'Please wait',
       );
     }
-
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       body: Stack(
@@ -549,7 +498,7 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
                 const SizedBox(height: 40),
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 0,
+                    horizontal: 16,
                     vertical: 0,
                   ),
                   child: Column(
@@ -574,12 +523,13 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
               ],
             ),
           ),
-          // Sticky Header (without logo)
+          // Sticky Header with conditional logo
           StickyHeader(
             isVisible: _showStickyHeader,
             title: widget.title,
             abbreviation: officeData?['office_abbreviation'],
             logoImageUrl: logoImageUrl,
+            showLogo: logoImageUrl != null,
           ),
         ],
       ),
@@ -611,57 +561,70 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
         ],
       ),
       child: Row(
+        mainAxisAlignment: logoImageUrl != null
+            ? MainAxisAlignment.start
+            : MainAxisAlignment.center,
         children: [
-          // Icon or College Logo
-          Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: ClipOval(
-              child: Padding(
-                padding: EdgeInsets.all(10),
-                child: logoImageUrl != null
-                    ? Image.network(
-                        logoImageUrl!,
-                        fit: BoxFit.contain,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return const Center(
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Color(0xFF1A31C8),
-                              ),
-                            ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.domain,
-                            color: Color(0xFF203BE6),
-                            size: 35,
-                          );
-                        },
-                      )
-                    : Icon(Icons.domain, color: Color(0xFF203BE6), size: 35),
-              ),
-            ),
-          ),
-          SizedBox(width: 20),
-          // Title
-          Expanded(
-            child: Text(
-              widget.title,
-              style: GoogleFonts.montserrat(
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
+          // Only show icon/logo if logoImageUrl exists
+          if (logoImageUrl != null) ...[
+            Container(
+              width: 70,
+              height: 70,
+              decoration: BoxDecoration(
                 color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: ClipOval(
+                child: Padding(
+                  padding: EdgeInsets.all(10),
+                  child: Image.network(
+                    logoImageUrl!,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Color(0xFF1A31C8),
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Icon(
+                        Icons.domain,
+                        color: Color(0xFF203BE6),
+                        size: 35,
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
-          ),
+            SizedBox(width: 20),
+            Expanded(
+              child: Text(
+                widget.title,
+                style: GoogleFonts.montserrat(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ] else
+            Flexible(
+              child: Text(
+                widget.title,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.montserrat(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.white,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -721,7 +684,7 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
                         child: Text(
                           title,
                           style: GoogleFonts.montserrat(
-                            fontSize: 36,
+                            fontSize: 32,
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
                             letterSpacing: 1.4,

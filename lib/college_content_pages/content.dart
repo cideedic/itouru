@@ -6,9 +6,9 @@ import 'package:itouru/page_components/bottom_nav_bar.dart';
 import 'package:itouru/page_components/video_layout.dart';
 import 'package:itouru/page_components/image_layout.dart';
 import 'package:itouru/page_components/sticky_header.dart';
+import 'package:itouru/page_components/loading_widget.dart';
 // Import your content widgets
 import 'about.dart';
-import 'history.dart';
 import 'programs.dart';
 import 'buildings.dart';
 
@@ -37,7 +37,6 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
   // Data from Supabase
   Map<String, dynamic>? collegeData;
   Map<String, dynamic>? headData;
-  List<Map<String, dynamic>>? historyData;
   List<Map<String, dynamic>>? programsData;
   List<Map<String, dynamic>>? buildingsData;
   Map<String, List<Map<String, dynamic>>> roomsByBuilding = {};
@@ -53,9 +52,8 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
   int _currentVideoPage = 0;
   static const int _infiniteMultiplier = 10000;
 
-  // Gallery carousel controller
+  // Gallery carousel controller (no longer infinite)
   PageController? _pageController;
-  int _currentPage = 0;
 
   // Scroll controller for sticky header
   final ScrollController _scrollController = ScrollController();
@@ -69,6 +67,25 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
     _scrollController.addListener(_onScroll);
   }
 
+  // Add this helper method to check if ABOUT section has any data
+  bool _hasAboutData() {
+    final hasDescription =
+        collegeData?['college_about'] != null &&
+        collegeData!['college_about'].toString().trim().isNotEmpty;
+    final hasLearningOutcomes =
+        collegeData?['learning_outcome'] != null &&
+        collegeData!['learning_outcome'].toString().trim().isNotEmpty;
+    final hasObjectives =
+        collegeData?['objectives'] != null &&
+        collegeData!['objectives'].toString().trim().isNotEmpty;
+    final hasHeadData = headData != null && headData!.isNotEmpty;
+
+    return hasDescription ||
+        hasLearningOutcomes ||
+        hasObjectives ||
+        hasHeadData;
+  }
+
   void _onScroll() {
     // Show sticky header when scrolled past 300 pixels (approximately when card is out of view)
     final shouldShow = _scrollController.offset > 300;
@@ -80,7 +97,7 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
   }
 
   void _initializeSectionControllers() {
-    final sections = ['ABOUT', 'HISTORY', 'PROGRAMS', 'BUILDINGS'];
+    final sections = ['ABOUT', 'PROGRAMS', 'BUILDINGS'];
     for (var section in sections) {
       sectionControllers[section] = AnimationController(
         vsync: this,
@@ -112,20 +129,8 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
   void _initializePageController() {
     if (collegeImages.isEmpty || collegeImages.length == 1) return;
 
-    final initialPage = _infiniteMultiplier * collegeImages.length;
-    _pageController = PageController(
-      viewportFraction: 0.8,
-      initialPage: initialPage,
-    );
-
-    _pageController!.addListener(() {
-      int next = _pageController!.page!.round() % collegeImages.length;
-      if (_currentPage != next) {
-        setState(() {
-          _currentPage = next;
-        });
-      }
-    });
+    // No longer using infinite scrolling
+    _pageController = PageController(viewportFraction: 0.8, initialPage: 0);
   }
 
   @override
@@ -154,13 +159,6 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
           .select('*, Head(*)')
           .eq('college_id', widget.collegeId)
           .single();
-
-      // Fetch History data
-      final historyResponse = await supabase
-          .from('History')
-          .select('*')
-          .eq('college_id', widget.collegeId)
-          .order('date', ascending: true);
 
       // Fetch Programs data
       final programsResponse = await supabase
@@ -364,7 +362,6 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
       setState(() {
         collegeData = response;
         headData = response['Head'];
-        historyData = List<Map<String, dynamic>>.from(historyResponse);
         programsData = List<Map<String, dynamic>>.from(programsResponse);
         buildingsData = List<Map<String, dynamic>>.from(buildingsResponse);
         roomsByBuilding = roomsMap;
@@ -394,61 +391,13 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
-      body: Stack(
-        children: [
-          isLoading
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 20,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: const Padding(
-                          padding: EdgeInsets.all(20),
-                          child: CircularProgressIndicator(
-                            strokeWidth: 3,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Color(0xFF1A31C8),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Loading ${widget.title}...',
-                        style: GoogleFonts.montserrat(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF1A31C8),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Please wait',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w400,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : SingleChildScrollView(
+    return isLoading
+        ? LoadingScreen.dots(title: ' ${widget.title}', subtitle: 'Please wait')
+        : Scaffold(
+            backgroundColor: const Color(0xFFF5F5F5),
+            body: Stack(
+              children: [
+                SingleChildScrollView(
                   controller: _scrollController,
                   child: Column(
                     children: [
@@ -456,7 +405,7 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
                         clipBehavior: Clip.none,
                         children: [
                           Container(
-                            height: 450,
+                            height: 480,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.only(
                                 bottomLeft: Radius.circular(24),
@@ -467,7 +416,7 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
                                     ? NetworkImage(headerImageUrl!)
                                           as ImageProvider
                                     : const AssetImage(
-                                        'assets/images/default_college.png',
+                                        'assets/images/default_college.jpg',
                                       ),
                                 fit: BoxFit.cover,
                               ),
@@ -505,7 +454,7 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
                       const SizedBox(height: 40),
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 0,
+                          horizontal: 16,
                           vertical: 0,
                         ),
                         child: Column(
@@ -526,57 +475,64 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
                               ),
                               const SizedBox(height: 30),
                             ],
-                            _buildExpandableSection(
-                              'ABOUT',
-                              '${collegeData?['college_name'] ?? widget.title}\'s Purpose',
-                              AboutTab(
-                                description:
-                                    collegeData?['college_about'] ?? '',
-                                vision: collegeData?['vision'] ?? '',
-                                mission: collegeData?['mission'] ?? '',
-                                goals: collegeData?['goals'] ?? '',
-                                objectives: collegeData?['objectives'] ?? '',
-                                headData: headData,
+
+                            // Only show ABOUT section if there's data
+                            if (_hasAboutData()) ...[
+                              _buildExpandableSection(
+                                'ABOUT',
+                                '${collegeData?['college_name'] ?? widget.title}\'s Purpose',
+                                AboutTab(
+                                  description:
+                                      collegeData?['college_about'] ?? '',
+                                  learningOutcomes:
+                                      collegeData?['learning_outcome'] ?? '',
+                                  objectives: collegeData?['objectives'] ?? '',
+                                  headData: headData,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 30),
-                            _buildExpandableSection(
-                              'HISTORY',
-                              '${collegeData?['college_name'] ?? widget.title}\'s Timeline',
-                              HistoryTab(historyEntries: historyData ?? []),
-                            ),
-                            const SizedBox(height: 30),
-                            _buildExpandableSection(
-                              'PROGRAMS',
-                              '${collegeData?['college_name'] ?? widget.title}\'s Offered Programs',
-                              ProgramsTab(programs: programsData ?? []),
-                            ),
-                            const SizedBox(height: 30),
-                            _buildExpandableSection(
-                              'BUILDINGS',
-                              '${collegeData?['college_name'] ?? widget.title}\'s Buildings',
-                              BuildingsTab(
-                                buildings: buildingsData ?? [],
-                                roomsByBuilding: roomsByBuilding,
+                              const SizedBox(height: 30),
+                            ],
+
+                            // Only show PROGRAMS section if there's data
+                            if (programsData != null &&
+                                programsData!.isNotEmpty) ...[
+                              _buildExpandableSection(
+                                'PROGRAMS',
+                                '${collegeData?['college_name'] ?? widget.title}\'s Offered Programs',
+                                ProgramsTab(programs: programsData ?? []),
                               ),
-                            ),
-                            const SizedBox(height: 30),
+                              const SizedBox(height: 30),
+                            ],
+
+                            // Only show BUILDINGS section if there's data
+                            if (buildingsData != null &&
+                                buildingsData!.isNotEmpty) ...[
+                              _buildExpandableSection(
+                                'BUILDINGS',
+                                '${collegeData?['college_name'] ?? widget.title}\'s Buildings',
+                                BuildingsTab(
+                                  buildings: buildingsData ?? [],
+                                  roomsByBuilding: roomsByBuilding,
+                                ),
+                              ),
+                              const SizedBox(height: 30),
+                            ],
                           ],
                         ),
                       ),
                     ],
                   ),
                 ),
-          StickyHeader(
-            isVisible: _showStickyHeader,
-            title: widget.title,
-            abbreviation: collegeData?['college_abbreviation'],
-            logoImageUrl: logoImageUrl,
-          ),
-        ],
-      ),
-      bottomNavigationBar: ReusableBottomNavBar(currentIndex: 1),
-    );
+                StickyHeader(
+                  isVisible: _showStickyHeader,
+                  title: widget.title,
+                  abbreviation: collegeData?['college_abbreviation'],
+                  logoImageUrl: logoImageUrl,
+                ),
+              ],
+            ),
+            bottomNavigationBar: ReusableBottomNavBar(currentIndex: 1),
+          );
   }
 
   Widget _buildCollegeCard() {
@@ -646,7 +602,7 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
             child: Text(
               widget.title,
               style: GoogleFonts.montserrat(
-                fontSize: 20,
+                fontSize: 17,
                 fontWeight: FontWeight.w900,
                 color: Colors.white,
               ),
@@ -711,7 +667,7 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
                         child: Text(
                           title,
                           style: GoogleFonts.montserrat(
-                            fontSize: 36,
+                            fontSize: 32,
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
                             letterSpacing: 1.4,

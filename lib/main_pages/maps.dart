@@ -55,6 +55,7 @@ class _MapsState extends State<Maps> {
   double _currentZoom = 17.0;
   List<LatLng> _animatedRoutePoints = [];
   LatLng? _tourStartPoint;
+  double _currentRotation = 0.0;
 
   // ✨ NEW: Virtual tour management
   late VirtualTourManager _virtualTourManager;
@@ -98,6 +99,7 @@ class _MapsState extends State<Maps> {
     if (!_isDisposed && mounted) {
       setState(() {
         _currentZoom = camera.zoom;
+        _currentRotation = camera.rotation; // ✨ TRACK ROTATION
       });
     }
   }
@@ -679,7 +681,11 @@ class _MapsState extends State<Maps> {
     print('🏗️ === END LOADING BUILDING DATA ===\n');
   }
 
-  Widget _buildPinMarker(BicolMarker marker, double currentZoom) {
+  Widget _buildPinMarker(
+    BicolMarker marker,
+    double currentZoom,
+    double currentRotation,
+  ) {
     IconData icon;
     Color color;
 
@@ -699,6 +705,9 @@ class _MapsState extends State<Maps> {
         : marker.name;
 
     final markerType = marker.isCollege ? 'college' : 'landmark';
+
+    // ✨ COUNTER-ROTATE: Negate camera rotation so label stays upright
+    final labelRotation = -currentRotation * (pi / 180); // Convert to radians
 
     final markerWidget = Row(
       mainAxisSize: MainAxisSize.min,
@@ -720,30 +729,34 @@ class _MapsState extends State<Maps> {
           child: Icon(icon, color: Colors.white, size: 20),
         ),
         const SizedBox(width: 6),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 100),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(4),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 3,
-                  offset: const Offset(0, 1),
-                ),
-              ],
-            ),
-            child: Text(
-              displayText,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: Colors.black87,
+        // ✨ ROTATE TEXT: Wrap label in Transform.rotate
+        Transform.rotate(
+          angle: labelRotation,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 100),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(4),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 3,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              child: Text(
+                displayText,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
         ),
@@ -830,7 +843,8 @@ class _MapsState extends State<Maps> {
     });
   }
 
-  // 5️⃣ KEEP _initializeVirtualTour as is (no changes needed):
+  // Replace your existing _initializeVirtualTour method with this:
+
   Future<void> _initializeVirtualTour() async {
     if (_isDisposed || widget.tourStops == null || widget.tourStops!.isEmpty) {
       return;
@@ -840,20 +854,71 @@ class _MapsState extends State<Maps> {
     print('Tour: ${widget.tourName}');
     print('Stops: ${widget.tourStops!.length}');
 
-    // ✅ Step 1: Resolve building locations
+    // ✅ Step 1: Resolve building locations (polygons AND markers)
     List<VirtualTourStop> resolvedStops = [];
+
     for (var stop in widget.tourStops!) {
-      final building = MapBuildings.campusBuildings.firstWhere(
-        (b) => b.buildingId == stop.buildingId,
-        orElse: () => MapBuildings.campusBuildings.first,
+      print(
+        '\n🔍 Resolving stop ${stop.stopNumber}: ${stop.buildingName} (ID: ${stop.buildingId})',
       );
 
-      stop.location = building.getCenterPoint();
-      resolvedStops.add(stop);
-      print(
-        '✅ Resolved stop ${stop.stopNumber}: ${stop.buildingName} at ${stop.location}',
+      // ✅ First, try to find as a landmark marker
+      final marker = MapBuildings.landmarks.firstWhere(
+        (m) => m.buildingId == stop.buildingId,
+        orElse: () =>
+            MapBuildings.landmarks.first, // Will be null-checked below
       );
+
+      if (marker.buildingId == stop.buildingId) {
+        // Found as landmark marker
+        stop.setLocation(marker.position, isMarkerType: true);
+        resolvedStops.add(stop);
+        print(
+          '✅ Resolved as LANDMARK MARKER: ${stop.buildingName} at ${stop.location}',
+        );
+        continue;
+      }
+
+      // ✅ If not a landmark, try to find as building polygon
+      try {
+        final building = MapBuildings.campusBuildings.firstWhere(
+          (b) => b.buildingId == stop.buildingId,
+        );
+
+        stop.setLocation(building.getCenterPoint(), isMarkerType: false);
+        resolvedStops.add(stop);
+        print(
+          '✅ Resolved as BUILDING POLYGON: ${stop.buildingName} at ${stop.location}',
+        );
+      } catch (e) {
+        print(
+          '❌ ERROR: Could not resolve stop ${stop.stopNumber} - ${stop.buildingName}',
+        );
+        print(
+          '   Building ID ${stop.buildingId} not found in landmarks or buildings',
+        );
+
+        // Skip this stop if we can't resolve it
+        continue;
+      }
     }
+
+    if (resolvedStops.isEmpty) {
+      print('❌ No valid stops resolved - aborting tour');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to start tour - no valid locations found'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    print(
+      '\n✅ Successfully resolved ${resolvedStops.length}/${widget.tourStops!.length} stops',
+    );
 
     // ✅ Step 2: Determine starting point (user location OR nearest gate)
     LatLng startingPoint;
@@ -918,7 +983,7 @@ class _MapsState extends State<Maps> {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Starting ${widget.tourName} - ${widget.tourStops!.length} stops',
+                  'Starting ${widget.tourName} - ${resolvedStops.length} stops',
                 ),
               ),
             ],
@@ -1021,38 +1086,15 @@ class _MapsState extends State<Maps> {
   }
 
   void _showVirtualTourStopCard() {
-    if (_isDisposed || !context.mounted) return;
+    // No longer using modal bottom sheet
+    // The card is rendered directly in the Stack in build()
+    if (_isDisposed) return;
 
-    final currentStop = _virtualTourManager.currentStop;
-    if (currentStop == null) return;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      isDismissible: false,
-      enableDrag: false,
-      builder: (context) => VirtualTourStopCard(
-        stop: currentStop,
-        totalStops: _virtualTourManager.totalStops,
-        isFirstStop: _virtualTourManager.isFirstStop,
-        isLastStop: _virtualTourManager.isLastStop,
-        onNext: () {
-          Navigator.pop(context);
-          _virtualTourManager.nextStop();
-          _navigateToCurrentVirtualTourStop();
-        },
-        onPrevious: () {
-          Navigator.pop(context);
-          _virtualTourManager.previousStop();
-          _navigateToCurrentVirtualTourStop();
-        },
-        onEndTour: () {
-          Navigator.pop(context);
-          _endVirtualTour();
-        },
-      ),
-    );
+    // Card visibility is controlled by _virtualTourManager.isShowingStopCard
+    // which is already set by completeAnimationToStop()
+    setState(() {
+      // Just trigger rebuild to show the card
+    });
   }
 
   void _endVirtualTour() {
@@ -1108,24 +1150,17 @@ class _MapsState extends State<Maps> {
             options: MapOptions(
               initialCenter: MapBoundary.bicolUniversityCenter,
               initialZoom: MapBoundary.getInitialZoom(),
-
-              // ✅ STRICT BOUNDARY: Use containCenter to lock camera within campus
               minZoom: MapBoundary.getMinZoom(),
               maxZoom: MapBoundary.getMaxZoom(),
-
-              // ✅ Choose constraint based on whether virtual tour is active
               cameraConstraint: _isVirtualTourActive
-                  ? MapBoundary.getFlexibleCameraConstraint() // Allow seeing gates
-                  : MapBoundary.getCameraConstraint(), // Strict campus boundary
-
+                  ? MapBoundary.getFlexibleCameraConstraint()
+                  : MapBoundary.getCameraConstraint(),
               onPositionChanged: (camera, hasGesture) {
                 _onMapMove(camera, hasGesture);
-                // Camera constraint handles boundaries - no manual enforcement needed
               },
               onTap: (tapPosition, latLng) {
                 _handleMapTapAtLatLng(latLng);
               },
-
               interactionOptions: const InteractionOptions(
                 flags: InteractiveFlag.all,
               ),
@@ -1164,7 +1199,7 @@ class _MapsState extends State<Maps> {
                     .toList(),
               ),
 
-              // ✅ Route polyline (animated or regular)
+              // Route polyline (animated or regular)
               if (_isVirtualTourActive && _animatedRoutePoints.isNotEmpty)
                 PolylineLayer(
                   polylines: [
@@ -1187,7 +1222,7 @@ class _MapsState extends State<Maps> {
                   ],
                 ),
 
-              // ✅ User location marker - INSIDE FlutterMap
+              // User location marker
               if (_currentLocation != null &&
                   MapBoundary.isWithinCampusBounds(_currentLocation!))
                 MarkerLayer(
@@ -1201,7 +1236,7 @@ class _MapsState extends State<Maps> {
                   ],
                 ),
 
-              // ✅ Tour start marker - INSIDE FlutterMap
+              // Tour start marker
               if (_isVirtualTourActive && _tourStartPoint != null)
                 MarkerLayer(
                   markers: [
@@ -1232,7 +1267,7 @@ class _MapsState extends State<Maps> {
                   ],
                 ),
 
-              // ✅ Tour destination marker - INSIDE FlutterMap
+              // Tour destination marker
               if (_isVirtualTourActive &&
                   _virtualTourManager.currentStop != null &&
                   _virtualTourManager.currentStop!.location != null)
@@ -1249,7 +1284,7 @@ class _MapsState extends State<Maps> {
                   ],
                 ),
 
-              // ✅ College markers - INSIDE FlutterMap
+              // College markers
               if (MapUtils.shouldShowColleges(_currentZoom))
                 MarkerLayer(
                   markers: MapBuildings.colleges
@@ -1263,6 +1298,7 @@ class _MapsState extends State<Maps> {
                           width: 150,
                           height: 40,
                           alignment: Alignment.center,
+                          rotate: true,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () async {
@@ -1277,14 +1313,18 @@ class _MapsState extends State<Maps> {
                                 _showMarkerInfo(marker);
                               }
                             },
-                            child: _buildPinMarker(marker, _currentZoom),
+                            child: _buildPinMarker(
+                              marker,
+                              _currentZoom,
+                              _currentRotation,
+                            ),
                           ),
                         );
                       })
                       .toList(),
                 ),
 
-              // ✅ Landmark markers - INSIDE FlutterMap
+              // Landmark markers
               if (MapUtils.shouldShowLandmarks(_currentZoom))
                 MarkerLayer(
                   markers: MapBuildings.landmarks
@@ -1298,6 +1338,7 @@ class _MapsState extends State<Maps> {
                           width: 150,
                           height: 40,
                           alignment: Alignment.center,
+                          rotate: true,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () async {
@@ -1314,7 +1355,11 @@ class _MapsState extends State<Maps> {
                                 _showMarkerInfo(marker);
                               }
                             },
-                            child: _buildPinMarker(marker, _currentZoom),
+                            child: _buildPinMarker(
+                              marker,
+                              _currentZoom,
+                              _currentRotation,
+                            ),
                           ),
                         );
                       })
@@ -1323,7 +1368,7 @@ class _MapsState extends State<Maps> {
             ],
           ),
 
-          // ✅ UI Overlays (search bar, buttons, etc.) - OUTSIDE FlutterMap, in Stack
+          // UI Overlays - Campus label
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             left: 16,
@@ -1358,6 +1403,7 @@ class _MapsState extends State<Maps> {
             ),
           ),
 
+          // Search bar
           Positioned(
             top: MediaQuery.of(context).padding.top + 51,
             left: 16,
@@ -1381,6 +1427,8 @@ class _MapsState extends State<Maps> {
               },
             ),
           ),
+
+          // Search results
           if (_showSearchResults)
             Positioned(
               top: MediaQuery.of(context).padding.top + 115,
@@ -1547,6 +1595,8 @@ class _MapsState extends State<Maps> {
                 },
               ),
             ),
+
+          // Zoom and location controls
           Positioned(
             right: 16,
             bottom: 100,
@@ -1573,6 +1623,8 @@ class _MapsState extends State<Maps> {
               ),
             ),
           ),
+
+          // Navigation status bar
           Positioned(
             left: 16,
             right: 16,
@@ -1702,6 +1754,28 @@ class _MapsState extends State<Maps> {
               ],
             ),
           ),
+
+          // ✨✨✨ VIRTUAL TOUR STOP CARD - ADD THIS HERE ✨✨✨
+          if (_isVirtualTourActive &&
+              _virtualTourManager.isShowingStopCard &&
+              _virtualTourManager.currentStop != null)
+            VirtualTourStopCard(
+              stop: _virtualTourManager.currentStop!,
+              totalStops: _virtualTourManager.totalStops,
+              isFirstStop: _virtualTourManager.isFirstStop,
+              isLastStop: _virtualTourManager.isLastStop,
+              onNext: () {
+                _virtualTourManager.nextStop();
+                _navigateToCurrentVirtualTourStop();
+              },
+              onPrevious: () {
+                _virtualTourManager.previousStop();
+                _navigateToCurrentVirtualTourStop();
+              },
+              onEndTour: () {
+                _endVirtualTour();
+              },
+            ),
         ],
       ),
       bottomNavigationBar: ReusableBottomNavBar(currentIndex: 2),

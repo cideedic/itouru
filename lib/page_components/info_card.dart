@@ -403,7 +403,7 @@ class InfoCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.orange.withValues(alpha: 0.25),
+          color: Colors.grey.withValues(alpha: 0.25),
           width: 1,
         ),
         boxShadow: [
@@ -420,7 +420,7 @@ class InfoCard extends StatelessWidget {
             name,
             textAlign: TextAlign.center,
             style: GoogleFonts.montserrat(
-              fontSize: 18,
+              fontSize: 14,
               fontWeight: FontWeight.w800,
               color: Colors.black,
             ),
@@ -430,11 +430,10 @@ class InfoCard extends StatelessWidget {
             Text(
               position,
               textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(fontSize: 14, color: Colors.black54),
+              style: GoogleFonts.poppins(fontSize: 12, color: Colors.black54),
             ),
           ],
           if (socials.isNotEmpty) ...[
-            SizedBox(height: 12),
             Divider(),
             SizedBox(height: 12),
             Wrap(
