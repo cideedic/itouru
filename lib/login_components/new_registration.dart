@@ -387,6 +387,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
         DropdownButtonFormField<String>(
           value: value,
           isExpanded: true,
+          menuMaxHeight: 200, // Limits to ~5 items with scrolling
           decoration: InputDecoration(
             hintText: isLoading ? 'Loading...' : hint,
             hintStyle: GoogleFonts.montserrat(

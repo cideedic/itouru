@@ -420,7 +420,7 @@ class InfoCard extends StatelessWidget {
             name,
             textAlign: TextAlign.center,
             style: GoogleFonts.montserrat(
-              fontSize: 14,
+              fontSize: 17,
               fontWeight: FontWeight.w800,
               color: Colors.black,
             ),

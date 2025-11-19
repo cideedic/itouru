@@ -255,7 +255,7 @@ class BottomSheets {
                       'Start Navigation',
                       style: GoogleFonts.poppins(
                         fontWeight: FontWeight.w600,
-                        fontSize: 15,
+                        fontSize: 13,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
@@ -281,7 +281,7 @@ class BottomSheets {
                       'Clear Route',
                       style: GoogleFonts.poppins(
                         fontWeight: FontWeight.w600,
-                        fontSize: 15,
+                        fontSize: 13,
                       ),
                     ),
                     style: OutlinedButton.styleFrom(

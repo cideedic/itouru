@@ -63,25 +63,43 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
                 children: [
                   const SizedBox(height: 10),
 
-                  // Back Button (Same as Privacy Page)
-                  Container(
-                    width: 45,
-                    height: 45,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey[300]!, width: 1.5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: IconButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      icon: Icon(
-                        Icons.arrow_back,
-                        color: Colors.black87,
-                        size: 20,
+                  // Replace the existing Back Button section with this code:
+
+                  // Back Button and Title
+                  Row(
+                    children: [
+                      Container(
+                        width: 45,
+                        height: 45,
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Colors.grey[300]!,
+                            width: 1.5,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: IconButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                          },
+                          icon: Icon(
+                            Icons.arrow_back,
+                            color: Colors.black87,
+                            size: 20,
+                          ),
+                          padding: EdgeInsets.zero,
+                        ),
                       ),
-                      padding: EdgeInsets.zero,
-                    ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'About iTOURu',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 20),
 

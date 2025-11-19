@@ -221,117 +221,64 @@ class RoutingService {
     return nearestGate ?? gates.first;
   }
 
-  /// Get campus gates from OpenStreetMap using Overpass API
+  /// Get campus gates - Always use predefined gates for Bicol University
   static Future<List<CampusGate>> fetchCampusGates({
     required LatLng campusCenter,
     double radiusMeters = 500,
   }) async {
-    try {
-      final bbox = _calculateBoundingBox(campusCenter, radiusMeters);
-
-      final query =
-          '''
-[out:json][timeout:25];
-(
-  node["entrance"="yes"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
-  node["barrier"="gate"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
-  node["barrier"="entrance"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
-  node["highway"="gate"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
-);
-out body;
-''';
-
-      final url = 'https://overpass-api.de/api/interpreter';
-      final response = await http.post(Uri.parse(url), body: query);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final List<CampusGate> gates = [];
-
-        if (data['elements'] != null) {
-          for (var element in data['elements']) {
-            if (element['lat'] != null && element['lon'] != null) {
-              gates.add(
-                CampusGate(
-                  id: element['id'].toString(),
-                  name: element['tags']?['name'] ?? 'Gate ${gates.length + 1}',
-                  location: LatLng(element['lat'], element['lon']),
-                  tags: Map<String, String>.from(element['tags'] ?? {}),
-                ),
-              );
-            }
-          }
-        }
-
-        print('✅ Found ${gates.length} gates from OSM');
-
-        // If no gates found from OSM, create default gates at boundary intersections
-        if (gates.isEmpty) {
-          gates.addAll(_createDefaultGates(campusCenter));
-          print('⚠️ No OSM gates found, using ${gates.length} default gates');
-        }
-
-        return gates;
-      }
-
-      print('❌ Failed to fetch gates: ${response.statusCode}');
-      return _createDefaultGates(campusCenter);
-    } catch (e) {
-      print('❌ Error fetching gates: $e');
-      return _createDefaultGates(campusCenter);
-    }
+    // Always use predefined gates for accuracy
+    // OSM data may not have correct campus gate information
+    print('✅ Using 7 predefined campus gates');
+    return _createDefaultGates(campusCenter);
   }
 
   /// Create default gates if OSM data is not available
   /// You should customize these based on your campus's actual entrances
   static List<CampusGate> _createDefaultGates(LatLng center) {
-    // Get boundary points
-    final boundaryPoints = MapBoundary.getCampusBoundaryPoints();
-
-    // Find main access points (you should customize these based on actual gates)
-    // For now, we'll create gates at cardinal directions
-    final gates = <CampusGate>[];
-
-    // You should replace these with actual gate coordinates for Bicol University
-    // These are just examples - find the actual entry points in your boundary
-    if (boundaryPoints.length >= 4) {
-      // Example: Create gates at specific boundary points
-      // You need to identify which boundary points are actual gates
-      gates.add(
-        CampusGate(
-          id: 'main_gate',
-          name: 'Main Gate',
-          location: boundaryPoints[0], // Replace with actual main gate point
-          tags: {'entrance': 'main'},
-        ),
-      );
-
-      // Add more gates based on your campus layout
-      // gates.add(CampusGate(...));
-    }
-
-    return gates;
-  }
-
-  /// Calculate bounding box for Overpass query
-  static _BoundingBox _calculateBoundingBox(
-    LatLng center,
-    double radiusMeters,
-  ) {
-    const double earthRadius = 6371000;
-
-    double latDelta = (radiusMeters / earthRadius) * (180 / math.pi);
-    double lonDelta =
-        (radiusMeters /
-            (earthRadius * math.cos(center.latitude * math.pi / 180))) *
-        (180 / math.pi);
-
-    return _BoundingBox(
-      north: center.latitude + latDelta,
-      south: center.latitude - latDelta,
-      east: center.longitude + lonDelta,
-      west: center.longitude - lonDelta,
-    );
+    return [
+      CampusGate(
+        id: 'gate_1',
+        name: 'Gate 1',
+        location: LatLng(13.14395504, 123.72590159),
+        tags: {'entrance': 'yes', 'access': 'main'},
+      ),
+      CampusGate(
+        id: 'gate_2',
+        name: 'Gate 2',
+        location: LatLng(13.14445260, 123.72525112),
+        tags: {'entrance': 'yes', 'access': 'secondary'},
+      ),
+      CampusGate(
+        id: 'gate_3',
+        name: 'Gate 3',
+        location: LatLng(13.14502437, 123.72455284),
+        tags: {'entrance': 'yes', 'access': 'secondary'},
+      ),
+      CampusGate(
+        id: 'gate_4',
+        name: 'Gate 4',
+        location: LatLng(13.14544743, 123.72402332),
+        tags: {'entrance': 'yes', 'access': 'secondary'},
+      ),
+      CampusGate(
+        id: 'gate_5',
+        name: 'Gate 5',
+        location: LatLng(13.14564489, 123.72377642),
+        tags: {'entrance': 'yes', 'access': 'secondary'},
+      ),
+      CampusGate(
+        id: 'gate_6',
+        name: 'Gate 6',
+        location: LatLng(13.14639730, 123.72280648),
+        tags: {'entrance': 'yes', 'access': 'secondary'},
+      ),
+      CampusGate(
+        id: 'gate_8',
+        name: 'Gate 8',
+        location: LatLng(13.14282074, 123.72155345),
+        tags: {'entrance': 'yes', 'access': 'service'},
+      ),
+    ];
   }
 
   /// Calculates bounds for a list of route points
@@ -422,20 +369,6 @@ out body;
     double bearing = math.atan2(y, x);
     return (bearing * 180 / math.pi + 360) % 360;
   }
-}
-
-class _BoundingBox {
-  final double north;
-  final double south;
-  final double east;
-  final double west;
-
-  _BoundingBox({
-    required this.north,
-    required this.south,
-    required this.east,
-    required this.west,
-  });
 }
 
 class CampusGate {

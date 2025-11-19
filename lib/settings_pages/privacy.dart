@@ -521,27 +521,40 @@ class _PrivacyPageState extends State<PrivacyPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Back Button
-                          Container(
-                            width: 45,
-                            height: 45,
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Colors.grey[300]!,
-                                width: 1.5,
+                          Row(
+                            children: [
+                              Container(
+                                width: 45,
+                                height: 45,
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.grey[300]!,
+                                    width: 1.5,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: IconButton(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                  },
+                                  icon: Icon(
+                                    Icons.arrow_back,
+                                    color: Colors.black87,
+                                    size: 20,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                ),
                               ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: IconButton(
-                              onPressed: () {
-                                Navigator.pop(context);
-                              },
-                              icon: Icon(
-                                Icons.arrow_back,
-                                color: Colors.black87,
-                                size: 20,
+                              const SizedBox(width: 12),
+                              Text(
+                                'Privacy & Security',
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.black87,
+                                ),
                               ),
-                              padding: EdgeInsets.zero,
-                            ),
+                            ],
                           ),
                           const SizedBox(height: 20),
                           // Header Section
@@ -999,6 +1012,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
           value: value,
           isExpanded: true,
           menuMaxHeight: 200,
+
           decoration: InputDecoration(
             prefixIcon: Icon(
               icon,
@@ -1009,17 +1023,11 @@ class _PrivacyPageState extends State<PrivacyPage> {
             fillColor: enabled ? Colors.white : Colors.grey[100],
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: Colors.grey[300]!,
-                width: 1.5,
-              ), // Changed from orange
+              borderSide: BorderSide(color: Colors.grey[300]!, width: 1.5),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: Colors.grey[300]!,
-                width: 1.5,
-              ), // Changed from orange
+              borderSide: BorderSide(color: Colors.grey[300]!, width: 1.5),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -1027,22 +1035,24 @@ class _PrivacyPageState extends State<PrivacyPage> {
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: Colors.grey[300]!,
-                width: 1.5,
-              ), // Changed from grey[200]
+              borderSide: BorderSide(color: Colors.grey[300]!, width: 1.5),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 16,
             ),
           ),
+
+          // Styling improvements
           dropdownColor: Colors.white,
           borderRadius: BorderRadius.circular(12),
+          elevation: 8,
+
           icon: Icon(
             Icons.keyboard_arrow_down,
             color: enabled ? Color(0xFFFF8C00) : Colors.grey[400],
           ),
+
           items: items.map((String item) {
             return DropdownMenuItem<String>(
               value: item,
@@ -1052,7 +1062,9 @@ class _PrivacyPageState extends State<PrivacyPage> {
               ),
             );
           }).toList(),
+
           onChanged: enabled ? onChanged : null,
+
           validator: (value) {
             if (value == null || value.isEmpty) {
               return 'Please select $label';

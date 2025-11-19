@@ -56,6 +56,7 @@ class _MapsState extends State<Maps> {
   List<LatLng> _animatedRoutePoints = [];
   LatLng? _tourStartPoint;
   double _currentRotation = 0.0;
+  double _currentHeading = 0.0;
 
   // ✨ NEW: Virtual tour management
   late VirtualTourManager _virtualTourManager;
@@ -81,6 +82,7 @@ class _MapsState extends State<Maps> {
     _startLocationTracking();
     _loadBuildingData();
     _currentZoom = MapBoundary.getInitialZoom();
+    LocationService.initializeCompass();
 
     // ✨ Check if starting virtual tour
     if (widget.startVirtualTour && widget.tourStops != null) {
@@ -423,6 +425,8 @@ class _MapsState extends State<Maps> {
       if (!_isDisposed && mounted) {
         setState(() {
           _currentLocation = location;
+          // ✨ NEW: Update heading from LocationService
+          _currentHeading = LocationService.getCurrentHeading();
         });
         if (_autoFollowLocation || _navigationManager.isNavigating) {
           _followUserLocation();
@@ -473,6 +477,7 @@ class _MapsState extends State<Maps> {
     if (!_isDisposed && mounted) {
       setState(() {
         _currentLocation = initialLocation.location;
+        _currentHeading = initialLocation.heading ?? 0.0;
         _isLoadingLocation = false;
       });
     }
@@ -684,7 +689,7 @@ class _MapsState extends State<Maps> {
   Widget _buildPinMarker(
     BicolMarker marker,
     double currentZoom,
-    double currentRotation,
+    double currentRotation, // Keep parameter but don't use it
   ) {
     IconData icon;
     Color color;
@@ -706,9 +711,7 @@ class _MapsState extends State<Maps> {
 
     final markerType = marker.isCollege ? 'college' : 'landmark';
 
-    // ✨ COUNTER-ROTATE: Negate camera rotation so label stays upright
-    final labelRotation = -currentRotation * (pi / 180); // Convert to radians
-
+    // ✅ NO ROTATION - markers stay upright naturally
     final markerWidget = Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -729,34 +732,30 @@ class _MapsState extends State<Maps> {
           child: Icon(icon, color: Colors.white, size: 20),
         ),
         const SizedBox(width: 6),
-        // ✨ ROTATE TEXT: Wrap label in Transform.rotate
-        Transform.rotate(
-          angle: labelRotation,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 100),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(4),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 3,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
-              ),
-              child: Text(
-                displayText,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 100),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 3,
+                  offset: const Offset(0, 1),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              ],
+            ),
+            child: Text(
+              displayText,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ),
@@ -1180,6 +1179,44 @@ class _MapsState extends State<Maps> {
                 ],
               ),
 
+              if (_isVirtualTourActive)
+                FutureBuilder<List<CampusGate>>(
+                  future: RoutingService.fetchCampusGates(
+                    campusCenter: MapBoundary.bicolUniversityCenter,
+                    radiusMeters: 600,
+                  ),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const SizedBox.shrink();
+
+                    return MarkerLayer(
+                      markers: snapshot.data!.map((gate) {
+                        return Marker(
+                          point: gate.location,
+                          width: 40,
+                          height: 40,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.purple,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: Center(
+                              child: Text(
+                                gate.id.replaceAll('gate_', ''),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+
               // Building polygons
               PolygonLayer(
                 polygons: MapBuildings.campusBuildings
@@ -1231,8 +1268,13 @@ class _MapsState extends State<Maps> {
                         ? MapUtils.createNavigationMarker(
                             _currentLocation!,
                             _navigationManager.currentBearing,
+                            compassHeading:
+                                _currentHeading, // ✨ Pass compass heading
                           )
-                        : MapUtils.createUserLocationMarker(_currentLocation!),
+                        : MapUtils.createUserLocationMarker(
+                            _currentLocation!,
+                            heading: _currentHeading, // ✨ Pass compass heading
+                          ),
                   ],
                 ),
 
@@ -1298,7 +1340,7 @@ class _MapsState extends State<Maps> {
                           width: 150,
                           height: 40,
                           alignment: Alignment.center,
-                          rotate: true,
+                          // ❌ REMOVE THIS: rotate: true,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () async {
@@ -1316,7 +1358,7 @@ class _MapsState extends State<Maps> {
                             child: _buildPinMarker(
                               marker,
                               _currentZoom,
-                              _currentRotation,
+                              _currentRotation, // We don't use this anymore
                             ),
                           ),
                         );
@@ -1338,7 +1380,7 @@ class _MapsState extends State<Maps> {
                           width: 150,
                           height: 40,
                           alignment: Alignment.center,
-                          rotate: true,
+                          // ❌ REMOVE THIS: rotate: true,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () async {
@@ -1358,7 +1400,7 @@ class _MapsState extends State<Maps> {
                             child: _buildPinMarker(
                               marker,
                               _currentZoom,
-                              _currentRotation,
+                              _currentRotation, // We don't use this anymore
                             ),
                           ),
                         );
@@ -1552,7 +1594,7 @@ class _MapsState extends State<Maps> {
                               ),
                             ],
                           ),
-                          backgroundColor: Colors.purple,
+                          backgroundColor: Colors.green,
                           duration: const Duration(milliseconds: 800),
                           behavior: SnackBarBehavior.floating,
                         ),
@@ -1604,6 +1646,16 @@ class _MapsState extends State<Maps> {
               ignoring: false,
               child: Column(
                 children: [
+                  // 🆕 ADD THIS - Location Permission Toggle
+                  MapWidgets.buildLocationToggle(
+                    onPermissionChanged: () {
+                      // Refresh location when permission changes
+                      _startLocationTracking();
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Existing auto-follow button
                   MapWidgets.buildFloatingActionButton(
                     icon: _autoFollowLocation
                         ? Icons.my_location
@@ -1615,6 +1667,8 @@ class _MapsState extends State<Maps> {
                         : Colors.grey[600],
                   ),
                   const SizedBox(height: 12),
+
+                  // Existing zoom controls
                   MapWidgets.buildZoomControls(
                     onZoomIn: _zoomIn,
                     onZoomOut: _zoomOut,
@@ -1883,6 +1937,7 @@ class _MapsState extends State<Maps> {
     _navigationManager.dispose();
     _virtualTourManager.dispose();
     _searchController.dispose();
+    LocationService.disposeCompass();
     super.dispose();
   }
 }

@@ -6,17 +6,106 @@ import 'package:itouru/main_pages/home.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:app_links/app_links.dart';
 import 'dart:async';
+import 'package:itouru/page_components/connectivity_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Supabase.initialize(
-    url: 'https://mgkmorkhbabqeejotfxl.supabase.co',
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1na21vcmtoYmFicWVlam90ZnhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1Mzg1NDcsImV4cCI6MjA3NjExNDU0N30.LDm9z2hTW9wL9SxBAOdMZU2JnYcN47G-n_7xhjTABcs',
-  );
+  // 🆕 Check internet connection before initializing Supabase
+  final connectivityService = ConnectivityService();
+  final hasInternet = await connectivityService.hasConnection();
 
-  runApp(const MyApp());
+  print('🌐 Initial internet check: $hasInternet'); // Debug
+
+  if (!hasInternet) {
+    // No internet - show error screen
+    runApp(const NoInternetApp());
+    return;
+  }
+
+  try {
+    await Supabase.initialize(
+      url: 'https://mgkmorkhbabqeejotfxl.supabase.co',
+      anonKey:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1na21vcmtoYmFicWVlam90ZnhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1Mzg1NDcsImV4cCI6MjA3NjExNDU0N30.LDm9z2hTW9wL9SxBAOdMZU2JnYcN47G-n_7xhjTABcs',
+    );
+
+    runApp(const MyApp());
+  } catch (e) {
+    print('❌ Error initializing Supabase: $e');
+    runApp(const NoInternetApp());
+  }
+}
+
+// 🆕 No Internet App - shown when app starts without internet
+class NoInternetApp extends StatelessWidget {
+  const NoInternetApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.wifi_off,
+                    size: 60,
+                    color: Colors.red.shade400,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'No Internet Connection',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Please check your internet connection and restart the app.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    // Check connection and restart
+                    final hasInternet = await ConnectivityService()
+                        .hasConnection();
+                    if (hasInternet) {
+                      // Restart the app
+                      main();
+                    }
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -34,15 +123,86 @@ class _MyAppState extends State<MyApp> {
   bool _isCheckingSession = true;
   Widget _initialPage = const LoginOptionPage();
 
+  // 🆕 Connectivity monitoring
+  final ConnectivityService _connectivityService = ConnectivityService();
+  bool _hasShownNoInternetDialog = false;
+
   @override
   void initState() {
     super.initState();
+    print('🚀 App initializing...');
+    _initConnectivityMonitoring(); // 🆕 Initialize connectivity first
     _checkSession();
     _initDeepLinks();
     _initAuthListener();
   }
 
+  // 🆕 Initialize connectivity monitoring
+  void _initConnectivityMonitoring() {
+    print('📡 Setting up connectivity monitoring...');
+    _connectivityService.initialize();
+    _connectivityService.onConnectivityChanged = (isConnected) {
+      print('📡 Connectivity changed: $isConnected');
+      print('📡 Dialog shown before: $_hasShownNoInternetDialog');
+
+      if (!isConnected && !_hasShownNoInternetDialog) {
+        print('⚠️ No internet detected - showing dialog');
+        _hasShownNoInternetDialog = true;
+
+        // Use a slight delay to ensure context is ready
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (_navigatorKey.currentContext != null) {
+            print('✅ Showing no internet dialog');
+            ConnectivityService.showNoInternetDialog(
+              _navigatorKey.currentContext!,
+              onRetry: () {
+                print('🔄 Retry pressed');
+                _hasShownNoInternetDialog = false;
+              },
+            );
+          } else {
+            print('❌ No context available for dialog');
+          }
+        });
+      } else if (isConnected) {
+        print('✅ Internet restored');
+        _hasShownNoInternetDialog = false;
+
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (_navigatorKey.currentContext != null) {
+            ScaffoldMessenger.of(_navigatorKey.currentContext!).showSnackBar(
+              const SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.wifi, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text('Back online!'),
+                  ],
+                ),
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        });
+      }
+    };
+  }
+
   Future<void> _checkSession() async {
+    // 🆕 Check internet before checking session
+    final hasInternet = await _connectivityService.hasConnection();
+    print('🔍 Session check - Has internet: $hasInternet');
+
+    if (!hasInternet) {
+      setState(() {
+        _initialPage = const LoginOptionPage();
+        _isCheckingSession = false;
+      });
+      return;
+    }
+
     try {
       final session = Supabase.instance.client.auth.currentSession;
 
@@ -304,8 +464,10 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
+    print('🛑 App disposing...');
     _linkSubscription?.cancel();
     _authSubscription?.cancel();
+    _connectivityService.dispose(); // 🆕 Dispose connectivity service
     super.dispose();
   }
 

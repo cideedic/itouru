@@ -1,16 +1,10 @@
 // lib/maps_assets/map_widgets.dart
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'map_building.dart';
 import 'building_matcher.dart';
 
 class MapWidgets {
-  // Consistent transparent blue color scheme
-  static const Color _transparentBlue = Color(
-    0x40E3F2FD,
-  ); // Light blue with transparency
-  static const Color _borderBlue = Color(
-    0x60BBDEFB,
-  ); // Slightly more opaque blue border
   static const Color _textColor = Color.fromARGB(
     136,
     55,
@@ -42,6 +36,13 @@ class MapWidgets {
     );
   }
 
+  // 🆕 NEW: Build location permission toggle button
+  static Widget buildLocationToggle({
+    required VoidCallback? onPermissionChanged,
+  }) {
+    return _LocationToggleButton(onPermissionChanged: onPermissionChanged);
+  }
+
   // Build floating action button
   static Widget buildFloatingActionButton({
     required IconData icon,
@@ -54,10 +55,7 @@ class MapWidgets {
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color:
-            backgroundColor ??
-            Colors.white, // ✅ Default to white instead of transparent blue
-
+        color: backgroundColor ?? Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade300, width: 1),
         boxShadow: [
@@ -95,7 +93,7 @@ class MapWidgets {
       builder: (context, setState) {
         return Container(
           decoration: BoxDecoration(
-            color: Colors.white, // ✨ White background
+            color: Colors.white,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: Colors.grey.shade300, width: 1),
             boxShadow: [
@@ -119,7 +117,7 @@ class MapWidgets {
                       onPressed: () {
                         controller.clear();
                         onClear();
-                        setState(() {}); // Rebuild to hide clear button
+                        setState(() {});
                       },
                     )
                   : null,
@@ -131,7 +129,7 @@ class MapWidgets {
             ),
             onChanged: (value) {
               onChanged(value);
-              setState(() {}); // Rebuild to show/hide clear button
+              setState(() {});
             },
           ),
         );
@@ -139,16 +137,13 @@ class MapWidgets {
     );
   }
 
-  // Build search results dropdown - also make it white
+  // Build search results dropdown
   static Widget buildSearchResults({
-    required List<dynamic>
-    results, // ✨ CHANGED: Accept dynamic list (buildings + markers)
-    required Function(dynamic) onResultTap, // ✨ CHANGED: Accept dynamic type
+    required List<dynamic> results,
+    required Function(dynamic) onResultTap,
   }) {
     return Container(
-      constraints: const BoxConstraints(
-        maxHeight: 300,
-      ), // ✨ Taller for subtitles
+      constraints: const BoxConstraints(maxHeight: 300),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -184,18 +179,14 @@ class MapWidgets {
                 Color iconColor;
 
                 if (result is BicolBuildingPolygon) {
-                  // Building
-                  name =
-                      result.databaseName ??
-                      result.name; // Primary: formal name
-                  subtitle = result.databaseNickname; // Secondary: nickname
+                  name = result.databaseName ?? result.name;
+                  subtitle = result.databaseNickname;
                   secondaryText = result.isFacility
                       ? _getBuildingTypeText(result)
                       : null;
                   icon = Icons.business;
                   iconColor = Color(0xFFFF8C00);
                 } else if (result is BicolMarker) {
-                  // College or Landmark
                   name = result.displayName;
                   if (result.isCollege) {
                     subtitle = result.abbreviation;
@@ -205,17 +196,16 @@ class MapWidgets {
                   } else {
                     subtitle = 'Landmark';
                     icon = Icons.place;
-                    iconColor = Colors.red;
+                    iconColor = Colors.green;
                   }
                 } else if (result is OfficeData) {
-                  // ✨ NEW: Office
                   name = result.name;
                   subtitle = result.abbreviation;
                   secondaryText = BuildingMatcher.getBuildingNameById(
                     result.buildingId,
                   );
                   icon = Icons.work_outline;
-                  iconColor = Colors.purple;
+                  iconColor = Colors.green;
                 } else {
                   return const SizedBox.shrink();
                 }
@@ -301,14 +291,12 @@ class MapWidgets {
     );
   }
 
-  // ✨ NEW: Helper to get building type text
   static String _getBuildingTypeText(BicolBuildingPolygon building) {
     if (building.isFacility) {
       if (building.isPool) return 'Swimming Pool';
       if (building.isField) return 'Sports Facility';
       return 'Facility';
     }
-    // You can add more logic here based on building type from database
     return building.description;
   }
 
@@ -323,7 +311,7 @@ class MapWidgets {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: Colors.white, // ✅ White background
+            color: Colors.white,
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(12),
               topRight: Radius.circular(12),
@@ -347,7 +335,7 @@ class MapWidgets {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: Colors.white, // ✅ White background
+            color: Colors.white,
             borderRadius: const BorderRadius.only(
               bottomLeft: Radius.circular(12),
               bottomRight: Radius.circular(12),
@@ -369,44 +357,244 @@ class MapWidgets {
       ],
     );
   }
+}
 
-  // Build bottom legend bar
-  static Widget buildLegendBar({required bool isLocationConnected}) {
+// 🆕 Internal widget for location toggle
+class _LocationToggleButton extends StatefulWidget {
+  final VoidCallback? onPermissionChanged;
+
+  const _LocationToggleButton({this.onPermissionChanged});
+
+  @override
+  State<_LocationToggleButton> createState() => _LocationToggleButtonState();
+}
+
+class _LocationToggleButtonState extends State<_LocationToggleButton> {
+  bool _isLocationEnabled = false;
+  bool _isChecking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkLocationStatus();
+  }
+
+  Future<void> _checkLocationStatus() async {
+    setState(() => _isChecking = true);
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      final permission = await Geolocator.checkPermission();
+
+      setState(() {
+        _isLocationEnabled =
+            serviceEnabled &&
+            (permission == LocationPermission.whileInUse ||
+                permission == LocationPermission.always);
+        _isChecking = false;
+      });
+    } catch (e) {
+      setState(() => _isChecking = false);
+    }
+  }
+
+  Future<void> _toggleLocation() async {
+    if (_isLocationEnabled) {
+      _showDisableDialog();
+    } else {
+      await _requestPermission();
+    }
+  }
+
+  Future<void> _requestPermission() async {
+    setState(() => _isChecking = true);
+
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() => _isChecking = false);
+        _showServiceDisabledDialog();
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() => _isChecking = false);
+        _showPermanentlyDeniedDialog();
+        return;
+      }
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      await _checkLocationStatus();
+
+      if (permission == LocationPermission.whileInUse ||
+          permission == LocationPermission.always) {
+        widget.onPermissionChanged?.call();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Location enabled successfully'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() => _isChecking = false);
+    }
+  }
+
+  void _showServiceDisabledDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.location_off, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Location Service Disabled'),
+          ],
+        ),
+        content: const Text(
+          'Please enable location services in your device settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await Geolocator.openLocationSettings();
+              await Future.delayed(const Duration(seconds: 1));
+              _checkLocationStatus();
+            },
+            child: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPermanentlyDeniedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.block, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Permission Required'),
+          ],
+        ),
+        content: const Text(
+          'Location permission was permanently denied. Please enable it in app settings.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await Geolocator.openAppSettings();
+              await Future.delayed(const Duration(seconds: 1));
+              _checkLocationStatus();
+            },
+            child: const Text('App Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDisableDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.info_outline, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Disable Location'),
+          ],
+        ),
+        content: const Text(
+          'To disable location, please go to app settings and revoke location permission.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await Geolocator.openAppSettings();
+              await Future.delayed(const Duration(seconds: 1));
+              _checkLocationStatus();
+            },
+            child: const Text('App Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      width: 48,
+      height: 48,
       decoration: BoxDecoration(
-        color: _transparentBlue,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderBlue, width: 1),
+        border: Border.all(color: Colors.grey.shade300, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          buildLegendItem(Colors.red, 'Academic'),
-          const SizedBox(width: 16),
-          buildLegendItem(Colors.blue, 'Admin'),
-          const SizedBox(width: 16),
-          buildLegendItem(Colors.green, 'Facilities'),
-          const Spacer(),
-          if (isLocationConnected)
-            Icon(Icons.circle, color: Colors.green, size: 8),
-          if (isLocationConnected) const SizedBox(width: 4),
-          Text(
-            isLocationConnected ? 'Connected' : 'Finding location...',
-            style: TextStyle(
-              fontSize: 12,
-              color: isLocationConnected ? Colors.green : Color(0xFFFF8C00),
-              fontWeight: FontWeight.w500,
+      child: _isChecking
+          ? Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Colors.blue.shade700,
+                  ),
+                ),
+              ),
+            )
+          : IconButton(
+              icon: Icon(
+                _isLocationEnabled ? Icons.location_on : Icons.location_off,
+                color: _isLocationEnabled ? Colors.green : Colors.grey.shade600,
+              ),
+              onPressed: _toggleLocation,
+              tooltip: _isLocationEnabled
+                  ? 'Location Enabled'
+                  : 'Enable Location',
             ),
-          ),
-        ],
-      ),
     );
   }
 }

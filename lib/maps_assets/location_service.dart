@@ -1,8 +1,55 @@
 // lib/maps_assets/location_service.dart
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:flutter_compass/flutter_compass.dart';
+import 'dart:async';
 
 class LocationService {
+  static StreamSubscription<CompassEvent>? _compassSubscription;
+  static double _currentHeading = 0.0;
+  static bool _isCompassAvailable = false;
+
+  /// Initialize compass stream (call this once in your app)
+  static Future<void> initializeCompass() async {
+    try {
+      // Check if compass is available
+      final compassEvents = FlutterCompass.events;
+      if (compassEvents == null) {
+        print('⚠️ Compass not available on this device');
+        _isCompassAvailable = false;
+        return;
+      }
+
+      _isCompassAvailable = true;
+
+      // Listen to compass updates
+      _compassSubscription = compassEvents.listen((CompassEvent event) {
+        if (event.heading != null) {
+          _currentHeading = event.heading!;
+        }
+      });
+
+      print('✅ Compass initialized');
+    } catch (e) {
+      print('❌ Error initializing compass: $e');
+      _isCompassAvailable = false;
+    }
+  }
+
+  /// Get current heading from compass
+  static double getCurrentHeading() {
+    return _currentHeading;
+  }
+
+  /// Check if compass is available
+  static bool get isCompassAvailable => _isCompassAvailable;
+
+  /// Dispose compass stream
+  static void disposeCompass() {
+    _compassSubscription?.cancel();
+    _compassSubscription = null;
+  }
+
   static Future<LocationResult> getCurrentLocation() async {
     try {
       // Check if location services are enabled
@@ -31,6 +78,7 @@ class LocationService {
 
       return LocationResult.success(
         LatLng(position.latitude, position.longitude),
+        heading: _currentHeading, // Include compass heading
       );
     } catch (e) {
       return LocationResult.error('Error getting location: $e');
@@ -41,12 +89,13 @@ class LocationService {
     return Geolocator.getPositionStream(
           locationSettings: const LocationSettings(
             accuracy: LocationAccuracy.high,
-            distanceFilter: 10,
+            distanceFilter: 3, // Update every 3 meters
           ),
         )
         .map((position) {
           return LocationResult.success(
             LatLng(position.latitude, position.longitude),
+            heading: _currentHeading, // Include real-time compass heading
           );
         })
         .handleError((error) {
@@ -57,13 +106,23 @@ class LocationService {
 
 class LocationResult {
   final LatLng? location;
+  final double? heading; // ✨ NEW: Compass heading (0-360°)
   final String? error;
   final bool isSuccess;
 
-  LocationResult._({this.location, this.error, required this.isSuccess});
+  LocationResult._({
+    this.location,
+    this.heading,
+    this.error,
+    required this.isSuccess,
+  });
 
-  factory LocationResult.success(LatLng location) {
-    return LocationResult._(location: location, isSuccess: true);
+  factory LocationResult.success(LatLng location, {double? heading}) {
+    return LocationResult._(
+      location: location,
+      heading: heading,
+      isSuccess: true,
+    );
   }
 
   factory LocationResult.error(String error) {

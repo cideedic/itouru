@@ -108,27 +108,40 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Back Button
-                        Container(
-                          width: 45,
-                          height: 45,
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Colors.grey[300]!,
-                              width: 1.5,
+                        Row(
+                          children: [
+                            Container(
+                              width: 45,
+                              height: 45,
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Colors.grey[300]!,
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: IconButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                },
+                                icon: Icon(
+                                  Icons.arrow_back,
+                                  color: Colors.black87,
+                                  size: 20,
+                                ),
+                                padding: EdgeInsets.zero,
+                              ),
                             ),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: IconButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                            },
-                            icon: Icon(
-                              Icons.arrow_back,
-                              color: Colors.black87,
-                              size: 20,
+                            const SizedBox(width: 12),
+                            Text(
+                              'Help & Support',
+                              style: GoogleFonts.montserrat(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black87,
+                              ),
                             ),
-                            padding: EdgeInsets.zero,
-                          ),
+                          ],
                         ),
                         const SizedBox(height: 20),
                         // Search Bar
@@ -208,10 +221,10 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'FAQs',
+                        'Frequently Asked Questions',
                         style: GoogleFonts.montserrat(
                           fontSize: 20,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w700,
                           color: Colors.black87,
                         ),
                       ),

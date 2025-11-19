@@ -234,7 +234,7 @@ class BuildingAboutTab extends StatelessWidget {
           child: Text(
             title,
             style: GoogleFonts.montserrat(
-              fontSize: 18,
+              fontSize: 15,
               fontWeight: FontWeight.w800,
               color: Colors.black87,
               letterSpacing: 0.5,

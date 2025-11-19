@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'dart:math' as math;
 import 'map_boundary.dart';
 import 'routing_service.dart';
+import 'cone_marker_widget.dart';
 
 class MapUtils {
   // ✨ Zoom level thresholds for marker visibility
@@ -321,51 +322,65 @@ class MapUtils {
   }
 
   // User location marker
-  static Marker createUserLocationMarker(LatLng location) {
+  static Marker createUserLocationMarker(
+    LatLng location, {
+    double? heading, // Optional compass heading
+  }) {
     return Marker(
       point: location,
-      width: 20,
-      height: 20,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.blue,
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.3),
-              spreadRadius: 1,
-              blurRadius: 3,
-            ),
-          ],
-        ),
-      ),
+      width: 160, // Larger to accommodate cone
+      height: 160,
+      alignment: Alignment.center,
+      child: heading != null
+          ? ConeMarkerWidget(
+              heading: heading,
+              coneAngle: 60.0, // 60° field of view
+              coneLength: 80.0,
+              coneColor: const Color(0x4D2196F3), // Semi-transparent blue
+              circleColor: Colors.blue,
+            )
+          : _createSimpleUserMarker(), // Fallback if no heading available
     );
   }
 
   // Navigation marker with direction
-  static Marker createNavigationMarker(LatLng location, double bearing) {
+  static Marker createNavigationMarker(
+    LatLng location,
+    double bearing, {
+    double? compassHeading, // Use compass if available, else use bearing
+  }) {
+    final effectiveHeading = compassHeading ?? bearing;
+
     return Marker(
       point: location,
-      width: 30,
-      height: 30,
-      child: Transform.rotate(
-        angle: bearing * math.pi / 180,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.green,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
-                spreadRadius: 1,
-                blurRadius: 3,
-              ),
-            ],
+      width: 160,
+      height: 160,
+      alignment: Alignment.center,
+      child: PulsingConeMarker(
+        heading: effectiveHeading,
+        coneAngle: 60.0,
+        coneLength: 80.0,
+        coneColor: const Color(0x4D4CAF50), // Semi-transparent green
+        circleColor: Colors.green,
+      ),
+    );
+  }
+
+  static Widget _createSimpleUserMarker() {
+    return Container(
+      width: 20,
+      height: 20,
+      decoration: BoxDecoration(
+        color: Colors.blue,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 3),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            spreadRadius: 2,
+            blurRadius: 6,
           ),
-          child: const Icon(Icons.navigation, color: Colors.white, size: 16),
-        ),
+        ],
       ),
     );
   }
