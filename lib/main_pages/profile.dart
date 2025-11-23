@@ -51,8 +51,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _fetchUserData() async {
     try {
-      print('Fetching user data for email: ${widget.email}');
-
       final response = await Supabase.instance.client
           .from('Users')
           .select('''
@@ -73,12 +71,9 @@ class _ProfilePageState extends State<ProfilePage> {
           .timeout(
             const Duration(seconds: 10),
             onTimeout: () {
-              print('Database query timeout');
               throw Exception('Request timeout');
             },
           );
-
-      print('Response received: ${response != null}');
 
       if (response != null) {
         final first = response['first_name'] ?? "";
@@ -118,9 +113,7 @@ class _ProfilePageState extends State<ProfilePage> {
           selectedAvatar = response['avatar']?.toString() ?? avatarOptions[0];
           isLoading = false;
         });
-        print('Data loaded successfully');
       } else {
-        print('No user found with email: ${widget.email}');
         setState(() {
           isLoading = false;
           studentName = "User Not Found";

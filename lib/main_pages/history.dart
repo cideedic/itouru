@@ -7,21 +7,15 @@ class HistoryTimeline {
 
   Future<List<Map<String, dynamic>>> fetchTimelineData() async {
     try {
-      print('🔄 Fetching timeline data from Supabase...');
-
       final response = await supabase
           .from('History')
           .select('history_id, title, date, description');
 
-      print('✅ Timeline response: ${response.length} items fetched');
-
       if (response.isEmpty) {
-        print('⚠️ No timeline data found in database');
         return [];
       }
 
       final data = (response as List).map((item) {
-        print('📅 Processing: ${item['title']} - ${item['date']}');
         return {
           'history_id': item['history_id'],
           'title': item['title'] ?? '',
@@ -40,10 +34,8 @@ class HistoryTimeline {
         }
       });
 
-      print('✅ Timeline data loaded successfully: ${data.length} items');
       return data;
     } catch (e) {
-      print('❌ Error fetching timeline data: $e');
       return [];
     }
   }
@@ -145,7 +137,7 @@ class HistoryTimeline {
       );
     }
 
-    return Container(
+    return SizedBox(
       height: 180,
       child: Stack(
         children: [
@@ -318,13 +310,13 @@ class _AnimatedTimelineSheetState extends State<_AnimatedTimelineSheet>
 
     for (int i = 0; i < _itemKeys.length; i++) {
       final key = _itemKeys[i];
-      final context = key.currentContext;
+      final itemContext = key.currentContext;
 
-      if (context != null) {
-        final box = context.findRenderObject() as RenderBox?;
+      if (itemContext != null && itemContext.mounted) {
+        final box = itemContext.findRenderObject() as RenderBox?;
         if (box != null && box.hasSize) {
           final position = box.localToGlobal(Offset.zero);
-          final screenHeight = MediaQuery.of(context).size.height;
+          final screenHeight = MediaQuery.of(itemContext).size.height;
 
           if (position.dy < screenHeight && position.dy > -box.size.height) {
             visibleIndices.add(i);

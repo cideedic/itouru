@@ -24,18 +24,15 @@ class FeaturedLocationsCache {
   Future<List<Map<String, dynamic>>> loadLocations(BuildContext context) async {
     // If already loaded, return cached data
     if (_cachedLocations != null && _isPreloaded) {
-      print('✅ Using cached featured locations');
       return _cachedLocations!;
     }
 
     // If currently loading, return the existing future
     if (_loadingFuture != null) {
-      print('⏳ Already loading, waiting for completion...');
       return _loadingFuture!;
     }
 
     // Start loading
-    print('🔄 Starting fresh load of featured locations...');
     _loadingFuture = _performLoad(context);
 
     try {
@@ -52,8 +49,7 @@ class FeaturedLocationsCache {
     List<Map<String, dynamic>> allLocations = [];
 
     try {
-      // 1. Fetch random 3 Colleges
-      print('📚 Fetching colleges...');
+      // Fetch random 3 Colleges
       final allColleges = await supabase
           .from('College')
           .select('college_id, college_name, college_abbreviation');
@@ -105,8 +101,7 @@ class FeaturedLocationsCache {
         });
       }
 
-      // 2. Fetch random 3 Regular Buildings
-      print('🏢 Fetching buildings...');
+      //  Fetch random 3 Regular Buildings
       final allBuildings = await supabase
           .from('Building')
           .select('building_id, building_name, building_nickname')
@@ -168,8 +163,7 @@ class FeaturedLocationsCache {
         });
       }
 
-      // 3. Fetch random 3 Landmarks
-      print('🏛️ Fetching landmarks...');
+      // Fetch random 3 Landmarks
       final allLandmarks = await supabase
           .from('Building')
           .select('building_id, building_name, building_nickname')
@@ -230,19 +224,14 @@ class FeaturedLocationsCache {
         });
       }
 
-      print('✅ Loaded ${allLocations.length} featured locations');
-
       // Preload all images
       if (context.mounted) {
-        print('🖼️ Preloading all images...');
         await _preloadAllImages(allLocations, context);
         _isPreloaded = true;
-        print('✅ All images preloaded successfully!');
       }
 
       return allLocations;
     } catch (e) {
-      print('❌ Error loading featured locations: $e');
       return [];
     }
   }
@@ -270,13 +259,12 @@ class FeaturedLocationsCache {
               final imageUrl = supabase.storage
                   .from('images')
                   .getPublicUrl(imagePath);
-              print('✅ Found image in "$folderName": $imageUrl');
               return imageUrl;
             }
           }
         }
       } catch (e) {
-        print('⚠️ No images in folder "$folderName"');
+        // No image found on folder
       }
     }
     return null;
@@ -295,7 +283,6 @@ class FeaturedLocationsCache {
       if (imageUrl != null) {
         preloadFutures.add(
           precacheImage(NetworkImage(imageUrl), context).catchError((error) {
-            print('⚠️ Failed to preload image: $imageUrl');
             return null;
           }),
         );
@@ -365,7 +352,6 @@ class _FeaturedLocationsSectionState extends State<FeaturedLocationsSection> {
 
       _setupCarousel();
     } catch (e) {
-      print('❌ Error in _loadLocations: $e');
       if (!mounted) return;
 
       setState(() {

@@ -13,17 +13,24 @@ class DeepLinkService {
     // Handle initial link when app is opened from link
     try {
       final initialUri = await _appLinks!.getInitialLink();
-      if (initialUri != null) {
+      if (initialUri != null && context.mounted) {
         _handleDeepLink(initialUri, context);
       }
     } catch (e) {
-      print('Error getting initial link: $e');
+      // Error retrieving initial link
     }
 
     // Handle links while app is running
-    _sub = _appLinks!.uriLinkStream.listen((Uri uri) {
-      _handleDeepLink(uri, context);
-    }, onError: (err) {});
+    _sub = _appLinks!.uriLinkStream.listen(
+      (Uri uri) {
+        if (context.mounted) {
+          _handleDeepLink(uri, context);
+        }
+      },
+      onError: (err) {
+        // Error handling deeplink
+      },
+    );
   }
 
   static void _handleDeepLink(Uri uri, BuildContext context) {

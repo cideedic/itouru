@@ -4,8 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../maps_assets/virtual_tour_manager.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
-import 'package:itouru/college_content_pages/content.dart' as CollegeContent;
-import 'package:itouru/building_content_pages/content.dart' as BuildingContent;
+import 'package:itouru/college_content_pages/content.dart' as collegecontent;
+import 'package:itouru/building_content_pages/content.dart' as buildingcontent;
 
 class VirtualTourStopCard extends StatefulWidget {
   final VirtualTourStop stop;
@@ -132,7 +132,6 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
         _startAutoPlay();
       }
     } catch (e) {
-      print('❌ Error loading building images: $e');
       if (!mounted) return;
       setState(() => _isLoadingImages = false);
     }
@@ -167,7 +166,7 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => CollegeContent.CollegeDetailsPage(
+          builder: (context) => collegecontent.CollegeDetailsPage(
             collegeId: widget.stop.buildingId,
             collegeName: widget.stop.buildingName,
             title: widget.stop.buildingName,
@@ -178,7 +177,7 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => BuildingContent.BuildingDetailsPage(
+          builder: (context) => buildingcontent.BuildingDetailsPage(
             buildingId: widget.stop.buildingId,
             title: widget.stop.buildingName,
           ),

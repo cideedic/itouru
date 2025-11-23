@@ -120,9 +120,6 @@ class _LoginPageState extends State<LoginPage> {
         OAuthProvider.google,
         redirectTo: 'itouru://login-callback',
       );
-
-      // The app will be redirected to browser, then back
-      // Don't navigate here - let the auth state listener handle it
     } on AuthException catch (e) {
       if (mounted) {
         String errorMessage = e.message;

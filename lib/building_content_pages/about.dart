@@ -22,7 +22,7 @@ class BuildingAboutTab extends StatelessWidget {
     this.hasRooms = true,
   });
 
-  // ✅ UPDATED: Now allows directions for ALL building types including landmarks
+  // Allows directions for ALL building types including landmarks
   bool get _canGetDirections {
     // As long as we have a buildingId, we can get directions
     return buildingId != null;
@@ -41,12 +41,6 @@ class BuildingAboutTab extends StatelessWidget {
       );
       return;
     }
-
-    print('\n🚀 === GET DIRECTIONS BUTTON PRESSED ===');
-    print('📍 Building ID: $buildingId');
-    print('📍 Building Name: $buildingName');
-    print('📍 Building Type: $buildingType');
-    print('📍 Is Landmark: ${buildingType?.toLowerCase() == 'landmark'}');
 
     // Show loading indicator
     ScaffoldMessenger.of(context).showSnackBar(
@@ -75,17 +69,9 @@ class BuildingAboutTab extends StatelessWidget {
     String itemType;
     if (buildingType?.toLowerCase() == 'landmark') {
       itemType = 'marker'; // Navigate to landmark marker
-      print('🏛️ Landmark - Will navigate to marker');
     } else {
       itemType = 'building'; // Navigate to building polygon
-      print('🏢 Building - Will navigate to polygon');
     }
-
-    print('📋 Summary:');
-    print('   - Target Building ID: $buildingId');
-    print('   - Destination Name: $buildingName');
-    print('   - Item Type: $itemType');
-    print('🚀 === NAVIGATING TO MAPS PAGE ===\n');
 
     // Navigate to Maps page with auto-navigation
     Navigator.pushReplacement(
@@ -165,7 +151,7 @@ class BuildingAboutTab extends StatelessWidget {
 
         SizedBox(height: 24),
 
-        // ✅ UPDATED: Directions Button now works for landmarks too
+        // Directions Button now works for landmarks too
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
@@ -207,7 +193,7 @@ class BuildingAboutTab extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 8,
             offset: Offset(0, 2),
           ),

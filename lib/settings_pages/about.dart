@@ -158,8 +158,8 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
                   CreatorPanel(
                     key: _creatorKeys[0],
                     name: 'TERRENZE\nJOSH',
-                    rolesText: 'Administrator Side Developer\nDatabase Manager',
-                    imagePath: 'assets/images/test1.png',
+                    rolesText: 'Admin Side Developer\nDatabase Manager',
+                    imagePath: 'assets/images/ter1.png',
                     motto: 'Sana makapasa sa defense',
                     mottoAuthor: 'Terrenze Josh M. Binamira',
                     shouldAnimate: _hasAnimated[0],
@@ -170,8 +170,8 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
                     key: _creatorKeys[1],
                     name: 'ERICCAH\nJOYCE',
                     rolesText: 'Database Manager\nProject Lead',
-                    imagePath: 'assets/images/test1.png',
-                    motto: 'Wew',
+                    imagePath: 'assets/images/erika1.png',
+                    motto: 'Sana makapasa sa defense',
                     mottoAuthor: 'Ericcah Joyce B. Braga',
                     shouldAnimate: _hasAnimated[1],
                     delay: 0,
@@ -181,8 +181,8 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
                     key: _creatorKeys[2],
                     name: 'MA. ALEXA\nNICOLE',
                     rolesText: 'Capstone Papers\nDocumentation',
-                    imagePath: 'assets/images/test1.png',
-                    motto: 'motto motto mo',
+                    imagePath: 'assets/images/nix1.png',
+                    motto: 'Sana makapasa sa defense',
                     mottoAuthor: 'Ma. Alexa Nicole P. Boroc',
                     shouldAnimate: _hasAnimated[2],
                     delay: 0,
@@ -192,8 +192,8 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
                     key: _creatorKeys[3],
                     name: 'JOHN\nCEDRICK',
                     rolesText: 'Mobile Application Developer',
-                    imagePath: 'assets/images/test1.png',
-                    motto: 'ow yea',
+                    imagePath: 'assets/images/ced1.png',
+                    motto: 'Sana makapasa sa defense',
                     mottoAuthor: 'John Cedrick M. Lensoco',
                     shouldAnimate: _hasAnimated[3],
                     delay: 0,
@@ -384,7 +384,7 @@ class _CreatorPanelState extends State<CreatorPanel>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Image, Name, and Role section (overlapping)
-            Container(
+            SizedBox(
               height: 280,
               child: Stack(
                 children: [
@@ -418,7 +418,7 @@ class _CreatorPanelState extends State<CreatorPanel>
 
                   // Large creator image on the left with fade animation
                   Positioned(
-                    left: -120,
+                    left: -30,
                     top: 0,
                     bottom: 0,
                     child: FadeTransition(

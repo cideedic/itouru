@@ -16,13 +16,10 @@ class ConnectivityService {
 
   /// Initialize connectivity monitoring
   void initialize() {
-    print('📡 Initializing connectivity service...');
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen((
       List<ConnectivityResult> results,
     ) {
-      print('📡 Raw connectivity results: $results');
       final isConnected = !results.contains(ConnectivityResult.none);
-      print('📡 Is connected: $isConnected');
       onConnectivityChanged?.call(isConnected);
     });
   }
@@ -31,12 +28,9 @@ class ConnectivityService {
   Future<bool> hasConnection() async {
     try {
       final results = await _connectivity.checkConnectivity();
-      print('📡 Connectivity check results: $results');
       final isConnected = !results.contains(ConnectivityResult.none);
-      print('📡 Connection check: $isConnected');
       return isConnected;
     } catch (e) {
-      print('❌ Error checking connectivity: $e');
       return false;
     }
   }
@@ -46,7 +40,6 @@ class ConnectivityService {
     BuildContext context, {
     VoidCallback? onRetry,
   }) {
-    print('🚨 Showing no internet dialog');
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -56,7 +49,6 @@ class ConnectivityService {
 
   /// Dispose of connectivity subscription
   void dispose() {
-    print('🛑 Disposing connectivity service');
     _connectivitySubscription?.cancel();
   }
 }
@@ -65,8 +57,7 @@ class ConnectivityService {
 class NoInternetDialog extends StatelessWidget {
   final VoidCallback? onRetry;
 
-  const NoInternetDialog({Key? key, this.onRetry}) : super(key: key);
-
+  const NoInternetDialog({super.key, this.onRetry});
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -112,7 +103,6 @@ class NoInternetDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () {
-            print('❌ User pressed OK on no internet dialog');
             Navigator.of(context).pop();
           },
           style: TextButton.styleFrom(
@@ -125,12 +115,10 @@ class NoInternetDialog extends StatelessWidget {
         ),
         ElevatedButton(
           onPressed: () async {
-            print('🔄 User pressed Try Again');
             Navigator.of(context).pop();
 
             // Check connection again
             final hasConnection = await ConnectivityService().hasConnection();
-            print('🔍 Retry check result: $hasConnection');
 
             if (hasConnection) {
               // Connection restored

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class GuestAccessModal extends StatelessWidget {
-  const GuestAccessModal({Key? key}) : super(key: key);
+  const GuestAccessModal({super.key});
 
   @override
   Widget build(BuildContext context) {

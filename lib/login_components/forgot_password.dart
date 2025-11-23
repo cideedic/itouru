@@ -32,29 +32,11 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     });
 
     try {
-      // Use your actual app's deep link scheme
-      // For development/testing, you can also use a web URL
       await supabase.auth.resetPasswordForEmail(
         _emailController.text.trim(),
         redirectTo: 'itouru://reset-password', // Deep link for mobile
-        // Alternative for testing: 'https://yourdomain.com/reset-password'
       );
 
-      /*
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Avatar updated successfully',
-              style: GoogleFonts.poppins(),
-            ),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-*/
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

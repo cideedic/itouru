@@ -60,7 +60,7 @@ class BottomSheets {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 10,
               offset: const Offset(0, -2),
             ),
@@ -87,7 +87,7 @@ class BottomSheets {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: kPrimaryOrange.withOpacity(0.3),
+                        color: kPrimaryOrange.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -132,15 +132,15 @@ class BottomSheets {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    kPrimaryOrange.withOpacity(0.08),
-                    kPrimaryOrange.withOpacity(0.05),
+                    kPrimaryOrange.withValues(alpha: 0.08),
+                    kPrimaryOrange.withValues(alpha: 0.05),
                   ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: kPrimaryOrange.withOpacity(0.2),
+                  color: kPrimaryOrange.withValues(alpha: 0.2),
                   width: 1.5,
                 ),
               ),
@@ -157,7 +157,7 @@ class BottomSheets {
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
-                                color: kPrimaryOrange.withOpacity(0.1),
+                                color: kPrimaryOrange.withValues(alpha: 0.1),
                                 blurRadius: 4,
                                 offset: const Offset(0, 2),
                               ),
@@ -193,7 +193,7 @@ class BottomSheets {
                   Container(
                     width: 1,
                     height: 60,
-                    color: kPrimaryOrange.withOpacity(0.2),
+                    color: kPrimaryOrange.withValues(alpha: 0.2),
                   ),
                   Expanded(
                     child: Column(
@@ -205,7 +205,7 @@ class BottomSheets {
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
-                                color: kPrimaryOrange.withOpacity(0.1),
+                                color: kPrimaryOrange.withValues(alpha: 0.1),
                                 blurRadius: 4,
                                 offset: const Offset(0, 2),
                               ),
@@ -355,9 +355,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
   @override
   void initState() {
     super.initState();
-    print(
-      '🏛️ Landmark Debug - ID: ${widget.building.buildingId}, isLandmark: ${widget.isLandmark}, Name: ${widget.building.name}',
-    );
+
     _loadData();
   }
 
@@ -412,7 +410,6 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
 
       await _loadCollegeImages(response['college_name']);
     } catch (e) {
-      print('❌ Error loading college data: $e');
       if (!mounted) return;
       setState(() {
         _isLoadingImages = false;
@@ -457,7 +454,6 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
 
       await _loadBuildingImages(response['building_name']);
     } catch (e) {
-      print('❌ Error loading landmark data: $e');
       if (!mounted) return;
       setState(() {
         _isLoadingImages = false;
@@ -502,7 +498,6 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
 
       await _loadBuildingImages(response['building_name']);
     } catch (e) {
-      print('❌ Error loading building data: $e');
       if (!mounted) return;
       setState(() {
         _isLoadingImages = false;
@@ -594,7 +589,6 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
         _pageController = PageController();
       }
     } catch (e) {
-      print('❌ Error loading college images: $e');
       if (!mounted) return;
       setState(() => _isLoadingImages = false);
     }
@@ -683,7 +677,6 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
         _pageController = PageController();
       }
     } catch (e) {
-      print('❌ Error loading building images: $e');
       if (!mounted) return;
       setState(() => _isLoadingImages = false);
     }
@@ -703,7 +696,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -757,13 +750,13 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          kPrimaryBlue.withOpacity(0.1),
-                          kPrimaryBlue.withOpacity(0.05),
+                          kPrimaryBlue.withValues(alpha: 0.1),
+                          kPrimaryBlue.withValues(alpha: 0.05),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: kPrimaryBlue.withOpacity(0.2),
+                        color: kPrimaryBlue.withValues(alpha: 0.2),
                         width: 1.5,
                       ),
                     ),
@@ -811,13 +804,13 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  kPrimaryBlue.withOpacity(0.1),
-                  kPrimaryBlue.withOpacity(0.05),
+                  kPrimaryBlue.withValues(alpha: 0.1),
+                  kPrimaryBlue.withValues(alpha: 0.05),
                 ],
               ),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: kPrimaryBlue.withOpacity(0.3),
+                color: kPrimaryBlue.withValues(alpha: 0.3),
                 width: 1.5,
               ),
             ),
@@ -872,13 +865,13 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  kPrimaryBlue.withOpacity(0.1),
-                  kPrimaryBlue.withOpacity(0.05),
+                  kPrimaryBlue.withValues(alpha: 0.1),
+                  kPrimaryBlue.withValues(alpha: 0.05),
                 ],
               ),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: kPrimaryBlue.withOpacity(0.3),
+                color: kPrimaryBlue.withValues(alpha: 0.3),
                 width: 1.5,
               ),
             ),
@@ -940,13 +933,13 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          kPrimaryBlue.withOpacity(0.1),
-                          kPrimaryBlue.withOpacity(0.05),
+                          kPrimaryBlue.withValues(alpha: 0.1),
+                          kPrimaryBlue.withValues(alpha: 0.05),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: kPrimaryBlue.withOpacity(0.3),
+                        color: kPrimaryBlue.withValues(alpha: 0.3),
                         width: 1.5,
                       ),
                     ),

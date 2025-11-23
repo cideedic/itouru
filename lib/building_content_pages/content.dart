@@ -120,8 +120,6 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
 
   void _initializePageController() {
     if (buildingImages.isEmpty || buildingImages.length == 1) return;
-
-    // No longer using infinite scrolling
     _pageController = PageController(viewportFraction: 0.8, initialPage: 0);
   }
 
@@ -209,8 +207,9 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
 
       // Create list of possible folder names to check
       List<String> possibleFolderNames = [];
-      if (buildingFolderName != null)
+      if (buildingFolderName != null) {
         possibleFolderNames.add(buildingFolderName);
+      }
       if (nicknameFolderName != null &&
           nicknameFolderName != buildingFolderName) {
         possibleFolderNames.add(nicknameFolderName);
@@ -226,8 +225,6 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
         );
       }
 
-      print('🏢 Possible Building Folder Names: $possibleFolderNames');
-
       List<String> videoUrls = [];
       List<String> imageUrls = [];
       String? fetchedHeaderUrl;
@@ -235,7 +232,6 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
 
       if (possibleFolderNames.isNotEmpty) {
         // Try each possible folder name until we find videos
-        print('📹 Fetching videos from folders: $possibleFolderNames');
         List<dynamic> videosResponse = [];
 
         for (var folderName in possibleFolderNames) {
@@ -248,35 +244,27 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
 
           if (response.isNotEmpty) {
             videosResponse = response;
-            print('✅ Found videos in folder: $folderName');
             break;
           }
         }
 
-        print('📹 Videos Response Length: ${videosResponse.length}');
         for (var videoData in videosResponse) {
           final videoPath = videoData['name'] as String;
           final filename = videoData['filename'] as String;
 
-          print('📹 Found video - Path: $videoPath, Filename: $filename');
-
           // Skip placeholder files
           if (filename == '.emptyFolderPlaceholder' ||
               videoPath.endsWith('.emptyFolderPlaceholder')) {
-            print('⏭️ Skipping placeholder video: $filename');
             continue;
           }
 
           final publicUrl = supabase.storage
               .from('videos')
               .getPublicUrl(videoPath);
-          print('✅ Added video URL: $publicUrl');
           videoUrls.add(publicUrl);
         }
-        print('📹 Total videos added: ${videoUrls.length}');
 
         // Try each possible folder name until we find images
-        print('🖼️ Fetching images from folders: $possibleFolderNames');
         List<dynamic> imagesResponse = [];
 
         for (var folderName in possibleFolderNames) {
@@ -289,24 +277,19 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
 
           if (response.isNotEmpty) {
             imagesResponse = response;
-            print('✅ Found images in folder: $folderName');
             break;
           }
         }
 
-        print('🖼️ Images Response Length: ${imagesResponse.length}');
         for (var i = 0; i < imagesResponse.length; i++) {
           final imageData = imagesResponse[i];
           final imagePath = imageData['name'] as String;
           final filename = imageData['filename'] as String;
 
-          print('🖼️ Found image - Path: $imagePath, Filename: $filename');
-
           // Skip placeholder files and logo files
           if (filename == '.emptyFolderPlaceholder' ||
               imagePath.endsWith('.emptyFolderPlaceholder') ||
               filename.contains('_logo')) {
-            print('⏭️ Skipping: $filename');
             continue;
           }
 
@@ -315,18 +298,11 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
               .getPublicUrl(imagePath);
 
           // Set the first image as header
-          if (fetchedHeaderUrl == null) {
-            fetchedHeaderUrl = publicUrl;
-            print('🎯 Set as header image: $publicUrl');
-          }
+          fetchedHeaderUrl ??= publicUrl;
 
-          print('✅ Added image URL: $publicUrl');
           imageUrls.add(publicUrl);
         }
-        print('🖼️ Total images added: ${imageUrls.length}');
-
         // Try each possible folder name until we find a building logo
-        print('🏷️ Fetching building logo from folders: $possibleFolderNames');
         for (var folderName in possibleFolderNames) {
           try {
             final logoResponse = await supabase
@@ -342,23 +318,18 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
               fetchedLogoUrl = supabase.storage
                   .from('images')
                   .getPublicUrl(logoPath);
-              print(
-                '✅ Building logo found in folder $folderName: $fetchedLogoUrl',
-              );
+
               break; // Stop searching once logo is found
             }
           } catch (e) {
-            print('⚠️ No logo in folder $folderName: $e');
+            // Logo not found for this folder, continue to next
           }
         }
 
-        if (fetchedLogoUrl == null) {
-          print('❌ No building logo found in any folder');
-        }
+        if (fetchedLogoUrl == null) {}
 
         // If no building logo found, try to fetch college logo as fallback
         if (fetchedLogoUrl == null && response['College'] != null) {
-          print('🏫 No building logo - Checking for college logo');
           final collegeName = response['College']['college_name'] as String?;
           final collegeAbbr =
               response['College']['college_abbreviation'] as String?;
@@ -385,8 +356,6 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
             }
           }
 
-          print('🏫 Possible college folder names: $collegeFolderNames');
-
           // Try each possible college folder name
           for (var collegeFolderName in collegeFolderNames) {
             try {
@@ -403,19 +372,15 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
                 fetchedLogoUrl = supabase.storage
                     .from('images')
                     .getPublicUrl(collegeLogoPath);
-                print(
-                  '✅ College logo found in folder $collegeFolderName: $fetchedLogoUrl',
-                );
+
                 break; // Stop searching once logo is found
               }
             } catch (e) {
-              print('⚠️ No college logo in folder $collegeFolderName: $e');
+              // Logo not found for this folder, continue to next
             }
           }
 
-          if (fetchedLogoUrl == null) {
-            print('❌ No college logo found in any folder');
-          }
+          if (fetchedLogoUrl == null) {}
         }
       }
 
@@ -441,7 +406,6 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
         _initializePageController();
       }
     } catch (e) {
-      print('❌ Error loading building data: $e');
       setState(() => isLoading = false);
       // Show error message
       if (mounted) {
@@ -500,8 +464,8 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Colors.black.withOpacity(0.1),
-                              Colors.black.withOpacity(0.5),
+                              Colors.black.withValues(alpha: 0.1),
+                              Colors.black.withValues(alpha: 0.5),
                             ],
                           ),
                         ),
@@ -609,7 +573,7 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 15,
             offset: Offset(0, 5),
           ),
@@ -796,7 +760,7 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
   Widget _buildBackButton(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.5),
+        color: Colors.black.withValues(alpha: 0.5),
         shape: BoxShape.circle,
       ),
       child: IconButton(

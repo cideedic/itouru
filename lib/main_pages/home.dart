@@ -1011,7 +1011,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                       SizedBox(height: 40),
 
                       // Open space with BU logo background
-                      Container(
+                      SizedBox(
                         height: screenHeight * 0.5,
                         width: double.infinity,
                         child: Stack(
@@ -1311,7 +1311,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
 
                                     // Timeline preview or loading
                                     _isLoadingTimeline
-                                        ? Container(
+                                        ? SizedBox(
                                             height: 180,
                                             child: Center(
                                               child: Column(

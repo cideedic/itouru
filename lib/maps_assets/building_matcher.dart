@@ -137,7 +137,6 @@ class BuildingMatcher {
     if (_buildings.isEmpty) return null;
 
     final normalized = _normalizeForMatching(osmName);
-    print('🔍 Matching facility: "$osmName" → normalized: "$normalized"');
 
     // Try exact match first
     BuildingMatch? exactMatch;
@@ -173,32 +172,27 @@ class BuildingMatcher {
           databaseName: buildingName,
           databaseNickname: building['building_nickname'] as String?,
         );
-        print('✅ Exact facility match: $buildingName (ID: $buildingId)');
         break;
       }
 
       // Store partial matches but keep looking for exact
       if (normalized.contains(buildingNormalized) ||
           buildingNormalized.contains(normalized)) {
-        if (partialMatch == null) {
-          partialMatch = BuildingMatch(
-            id: buildingId as int,
-            type: building['building_type'] as String?,
-            databaseName: buildingName,
-            databaseNickname: building['building_nickname'] as String?,
-          );
-        }
+        partialMatch ??= BuildingMatch(
+          id: buildingId as int,
+          type: building['building_type'] as String?,
+          databaseName: buildingName,
+          databaseNickname: building['building_nickname'] as String?,
+        );
       }
     }
 
     if (exactMatch != null) return exactMatch;
 
     if (partialMatch != null) {
-      print('✅ Partial facility match: ${partialMatch.databaseName}');
       return partialMatch;
     }
 
-    print('❌ No facility match found for: "$osmName"');
     return null;
   }
 
@@ -207,7 +201,6 @@ class BuildingMatcher {
     if (_buildings.isEmpty) return null;
 
     final normalized = _normalizeForMatching(osmName);
-    print('🔍 Matching building: "$osmName" → normalized: "$normalized"');
 
     // Store potential matches with scores
     BuildingMatch? exactMatch;
@@ -231,7 +224,6 @@ class BuildingMatcher {
           databaseName: buildingName,
           databaseNickname: building['building_nickname'] as String?,
         );
-        print('✅ Exact building match: $buildingName (ID: $buildingId)');
         break; // Stop searching, we found exact match
       }
 
@@ -259,17 +251,13 @@ class BuildingMatcher {
 
     // Return best partial match if score is good enough
     if (bestPartialMatch != null && bestMatchScore >= 3) {
-      print(
-        '✅ Partial match: ${bestPartialMatch.databaseName} (score: $bestMatchScore)',
-      );
       return bestPartialMatch;
     }
 
-    print('❌ No building match found for: "$osmName"');
     return null;
   }
 
-  // ✨ NEW: Calculate match score for better partial matching
+  // Calculate match score for better partial matching
   static int _calculateMatchScore(
     String osmNormalized,
     String dbNormalized,
@@ -315,7 +303,6 @@ class BuildingMatcher {
     if (_colleges.isEmpty) return null;
 
     final normalized = _normalizeForMatching(osmName);
-    print('🔍 Matching college ground: "$osmName" → normalized: "$normalized"');
 
     // Try exact match first
     CollegeMatch? exactMatch;
@@ -337,7 +324,6 @@ class BuildingMatcher {
           name: collegeName,
           abbreviation: college['college_abbreviation'] as String?,
         );
-        print('✅ Exact college match: $collegeName (ID: $collegeId)');
         break;
       }
 
@@ -356,21 +342,19 @@ class BuildingMatcher {
     if (exactMatch != null) return exactMatch;
 
     if (partialMatch != null) {
-      print('✅ Partial college match: ${partialMatch.name}');
       return partialMatch;
     }
 
-    print('❌ No college match found for: "$osmName"');
     return null;
   }
 
-  // DEPRECATED: Old method - kept for backwards compatibility
+  //  Old method - kept for backwards compatibility
   static int? matchCollege(String osmName) {
     final match = matchCollegeGround(osmName);
     return match?.id;
   }
 
-  // ✨ IMPROVED: Smarter normalization that preserves important words
+  //  Smarter normalization that preserves important words
   static String _normalizeForMatching(String text) {
     String normalized = text.toLowerCase();
 

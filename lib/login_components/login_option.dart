@@ -5,7 +5,7 @@ import 'package:itouru/main_pages/home.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class LoginOptionPage extends StatefulWidget {
-  const LoginOptionPage({Key? key}) : super(key: key);
+  const LoginOptionPage({super.key});
 
   @override
   State<LoginOptionPage> createState() => _LoginOptionPageState();

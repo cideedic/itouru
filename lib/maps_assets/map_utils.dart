@@ -399,7 +399,7 @@ class MapUtils {
     );
   }
 
-  /// ✨ WAZE-STYLE: Camera follows route drawing in REAL-TIME
+  /// Camera follows route drawing in REAL-TIME
   static Future<void> animateAlongRouteWithCamera(
     MapController mapController,
     List<LatLng> routePoints, {
@@ -412,20 +412,17 @@ class MapUtils {
     Duration finalZoomDuration = const Duration(milliseconds: 800),
   }) async {
     if (routePoints.isEmpty) {
-      print('⚠️ animateAlongRouteWithCamera: Empty route points');
       return;
     }
 
-    print('🎬 Animating camera along route with ${routePoints.length} points');
-
     try {
-      // Step 1: Show entire route overview (route NOT visible yet)
+      // Show entire route overview (route NOT visible yet)
       await Future.delayed(const Duration(milliseconds: 500));
       onRouteUpdate([]);
       RoutingService.fitMapToRoute(mapController, routePoints);
       await Future.delayed(overviewDuration);
 
-      // Step 2: Zoom to route start
+      //  Zoom to route start
       await animateToBuildingLocation(
         mapController,
         routePoints.first,
@@ -434,7 +431,7 @@ class MapUtils {
       );
       await Future.delayed(const Duration(milliseconds: 500));
 
-      // Step 3: ✨ CAMERA FOLLOWS LINE (Waze-style)
+      // CAMERA FOLLOWS LINE (Waze-style)
       await _wazeStyleRouteAnimation(
         mapController,
         routePoints,
@@ -443,23 +440,19 @@ class MapUtils {
         duration: routeDrawDuration,
       );
 
-      // Step 4: Final zoom to destination
+      // Final zoom to destination
       await animateToBuildingLocation(
         mapController,
         routePoints.last,
         zoom: destinationZoom,
         duration: finalZoomDuration,
       );
-
-      print('✅ Route camera animation complete');
-    } catch (e, stackTrace) {
-      print('❌ ERROR in animateAlongRouteWithCamera: $e');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
       onRouteUpdate(routePoints); // Fail gracefully
     }
   }
 
-  /// ✨ NEW: Waze-style animation - camera FOLLOWS the drawing line
+  /// Waze-style animation - camera FOLLOWS the drawing line
   static Future<void> _wazeStyleRouteAnimation(
     MapController mapController,
     List<LatLng> routePoints, {
@@ -471,8 +464,6 @@ class MapUtils {
       onRouteUpdate(routePoints);
       return;
     }
-
-    print('🎨 Starting Waze-style route animation');
 
     // Calculate cumulative distances for smooth interpolation
     final distances = <double>[0.0];
@@ -545,8 +536,6 @@ class MapUtils {
     // Ensure full route is visible
     onRouteUpdate(routePoints);
     mapController.moveAndRotate(routePoints.last, zoom, 0);
-
-    print('✅ Waze-style route animation complete');
   }
 
   static List<LatLng> _getSmoothRouteSegment(

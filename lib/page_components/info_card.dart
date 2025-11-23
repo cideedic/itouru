@@ -25,7 +25,7 @@ class InfoCard extends StatelessWidget {
     if (middleName.isNotEmpty) {
       fullName += '${middleName[0]}. ';
     }
-    if (suffix.isNotEmpty) fullName += '$suffix';
+    if (suffix.isNotEmpty) fullName += suffix;
 
     return fullName.trim();
   }
@@ -86,7 +86,7 @@ class InfoCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Color(0xFFFA9D2B).withOpacity(0.1),
+                  color: Color(0xFFFA9D2B).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -183,7 +183,7 @@ class InfoCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Color(0xFFFA9D2B).withOpacity(0.1),
+                  color: Color(0xFFFA9D2B).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -326,14 +326,14 @@ class InfoCard extends StatelessWidget {
         try {
           launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
         } catch (e) {
-          print('External application launch failed: $e');
+          // External application mode failed, try next mode
         }
 
         if (!launched) {
           try {
             launched = await launchUrl(uri, mode: LaunchMode.platformDefault);
           } catch (e) {
-            print('Platform default launch failed: $e');
+            // Platform default mode failed, try next mode
           }
         }
 
@@ -344,7 +344,7 @@ class InfoCard extends StatelessWidget {
               mode: LaunchMode.externalNonBrowserApplication,
             );
           } catch (e) {
-            print('External non-browser launch failed: $e');
+            // External non-browser mode failed, show error below
           }
         }
 
@@ -360,7 +360,6 @@ class InfoCard extends StatelessWidget {
         }
       }
     } catch (e) {
-      print('Error launching URL: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -450,7 +449,7 @@ class InfoCard extends StatelessWidget {
                       child: Container(
                         padding: EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: colorMap[entry.key]!.withOpacity(0.15),
+                          color: colorMap[entry.key]!.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(

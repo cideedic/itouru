@@ -88,20 +88,12 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
     try {
       setState(() => isLoading = true);
 
-      print('🏢 Loading office data for office_id: ${widget.officeId}');
-
       // Fetch Office data with Head and College information using JOIN
       final response = await supabase
           .from('Office')
           .select('*, Head(*), College(*)')
           .eq('office_id', widget.officeId)
           .single();
-
-      print('🏢 Office Data: ${response['office_name']}');
-      print('🏢 Building ID from Office: ${response['building_id']}');
-      print('🏢 Room ID from Office: ${response['room_id']}');
-
-      print('🏢 College ID from Office: ${response['college_id']}');
 
       // Fetch Building and Room information if available
       String? fetchedBuildingName;
@@ -111,7 +103,6 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
 
       // PRIORITY 1: Get building from building_id in Office table
       if (response['building_id'] != null) {
-        print('🏢 Fetching building from Office.building_id');
         fetchedBuildingId = response['building_id'] as int;
 
         final buildingResponse = await supabase
@@ -129,14 +120,10 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
               .replaceAll('.', '')
               .replaceAll(' ', '-')
               .trim();
-
-          print('🏢 Building Name: $fetchedBuildingName');
-          print('🏢 Building Folder Name: $buildingFolderName');
         }
       }
       // FALLBACK: Try to get building through room_id if building_id is null
       else if (response['room_id'] != null) {
-        print('🏢 Fetching building from Room.building_id (fallback)');
         final roomResponse = await supabase
             .from('Room')
             .select('room_name, room_number, building_id')
@@ -168,9 +155,6 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
                   .replaceAll('.', '')
                   .replaceAll(' ', '-')
                   .trim();
-
-              print('🏢 Building Name (from room): $fetchedBuildingName');
-              print('🏢 Building Folder Name (from room): $buildingFolderName');
             }
           }
         }
@@ -180,7 +164,7 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
 
       // Fetch header image from building folder (using building_name or building_nickname)
       if (buildingFolderName != null) {
-        // ✨ NEW: Also try to fetch building data to get nickname
+        // Also try to fetch building data to get nickname
         String? buildingNicknameFolderName;
 
         if (fetchedBuildingId != null) {
@@ -193,9 +177,7 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
 
             if (buildingResponse != null) {
               // Update building name if needed
-              if (fetchedBuildingName == null) {
-                fetchedBuildingName = buildingResponse['building_name'];
-              }
+              fetchedBuildingName ??= buildingResponse['building_name'];
 
               // Get building nickname for folder name
               if (buildingResponse['building_nickname'] != null) {
@@ -209,7 +191,7 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
               }
             }
           } catch (e) {
-            print('⚠️ Error fetching building details: $e');
+            // No image found, proceed without nickname
           }
         }
 
@@ -221,15 +203,8 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
           possibleBuildingFolderNames.add(buildingNicknameFolderName);
         }
 
-        print(
-          '🏢 Possible Building Folder Names: $possibleBuildingFolderNames',
-        );
-
         // Try each possible folder name until we find images
         if (possibleBuildingFolderNames.isNotEmpty) {
-          print(
-            '🖼️ Fetching images from building folders: $possibleBuildingFolderNames',
-          );
           List<dynamic> buildingImagesResponse = [];
 
           for (var folderName in possibleBuildingFolderNames) {
@@ -243,55 +218,39 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
 
               if (response.isNotEmpty) {
                 buildingImagesResponse = response;
-                print('✅ Found images in building folder: $folderName');
                 break;
               }
             } catch (e) {
-              print('⚠️ No images in building folder $folderName: $e');
+              // No image found, try next folder name
             }
           }
 
           if (buildingImagesResponse.isNotEmpty) {
-            print(
-              '🏢 Building Images Response Length: ${buildingImagesResponse.length}',
-            );
-
             // Find first non-placeholder, non-logo image
             for (var imageData in buildingImagesResponse) {
               final imagePath = imageData['name'] as String;
               final filename = imageData['filename'] as String;
 
-              print(
-                '🏢 Found building image - Path: $imagePath, Filename: $filename',
-              );
-
               // Skip placeholder files and logo files
               if (filename == '.emptyFolderPlaceholder' ||
                   imagePath.endsWith('.emptyFolderPlaceholder') ||
                   filename.contains('_logo')) {
-                print('⏭️ Skipping: $filename');
                 continue;
               }
 
               fetchedHeaderUrl = supabase.storage
                   .from('images')
                   .getPublicUrl(imagePath);
-              print('🎯 Set building image as header: $fetchedHeaderUrl');
               break; // Use first valid image
             }
 
-            if (fetchedHeaderUrl == null) {
-              print('❌ No valid building images found after filtering');
-            }
+            if (fetchedHeaderUrl == null) {}
           }
         }
-      } else {
-        print('⚠️ No building folder name available');
-      }
+      } else {}
       String? fetchedLogoUrl;
 
       if (response['College'] != null) {
-        print('🏫 Office has college - fetching college logo');
         final collegeName = response['College']['college_name'] as String?;
         final collegeAbbreviation =
             response['College']['college_abbreviation'] as String?;
@@ -313,8 +272,6 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
           );
         }
 
-        print('🏫 Possible college folder names: $collegeFolderNames');
-
         // Try each possible folder name until we find a logo
         for (var collegeFolderName in collegeFolderNames) {
           try {
@@ -331,22 +288,16 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
               fetchedLogoUrl = supabase.storage
                   .from('images')
                   .getPublicUrl(collegeLogoPath);
-              print(
-                '✅ College logo found in folder $collegeFolderName: $fetchedLogoUrl',
-              );
+
               break; // Stop searching once logo is found
             }
           } catch (e) {
-            print('⚠️ No logo in college folder $collegeFolderName: $e');
+            // No logo found, try next folder name
           }
         }
 
-        if (fetchedLogoUrl == null) {
-          print('❌ No college logo found in any folder');
-        }
-      } else {
-        print('ℹ️ Office has no college_id - no logo to fetch');
-      }
+        if (fetchedLogoUrl == null) {}
+      } else {}
 
       setState(() {
         officeData = response;
@@ -358,12 +309,7 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
         buildingId = fetchedBuildingId;
         isLoading = false;
       });
-
-      print('✅ Office data loaded successfully');
-      print('   - Building ID: $buildingId');
-      print('   - Building Name: $buildingName');
     } catch (e) {
-      print('❌ Error loading office data: $e');
       setState(() => isLoading = false);
       // Show error message
       if (mounted) {
@@ -385,11 +331,6 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
       );
       return;
     }
-
-    print('\n🧭 === OFFICE DIRECTIONS ===');
-    print('   Office: ${widget.title}');
-    print('   Building ID: $buildingId');
-    print('   Building Name: $buildingName');
 
     // Show loading indicator
     ScaffoldMessenger.of(context).showSnackBar(
@@ -474,8 +415,8 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Colors.black.withOpacity(0.1),
-                              Colors.black.withOpacity(0.5),
+                              Colors.black.withValues(alpha: 0.1),
+                              Colors.black.withValues(alpha: 0.5),
                             ],
                           ),
                         ),
@@ -554,7 +495,7 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
+            color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 15,
             offset: Offset(0, 5),
           ),
@@ -741,7 +682,7 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
   Widget _buildBackButton(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.5),
+        color: Colors.black.withValues(alpha: 0.5),
         shape: BoxShape.circle,
       ),
       child: IconButton(

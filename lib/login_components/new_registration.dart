@@ -70,7 +70,6 @@ class _NewUserPanelsState extends State<NewUserPanels> {
         });
       }
     } catch (e) {
-      print('Error loading colleges: $e');
       if (mounted) {
         setState(() {
           _isLoadingColleges = false;
@@ -199,10 +198,6 @@ class _NewUserPanelsState extends State<NewUserPanels> {
         nextUserId = maxId + 1;
       }
 
-      print('=== DEBUG: Next User ID ===');
-      print('Next user_id: $nextUserId');
-      print('========================');
-
       // Get full college name from abbreviation
       final collegeFullName = _selectedCollegeAbbreviation != null
           ? _collegeAbbreviationToName[_selectedCollegeAbbreviation]
@@ -228,10 +223,6 @@ class _NewUserPanelsState extends State<NewUserPanels> {
         'avatar': _getDefaultAvatar(_selectedSex),
       };
 
-      print('=== DEBUG: Insert Data ===');
-      print(insertData);
-      print('========================');
-
       await supabase.from('Users').insert(insertData);
 
       if (mounted) {
@@ -241,9 +232,6 @@ class _NewUserPanelsState extends State<NewUserPanels> {
         );
       }
     } catch (e) {
-      print('Registration error: $e');
-      print('Error type: ${e.runtimeType}');
-
       String errorMessage = 'Registration failed';
       if (e.toString().contains('duplicate') ||
           e.toString().contains('unique')) {
@@ -528,7 +516,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.4),
+                  color: Colors.grey.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -537,7 +525,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.4),
+                  color: Colors.grey.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -559,7 +547,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                       return Container(
                         height: 250,
                         decoration: BoxDecoration(
-                          color: Colors.grey.withOpacity(0.1),
+                          color: Colors.grey.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Icon(
@@ -633,7 +621,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
               '© Right Reserve. Capstone Group',
               style: GoogleFonts.montserrat(
                 fontSize: 11,
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
               ),
             ),
           ),
@@ -680,7 +668,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: Colors.grey.withOpacity(0.4),
+                        color: Colors.grey.withValues(alpha: 0.4),
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -693,13 +681,13 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                   height: 150,
                   fit: BoxFit.contain,
                   errorBuilder: (context, error, stackTrace) {
-                    return Container(
+                    return SizedBox(
                       height: 150,
                       width: double.infinity,
                       child: Icon(
                         Icons.people_alt,
                         size: 80,
-                        color: Colors.grey.withOpacity(0.5),
+                        color: Colors.grey.withValues(alpha: 0.5),
                       ),
                     );
                   },
@@ -737,7 +725,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
+                        color: Colors.black.withValues(alpha: 0.2),
                         blurRadius: 10,
                         offset: Offset(0, 5),
                       ),
@@ -782,7 +770,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                       borderRadius: BorderRadius.circular(30),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.15),
+                          color: Colors.black.withValues(alpha: 0.15),
                           blurRadius: 20,
                           offset: Offset(0, 10),
                         ),
@@ -1073,7 +1061,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                       return Container(
                         height: 200,
                         decoration: BoxDecoration(
-                          color: Colors.grey.withOpacity(0.1),
+                          color: Colors.grey.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Icon(
@@ -1139,7 +1127,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
               '© Right Reserve. Capstone Group',
               style: GoogleFonts.montserrat(
                 fontSize: 11,
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
               ),
             ),
           ),

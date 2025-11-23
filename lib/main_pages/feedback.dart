@@ -53,7 +53,7 @@ class _FeedbackSectionState extends State<FeedbackSection> {
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         Future.delayed(const Duration(seconds: 3), () {
-          if (Navigator.canPop(dialogContext)) {
+          if (dialogContext.mounted && Navigator.canPop(dialogContext)) {
             Navigator.of(dialogContext).pop();
           }
         });
@@ -205,8 +205,6 @@ class _FeedbackSectionState extends State<FeedbackSection> {
         iconColor: Colors.red,
         icon: Icons.error_outline,
       );
-
-      print('Error submitting feedback: $e');
     }
   }
 

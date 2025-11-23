@@ -1,6 +1,8 @@
 // lib/maps_assets/map_widgets.dart
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'map_building.dart';
 import 'building_matcher.dart';
 
@@ -12,6 +14,7 @@ class MapWidgets {
     132,
   ); // Darker blue for text
   static const Color _iconColor = Color(0xFF1976D2); // Blue for icons
+  static const String _hasSeenGuideKey = 'has_seen_map_guide';
 
   // Build legend item
   static Widget buildLegendItem(Color color, String label) {
@@ -41,6 +44,338 @@ class MapWidgets {
     required VoidCallback? onPermissionChanged,
   }) {
     return _LocationToggleButton(onPermissionChanged: onPermissionChanged);
+  }
+
+  // 🆕 NEW: Build info/guide button
+  static Widget buildInfoButton({required VoidCallback onPressed}) {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: IconButton(
+        icon: Icon(Icons.info_outline, color: _iconColor),
+        onPressed: onPressed,
+        tooltip: 'Map Guide',
+      ),
+    );
+  }
+
+  // 🆕 NEW: Check if user has seen the guide
+  static Future<bool> hasSeenGuide() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_hasSeenGuideKey) ?? false;
+  }
+
+  // 🆕 NEW: Mark guide as seen
+  static Future<void> markGuideAsSeen() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_hasSeenGuideKey, true);
+  }
+
+  // 🆕 NEW: Show map guide modal (styled like GuestAccessModal)
+  static Future<void> showMapGuideModal(
+    BuildContext context, {
+    bool isFirstTime = false,
+  }) async {
+    await showDialog(
+      context: context,
+      barrierDismissible: !isFirstTime,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400, maxHeight: 600),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Scrollable Content
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Logo and Title
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.blue.withValues(alpha: 0.1),
+                          ),
+                          child: Icon(
+                            Icons.map,
+                            size: 60,
+                            color: Color(0xFF1976D2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Center(
+                        child: Text(
+                          'Bicol University Maps',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.montserrat(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Center(
+                        child: Text(
+                          'Interactive Campus Navigation Guide',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Purpose Section
+                      _buildSectionTitle('Purpose'),
+                      _buildInfoText(
+                        'Navigate Bicol University campus with interactive maps showing buildings, facilities, and landmarks with real-time location tracking.',
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Map Legend
+                      _buildSectionTitle('Map Legend'),
+                      _buildLegendItem(
+                        icon: Icons.place,
+                        iconColor: Colors.red,
+                        title: 'Landmarks',
+                        description: 'Important campus locations',
+                      ),
+                      const SizedBox(height: 8),
+                      _buildLegendItem(
+                        icon: Icons.school,
+                        iconColor: Colors.blue,
+                        title: 'Colleges',
+                        description: 'Academic colleges and departments',
+                      ),
+                      const SizedBox(height: 8),
+                      _buildLegendItem(
+                        icon: Icons.work_outline,
+                        iconColor: Colors.green,
+                        title: 'Offices',
+                        description: 'Administrative offices',
+                      ),
+                      const SizedBox(height: 8),
+                      _buildLegendItem(
+                        icon: Icons.business,
+                        iconColor: Color(0xFFFF8C00),
+                        title: 'Buildings',
+                        description: 'Academic structures',
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Features
+                      _buildSectionTitle('Features'),
+                      _buildBulletPoint(
+                        'Search for buildings, offices, and landmarks',
+                      ),
+                      _buildBulletPoint(
+                        'Get turn-by-turn navigation directions',
+                      ),
+                      _buildBulletPoint('Enable location to see your position'),
+                      _buildBulletPoint('Tap markers for detailed information'),
+                      const SizedBox(height: 16),
+
+                      // Tips
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.orange.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.lightbulb_outline,
+                              color: Colors.orange,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Tap the info button anytime to view this guide again. Enable location services for the best navigation experience.',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: Colors.orange[900],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Button
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    if (isFirstTime) {
+                      await markGuideAsSeen();
+                    }
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    isFirstTime ? 'Get Started' : 'I Understand',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper: Build section title
+  static Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        title,
+        style: GoogleFonts.poppins(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+      ),
+    );
+  }
+
+  // Helper: Build info text
+  static Widget _buildInfoText(String text) {
+    return Text(
+      text,
+      style: GoogleFonts.poppins(
+        fontSize: 13,
+        color: Colors.grey[700],
+        height: 1.5,
+      ),
+    );
+  }
+
+  // Helper: Build bullet point
+  static Widget _buildBulletPoint(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, left: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '• ',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              color: Colors.orange,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: Colors.grey[700],
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper: Build legend item
+  static Widget _buildLegendItem({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String description,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+              border: Border.all(color: iconColor, width: 1.5),
+            ),
+            child: Icon(icon, color: iconColor, size: 16),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                Text(
+                  description,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // Build floating action button
@@ -226,7 +561,7 @@ class MapWidgets {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: iconColor.withOpacity(0.1),
+                        color: iconColor.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                         border: Border.all(color: iconColor, width: 1.5),
                       ),
@@ -566,7 +901,7 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
         border: Border.all(color: Colors.grey.shade300, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

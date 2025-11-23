@@ -75,11 +75,6 @@ class VirtualTourManager extends ChangeNotifier {
     required List<VirtualTourStop> stops,
     required LatLng startingGate,
   }) {
-    print('\n🎬 === STARTING VIRTUAL TOUR ===');
-    print('Tour: $tourName');
-    print('Stops: ${stops.length}');
-    print('Starting Gate: $startingGate');
-
     _tourName = tourName;
     _stops = stops;
     _startingGate = startingGate;
@@ -88,22 +83,11 @@ class VirtualTourManager extends ChangeNotifier {
     _isAnimatingToStop = false;
     _isShowingStopCard = false;
 
-    // ✨ Log stop types for debugging
-    for (var i = 0; i < stops.length; i++) {
-      final stop = stops[i];
-      print(
-        '   Stop ${i + 1}: ${stop.buildingName} (ID: ${stop.buildingId}, '
-        'IsMarker: ${stop.isMarker})',
-      );
-    }
-
-    print('✅ Tour initialized');
     notifyListeners();
   }
 
   /// Start animating to current stop
   void beginAnimationToStop() {
-    print('🎬 Beginning animation to stop ${_currentStopIndex + 1}');
     _isAnimatingToStop = true;
     _isShowingStopCard = false;
     notifyListeners();
@@ -111,7 +95,6 @@ class VirtualTourManager extends ChangeNotifier {
 
   /// Animation completed, show the stop card
   void completeAnimationToStop() {
-    print('✅ Animation complete, showing stop card');
     _isAnimatingToStop = false;
     _isShowingStopCard = true;
     notifyListeners();
@@ -120,9 +103,6 @@ class VirtualTourManager extends ChangeNotifier {
   /// Go to next stop
   void nextStop() {
     if (_currentStopIndex < _stops.length - 1) {
-      print(
-        '▶️ Moving to next stop: ${_currentStopIndex + 1} → ${_currentStopIndex + 2}',
-      );
       _currentStopIndex++;
       _isShowingStopCard = false;
       notifyListeners();
@@ -132,9 +112,6 @@ class VirtualTourManager extends ChangeNotifier {
   /// Go to previous stop
   void previousStop() {
     if (_currentStopIndex > 0) {
-      print(
-        '◀️ Moving to previous stop: ${_currentStopIndex + 1} → $_currentStopIndex',
-      );
       _currentStopIndex--;
       _isShowingStopCard = false;
       notifyListeners();
@@ -143,7 +120,6 @@ class VirtualTourManager extends ChangeNotifier {
 
   /// End the tour
   void endTour() {
-    print('🏁 Virtual tour ended');
     _isActive = false;
     _currentStopIndex = 0;
     _stops = [];
@@ -152,11 +128,5 @@ class VirtualTourManager extends ChangeNotifier {
     _isAnimatingToStop = false;
     _isShowingStopCard = false;
     notifyListeners();
-  }
-
-  @override
-  void dispose() {
-    print('🗑️ VirtualTourManager disposed');
-    super.dispose();
   }
 }

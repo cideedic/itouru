@@ -267,10 +267,10 @@ class _BuildingsTabState extends State<BuildingsTab>
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+          colors: [color.withValues(alpha: 0.1), color.withValues(alpha: 0.05)],
         ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
       ),
       child: Row(
         children: [
@@ -281,7 +281,7 @@ class _BuildingsTabState extends State<BuildingsTab>
             style: GoogleFonts.montserrat(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: color.withOpacity(0.9),
+              color: color.withValues(alpha: 0.9),
               letterSpacing: 0.5,
             ),
           ),
@@ -427,7 +427,9 @@ class _BuildingsTabState extends State<BuildingsTab>
                                   border: Border.all(color: Colors.grey[300]!),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.05,
+                                      ),
                                       blurRadius: 4,
                                       offset: Offset(0, 2),
                                     ),

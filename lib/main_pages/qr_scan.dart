@@ -51,11 +51,7 @@ class _QRScannerPageState extends State<QRScannerPage>
     setState(() => isProcessing = true);
 
     try {
-      print('=== QR CODE SCAN DEBUG ===');
-      print('Raw QR Data: $qrData');
-
       // Parse the QR code data
-      // Expected format: "building:123" or just "123"
       int buildingId;
 
       if (qrData.startsWith('building:')) {
@@ -64,17 +60,12 @@ class _QRScannerPageState extends State<QRScannerPage>
         buildingId = int.parse(qrData);
       }
 
-      print('Parsed Building ID: $buildingId');
-
       // Fetch building data from Supabase
-      print('Fetching from Supabase...');
       final response = await supabase
           .from('Building')
           .select('building_id, building_name')
           .eq('building_id', buildingId)
           .single();
-
-      print('Response: $response');
 
       if (!mounted) return;
 
@@ -87,7 +78,6 @@ class _QRScannerPageState extends State<QRScannerPage>
       if (!mounted) return;
 
       // Navigate to building details page
-      print('Navigating to building details...');
       await Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -99,10 +89,6 @@ class _QRScannerPageState extends State<QRScannerPage>
         ),
       );
     } catch (e) {
-      print('=== ERROR IN QR SCAN ===');
-      print('Error Type: ${e.runtimeType}');
-      print('Error Message: $e');
-
       if (!mounted) return;
 
       // Show error dialog
@@ -281,7 +267,10 @@ class _QRScannerPageState extends State<QRScannerPage>
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.black.withOpacity(0.7), Colors.transparent],
+                  colors: [
+                    Colors.black.withValues(alpha: 0.7),
+                    Colors.transparent,
+                  ],
                 ),
               ),
               child: Row(
@@ -353,7 +342,9 @@ class _QRScannerPageState extends State<QRScannerPage>
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Color(0xFFFF8C00).withOpacity(0.5),
+                                  color: Color(
+                                    0xFFFF8C00,
+                                  ).withValues(alpha: 0.5),
                                   blurRadius: 8,
                                   spreadRadius: 2,
                                 ),
@@ -405,7 +396,10 @@ class _QRScannerPageState extends State<QRScannerPage>
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
-                  colors: [Colors.black.withOpacity(0.8), Colors.transparent],
+                  colors: [
+                    Colors.black.withValues(alpha: 0.8),
+                    Colors.transparent,
+                  ],
                 ),
               ),
               child: Column(
@@ -479,12 +473,12 @@ class _QRScannerPageState extends State<QRScannerPage>
                     decoration: BoxDecoration(
                       color: isTorchOn
                           ? Color(0xFFFF8C00)
-                          : Colors.white.withOpacity(0.2),
+                          : Colors.white.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                       boxShadow: isTorchOn
                           ? [
                               BoxShadow(
-                                color: Color(0xFFFF8C00).withOpacity(0.5),
+                                color: Color(0xFFFF8C00).withValues(alpha: 0.5),
                                 blurRadius: 12,
                                 spreadRadius: 2,
                               ),
@@ -587,7 +581,7 @@ class ScannerOverlayPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Paint paint = Paint()
-      ..color = Colors.black.withOpacity(0.7)
+      ..color = Colors.black.withValues(alpha: 0.7)
       ..style = PaintingStyle.fill;
 
     final double scanAreaSize = 280;

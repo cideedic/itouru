@@ -15,8 +15,6 @@ void main() async {
   final connectivityService = ConnectivityService();
   final hasInternet = await connectivityService.hasConnection();
 
-  print('🌐 Initial internet check: $hasInternet'); // Debug
-
   if (!hasInternet) {
     // No internet - show error screen
     runApp(const NoInternetApp());
@@ -32,14 +30,13 @@ void main() async {
 
     runApp(const MyApp());
   } catch (e) {
-    print('❌ Error initializing Supabase: $e');
     runApp(const NoInternetApp());
   }
 }
 
-// 🆕 No Internet App - shown when app starts without internet
+// No Internet App - shown when app starts without internet
 class NoInternetApp extends StatelessWidget {
-  const NoInternetApp({Key? key}) : super(key: key);
+  const NoInternetApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +127,6 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    print('🚀 App initializing...');
     _initConnectivityMonitoring(); // 🆕 Initialize connectivity first
     _checkSession();
     _initDeepLinks();
@@ -139,33 +135,23 @@ class _MyAppState extends State<MyApp> {
 
   // 🆕 Initialize connectivity monitoring
   void _initConnectivityMonitoring() {
-    print('📡 Setting up connectivity monitoring...');
     _connectivityService.initialize();
     _connectivityService.onConnectivityChanged = (isConnected) {
-      print('📡 Connectivity changed: $isConnected');
-      print('📡 Dialog shown before: $_hasShownNoInternetDialog');
-
       if (!isConnected && !_hasShownNoInternetDialog) {
-        print('⚠️ No internet detected - showing dialog');
         _hasShownNoInternetDialog = true;
 
         // Use a slight delay to ensure context is ready
         Future.delayed(const Duration(milliseconds: 300), () {
           if (_navigatorKey.currentContext != null) {
-            print('✅ Showing no internet dialog');
             ConnectivityService.showNoInternetDialog(
               _navigatorKey.currentContext!,
               onRetry: () {
-                print('🔄 Retry pressed');
                 _hasShownNoInternetDialog = false;
               },
             );
-          } else {
-            print('❌ No context available for dialog');
-          }
+          } else {}
         });
       } else if (isConnected) {
-        print('✅ Internet restored');
         _hasShownNoInternetDialog = false;
 
         Future.delayed(const Duration(milliseconds: 300), () {
@@ -193,7 +179,6 @@ class _MyAppState extends State<MyApp> {
   Future<void> _checkSession() async {
     // 🆕 Check internet before checking session
     final hasInternet = await _connectivityService.hasConnection();
-    print('🔍 Session check - Has internet: $hasInternet');
 
     if (!hasInternet) {
       setState(() {
@@ -254,7 +239,6 @@ class _MyAppState extends State<MyApp> {
             }
           } catch (e) {
             // Error checking registration - sign out and go to login
-            print('Error checking user registration: $e');
             await Supabase.instance.client.auth.signOut();
             setState(() {
               _initialPage = const LoginOptionPage();
@@ -271,7 +255,6 @@ class _MyAppState extends State<MyApp> {
       }
     } catch (e) {
       // Any error during session check - go to login
-      print('Error in _checkSession: $e');
       setState(() {
         _initialPage = const LoginOptionPage();
         _isCheckingSession = false;
@@ -401,11 +384,18 @@ class _MyAppState extends State<MyApp> {
       if (uri != null) {
         _handleDeepLink(uri);
       }
-    } catch (e) {}
+    } catch (e) {
+      // Initial link not available or error getting it - ignore
+    }
 
-    _linkSubscription = _appLinks.uriLinkStream.listen((uri) {
-      _handleDeepLink(uri);
-    }, onError: (err) {});
+    _linkSubscription = _appLinks.uriLinkStream.listen(
+      (uri) {
+        _handleDeepLink(uri);
+      },
+      onError: (err) {
+        // Error in deep link stream - ignore and continue
+      },
+    );
   }
 
   Future<void> _handleDeepLink(Uri uri) async {
@@ -464,7 +454,6 @@ class _MyAppState extends State<MyApp> {
 
   @override
   void dispose() {
-    print('🛑 App disposing...');
     _linkSubscription?.cancel();
     _authSubscription?.cancel();
     _connectivityService.dispose(); // 🆕 Dispose connectivity service

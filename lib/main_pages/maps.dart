@@ -23,7 +23,7 @@ class Maps extends StatefulWidget {
   final int? buildingId;
   final String? itemType;
 
-  // ✨ NEW: Virtual tour parameters
+  //  Virtual tour parameters
   final bool startVirtualTour;
   final String? tourName;
   final List<VirtualTourStop>? tourStops;
@@ -58,71 +58,59 @@ class _MapsState extends State<Maps> {
   double _currentRotation = 0.0;
   double _currentHeading = 0.0;
 
-  // ✨ NEW: Virtual tour management
+  // Virtual tour management
   late VirtualTourManager _virtualTourManager;
   bool _isVirtualTourActive = false;
 
   @override
   void initState() {
     super.initState();
-    print('\n🗺️ === MAPS PAGE INITIALIZED ===');
-    print('📥 Received Parameters:');
-    print('   - buildingId: ${widget.buildingId}');
-    print('   - destinationName: ${widget.destinationName}');
-    print('   - itemType: ${widget.itemType}');
-    print('   - autoNavigateTo: ${widget.autoNavigateTo}');
-    print('   - startVirtualTour: ${widget.startVirtualTour}'); // ✨ NEW
-    print('   - tourName: ${widget.tourName}'); // ✨ NEW
-    print('   - tourStops: ${widget.tourStops?.length}'); // ✨ NEW
 
     _navigationManager = NavigationManager();
-    _virtualTourManager = VirtualTourManager(); // ✨ NEW
+    _virtualTourManager = VirtualTourManager();
     _setupNavigationCallbacks();
-    _setupVirtualTourCallbacks(); // ✨ NEW
+    _setupVirtualTourCallbacks();
     _startLocationTracking();
     _loadBuildingData();
     _currentZoom = MapBoundary.getInitialZoom();
     LocationService.initializeCompass();
+    _checkAndShowFirstTimeGuide();
 
-    // ✨ Check if starting virtual tour
+    // Check if starting virtual tour
     if (widget.startVirtualTour && widget.tourStops != null) {
-      print('✅ Virtual tour will be triggered');
       _scheduleVirtualTourStart();
     } else if (widget.buildingId != null || widget.destinationName != null) {
-      print('✅ Auto-navigation will be triggered');
       _scheduleAutoNavigation();
-    } else {
-      print('❌ No auto-navigation parameters provided');
     }
-    print('🗺️ === END INITIALIZATION ===\n');
+  }
+
+  Future<void> _checkAndShowFirstTimeGuide() async {
+    final hasSeenGuide = await MapWidgets.hasSeenGuide();
+    if (!hasSeenGuide) {
+      // Wait for the map to render first
+      await Future.delayed(const Duration(milliseconds: 1000));
+      if (mounted && context.mounted) {
+        await MapWidgets.showMapGuideModal(context, isFirstTime: true);
+      }
+    }
   }
 
   void _onMapMove(MapCamera camera, bool hasGesture) {
     if (!_isDisposed && mounted) {
       setState(() {
         _currentZoom = camera.zoom;
-        _currentRotation = camera.rotation; // ✨ TRACK ROTATION
+        _currentRotation = camera.rotation;
       });
     }
   }
 
   void _scheduleAutoNavigation() {
-    print('\n⏰ === SCHEDULING AUTO-NAVIGATION ===');
     Future.delayed(const Duration(milliseconds: 1500), () {
-      print('⏰ Check 1: Disposed? $_isDisposed');
-      print('⏰ Check 2: Current Location? ${_currentLocation != null}');
-      print('⏰ Check 3: Buildings Initialized? ${MapBuildings.isInitialized}');
-      print(
-        '⏰ Check 4: Buildings Count: ${MapBuildings.campusBuildings.length}',
-      );
-
       if (!_isDisposed &&
           _currentLocation != null &&
           MapBuildings.isInitialized) {
-        print('✅ All conditions met - triggering navigation');
         _triggerAutoNavigation();
       } else {
-        print('⚠️ Conditions not met - retrying...');
         Future.delayed(const Duration(milliseconds: 500), () {
           if (!_isDisposed && mounted) {
             _scheduleAutoNavigation();
@@ -134,28 +122,16 @@ class _MapsState extends State<Maps> {
 
   Future<void> _triggerAutoNavigation() async {
     if (_isDisposed || !mounted) return;
-    print('\n🎯 === TRIGGERING AUTO-NAVIGATION ===');
-    print('🔍 Searching for destination...');
-    print('   - Looking for ID: ${widget.buildingId}');
-    print('   - Looking for Name: ${widget.destinationName}');
-    print('   - Item Type: ${widget.itemType}');
 
     if (widget.itemType == 'marker') {
-      print('📍 Searching for marker (landmark or college)...');
-
       BicolMarker? targetMarker;
 
       if (widget.buildingId != null) {
         try {
           targetMarker = MapBuildings.landmarks.firstWhere((m) {
-            print(
-              '   Checking landmark ID ${m.buildingId} == ${widget.buildingId}',
-            );
             return m.buildingId == widget.buildingId;
           });
-          print('✅ Found landmark by ID: ${targetMarker.name}');
         } catch (e) {
-          print('   No landmark found with ID ${widget.buildingId}');
           targetMarker = null;
         }
       }
@@ -163,12 +139,9 @@ class _MapsState extends State<Maps> {
       if (targetMarker == null && widget.buildingId != null) {
         try {
           targetMarker = MapBuildings.colleges.firstWhere((m) {
-            print('   Checking college ID ${m.itemId} == ${widget.buildingId}');
             return m.itemId == widget.buildingId;
           });
-          print('✅ Found college by ID: ${targetMarker.name}');
         } catch (e) {
-          print('   No college found with ID ${widget.buildingId}');
           targetMarker = null;
         }
       }
@@ -179,16 +152,10 @@ class _MapsState extends State<Maps> {
             final match = m.name.toLowerCase().contains(
               widget.destinationName!.toLowerCase(),
             );
-            print(
-              '   Checking landmark "${m.name}" contains "${widget.destinationName}": $match',
-            );
+
             return match;
           });
-          print('✅ Found landmark by name: ${targetMarker.name}');
         } catch (e) {
-          print(
-            '   No landmark found with name containing "${widget.destinationName}"',
-          );
           targetMarker = null;
         }
 
@@ -198,23 +165,16 @@ class _MapsState extends State<Maps> {
               final match = m.name.toLowerCase().contains(
                 widget.destinationName!.toLowerCase(),
               );
-              print(
-                '   Checking college "${m.name}" contains "${widget.destinationName}": $match',
-              );
+
               return match;
             });
-            print('✅ Found college by name: ${targetMarker.name}');
           } catch (e) {
-            print(
-              '   No college found with name containing "${widget.destinationName}"',
-            );
             targetMarker = null;
           }
         }
       }
 
       if (targetMarker == null) {
-        print('❌ === NO MARKER FOUND ===\n');
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -232,9 +192,6 @@ class _MapsState extends State<Maps> {
         }
         return;
       }
-
-      print('✅ Target marker selected: ${targetMarker.name}');
-      print('📍 Marker position: ${targetMarker.position}');
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -274,70 +231,43 @@ class _MapsState extends State<Maps> {
       await _getRouteToMarkerAsync(targetMarker);
 
       if (_navigationManager.polylinePoints.isNotEmpty) {
-        print(
-          '✅ Route found with ${_navigationManager.polylinePoints.length} points',
-        );
         await Future.delayed(const Duration(milliseconds: 300));
         RoutingService.fitMapToRoute(
           _mapController,
           _navigationManager.polylinePoints,
         );
-      } else {
-        print('❌ No route points available');
-      }
+      } else {}
 
-      print('🎯 === END AUTO-NAVIGATION (Marker) ===\n');
       return;
     }
 
     BicolBuildingPolygon? targetBuilding;
-    print('\n📋 Available Buildings:');
-    for (var building in MapBuildings.campusBuildings) {
-      print('   - ID: ${building.buildingId}, Name: ${building.name}');
-    }
-    print('');
 
     if (widget.buildingId != null) {
-      print('🔍 Searching by buildingId: ${widget.buildingId}');
       try {
         targetBuilding = MapBuildings.campusBuildings.firstWhere((b) {
-          print(
-            '   Checking building ID ${b.buildingId} == ${widget.buildingId}',
-          );
           return b.buildingId == widget.buildingId;
         });
-        print('✅ Found building by ID: ${targetBuilding.name}');
       } catch (e) {
-        print('❌ No building found with ID ${widget.buildingId}');
-        print('   Error: $e');
         targetBuilding = null;
       }
     }
 
     if (targetBuilding == null && widget.destinationName != null) {
-      print('🔍 Searching by name: ${widget.destinationName}');
       try {
         targetBuilding = MapBuildings.campusBuildings.firstWhere((b) {
           final match = b.name.toLowerCase().contains(
             widget.destinationName!.toLowerCase(),
           );
-          print(
-            '   Checking "${b.name}" contains "${widget.destinationName}": $match',
-          );
+
           return match;
         });
-        print('✅ Found building by name: ${targetBuilding.name}');
       } catch (e) {
-        print(
-          '❌ No building found with name containing "${widget.destinationName}"',
-        );
-        print('   Error: $e');
         targetBuilding = null;
       }
     }
 
     if (targetBuilding == null) {
-      print('❌ === NO BUILDING FOUND ===\n');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -355,11 +285,6 @@ class _MapsState extends State<Maps> {
       }
       return;
     }
-
-    print(
-      '✅ Target building selected: ${targetBuilding.name} (ID: ${targetBuilding.buildingId})',
-    );
-    print('📍 Building center: ${targetBuilding.getCenterPoint()}');
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -396,22 +321,15 @@ class _MapsState extends State<Maps> {
       duration: const Duration(milliseconds: 1000),
     );
 
-    print('🛣️ Getting route...');
     await _showDirectionsForBuilding(targetBuilding);
 
     if (_navigationManager.polylinePoints.isNotEmpty) {
-      print(
-        '✅ Route found with ${_navigationManager.polylinePoints.length} points',
-      );
       await Future.delayed(const Duration(milliseconds: 300));
       RoutingService.fitMapToRoute(
         _mapController,
         _navigationManager.polylinePoints,
       );
-    } else {
-      print('❌ No route points available');
-    }
-    print('🎯 === END AUTO-NAVIGATION ===\n');
+    } else {}
   }
 
   Future<void> _showDirectionsForBuilding(BicolBuildingPolygon building) async {
@@ -647,33 +565,15 @@ class _MapsState extends State<Maps> {
   }
 
   Future<void> _loadBuildingData() async {
-    print('\n🏗️ === LOADING BUILDING DATA ===');
     try {
       await MapBuildings.initializeWithBoundary(
         campusBoundaryPoints: MapBoundary.getCampusBoundaryPoints(),
       );
 
-      print('✅ Buildings loaded: ${MapBuildings.campusBuildings.length}');
-      print(
-        '📊 Buildings with IDs: ${MapBuildings.campusBuildings.where((b) => b.buildingId != null).length}',
-      );
-      print(
-        '📊 Buildings without IDs: ${MapBuildings.campusBuildings.where((b) => b.buildingId == null).length}',
-      );
-
-      print('📍 Markers created: ${MapBuildings.campusMarkers.length}');
-      print('🎓 Colleges: ${MapBuildings.colleges.length}');
-      print('🏛️ Landmarks: ${MapBuildings.landmarks.length}');
-
-      for (var marker in MapBuildings.campusMarkers) {
-        print('   📌 ${marker.name} (${marker.type}) at ${marker.position}');
-      }
-
       if (mounted) {
         setState(() {});
       }
     } catch (e) {
-      print('❌ Error loading building data: $e');
       if (mounted && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -683,7 +583,6 @@ class _MapsState extends State<Maps> {
         );
       }
     }
-    print('🏗️ === END LOADING BUILDING DATA ===\n');
   }
 
   Widget _buildPinMarker(
@@ -803,10 +702,6 @@ class _MapsState extends State<Maps> {
     await _getRoute(_currentLocation!, marker.position, tempBuilding);
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // ✨ VIRTUAL TOUR METHODS
-  // ═══════════════════════════════════════════════════════════════
-
   void _setupVirtualTourCallbacks() {
     _virtualTourManager.addListener(() {
       if (mounted && !_isDisposed) {
@@ -818,21 +713,13 @@ class _MapsState extends State<Maps> {
   }
 
   void _scheduleVirtualTourStart() {
-    print('\n⏰ === SCHEDULING VIRTUAL TOUR START ===');
     Future.delayed(const Duration(milliseconds: 2000), () {
       if (!_isDisposed &&
           _currentLocation != null &&
           MapBuildings.isInitialized) {
-        // ✅ REMOVED: MapBoundary.isWithinCampusBounds check
         // Virtual tours should work from anywhere!
-        print('✅ All conditions met - starting virtual tour');
         _initializeVirtualTour();
       } else {
-        print('⚠️ Conditions not met - retrying...');
-        print('   - Disposed: $_isDisposed');
-        print('   - Location: $_currentLocation');
-        print('   - Buildings initialized: ${MapBuildings.isInitialized}');
-
         Future.delayed(const Duration(milliseconds: 500), () {
           if (!_isDisposed && mounted) {
             _scheduleVirtualTourStart();
@@ -842,26 +729,16 @@ class _MapsState extends State<Maps> {
     });
   }
 
-  // Replace your existing _initializeVirtualTour method with this:
-
   Future<void> _initializeVirtualTour() async {
     if (_isDisposed || widget.tourStops == null || widget.tourStops!.isEmpty) {
       return;
     }
 
-    print('\n🎬 === INITIALIZING VIRTUAL TOUR ===');
-    print('Tour: ${widget.tourName}');
-    print('Stops: ${widget.tourStops!.length}');
-
-    // ✅ Step 1: Resolve building locations (polygons AND markers)
+    // Step 1: Resolve building locations (polygons AND markers)
     List<VirtualTourStop> resolvedStops = [];
 
     for (var stop in widget.tourStops!) {
-      print(
-        '\n🔍 Resolving stop ${stop.stopNumber}: ${stop.buildingName} (ID: ${stop.buildingId})',
-      );
-
-      // ✅ First, try to find as a landmark marker
+      // First, try to find as a landmark marker
       final marker = MapBuildings.landmarks.firstWhere(
         (m) => m.buildingId == stop.buildingId,
         orElse: () =>
@@ -872,9 +749,7 @@ class _MapsState extends State<Maps> {
         // Found as landmark marker
         stop.setLocation(marker.position, isMarkerType: true);
         resolvedStops.add(stop);
-        print(
-          '✅ Resolved as LANDMARK MARKER: ${stop.buildingName} at ${stop.location}',
-        );
+
         continue;
       }
 
@@ -886,24 +761,13 @@ class _MapsState extends State<Maps> {
 
         stop.setLocation(building.getCenterPoint(), isMarkerType: false);
         resolvedStops.add(stop);
-        print(
-          '✅ Resolved as BUILDING POLYGON: ${stop.buildingName} at ${stop.location}',
-        );
       } catch (e) {
-        print(
-          '❌ ERROR: Could not resolve stop ${stop.stopNumber} - ${stop.buildingName}',
-        );
-        print(
-          '   Building ID ${stop.buildingId} not found in landmarks or buildings',
-        );
-
         // Skip this stop if we can't resolve it
         continue;
       }
     }
 
     if (resolvedStops.isEmpty) {
-      print('❌ No valid stops resolved - aborting tour');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -915,23 +779,15 @@ class _MapsState extends State<Maps> {
       return;
     }
 
-    print(
-      '\n✅ Successfully resolved ${resolvedStops.length}/${widget.tourStops!.length} stops',
-    );
-
-    // ✅ Step 2: Determine starting point (user location OR nearest gate)
+    // Step 2: Determine starting point (user location OR nearest gate)
     LatLng startingPoint;
-    String startingPointName;
 
     if (_currentLocation != null &&
         MapBoundary.isWithinCampusBounds(_currentLocation!)) {
       // User is ON campus - start from their location
       startingPoint = _currentLocation!;
-      startingPointName = "Your Location";
-      print('📍 User is ON campus - starting from current location');
     } else {
       // User is OFF campus - find nearest gate
-      print('🚪 User is OFF campus - finding nearest gate');
 
       final gates = await RoutingService.fetchCampusGates(
         campusCenter: MapBoundary.bicolUniversityCenter,
@@ -956,11 +812,9 @@ class _MapsState extends State<Maps> {
 
       startingPoint =
           nearestGate?.location ?? MapBoundary.bicolUniversityCenter;
-      startingPointName = nearestGate?.name ?? "Campus Center";
-      print('🚪 Starting from gate: $startingPointName at $startingPoint');
     }
 
-    // ✅ Step 3: Start the tour
+    // Step 3: Start the tour
     _virtualTourManager.startTour(
       tourName: widget.tourName ?? 'Campus Tour',
       stops: resolvedStops,
@@ -972,33 +826,43 @@ class _MapsState extends State<Maps> {
       _tourStartPoint = startingPoint;
     });
 
-    // ✅ Step 4: Show welcome message
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.tour, color: Colors.white),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Starting ${widget.tourName} - ${resolvedStops.length} stops',
-                ),
+    // Step 4: Show welcome message
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.tour, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Starting ${widget.tourName} - ${resolvedStops.length} stops',
               ),
-            ],
-          ),
-          backgroundColor: Colors.orange[600],
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
+            ),
+          ],
         ),
-      );
-    }
+        backgroundColor: Colors.orange[600],
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
 
-    // ✅ Step 5: Navigate to first stop
+    // ✅ Step 5: First show entire campus overview
     await Future.delayed(const Duration(milliseconds: 500));
-    _navigateToCurrentVirtualTourStop();
+    if (!mounted) return;
 
-    print('🎬 === VIRTUAL TOUR INITIALIZED ===\n');
+    await MapUtils.animateToBuildingLocation(
+      _mapController,
+      MapBoundary.bicolUniversityCenter,
+      zoom: 16.5, // Wide view to see entire campus
+      duration: const Duration(milliseconds: 1500),
+    );
+
+    // ✅ Step 6: Wait a moment, then navigate to first stop
+    await Future.delayed(const Duration(milliseconds: 1500));
+    if (!mounted) return;
+    _navigateToCurrentVirtualTourStop();
   }
 
   Future<void> _navigateToCurrentVirtualTourStop() async {
@@ -1006,9 +870,6 @@ class _MapsState extends State<Maps> {
 
     final currentStop = _virtualTourManager.currentStop;
     if (currentStop == null || currentStop.location == null) return;
-
-    print('\n🎯 === NAVIGATING TO VIRTUAL TOUR STOP ===');
-    print('Stop ${currentStop.stopNumber}: ${currentStop.buildingName}');
 
     _virtualTourManager.beginAnimationToStop();
 
@@ -1018,13 +879,11 @@ class _MapsState extends State<Maps> {
     if (_virtualTourManager.currentStopIndex == 0) {
       // First stop: Start from gate
       startPoint = _virtualTourManager.startingGate!;
-      print('📍 Starting from gate: $startPoint');
     } else {
       // Subsequent stops: Start from previous building
       final previousStop =
           _virtualTourManager.stops[_virtualTourManager.currentStopIndex - 1];
       startPoint = previousStop.location!;
-      print('📍 Starting from previous building: ${previousStop.buildingName}');
     }
 
     // ✅ Get route from start point to current building
@@ -1037,17 +896,14 @@ class _MapsState extends State<Maps> {
       // Clear previous navigation
       setState(() {
         _navigationManager.clearRoute();
-        _animatedRoutePoints = []; // ✨ Clear animated route
+        _animatedRoutePoints = []; // Clear animated route
       });
 
-      print('🎬 Route has ${routeResult.points!.length} waypoints');
-
-      // ✅ Animate with progressive route drawing + camera rotation
+      // Animate with progressive route drawing + camera rotation
       await MapUtils.animateAlongRouteWithCamera(
         _mapController,
         routeResult.points!,
         onRouteUpdate: (visibleRoute) {
-          // ✨ Update the visible route as animation progresses
           if (mounted && !_isDisposed) {
             setState(() {
               _animatedRoutePoints = visibleRoute;
@@ -1056,44 +912,32 @@ class _MapsState extends State<Maps> {
         },
       );
 
-      // ✅ Store full route after animation
+      // Store full route after animation
       setState(() {
         _animatedRoutePoints = routeResult.points!;
         _navigationManager.polylinePoints.clear();
         _navigationManager.polylinePoints.addAll(routeResult.points!);
       });
 
-      // ✅ Show stop card
+      // Show stop card
       _virtualTourManager.completeAnimationToStop();
       _showVirtualTourStopCard();
     } else {
-      print('❌ Failed to get route: ${routeResult.error}');
+      if (!mounted) return;
 
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Could not find route to ${currentStop.buildingName}',
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not find route to ${currentStop.buildingName}'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
-
-    print('🎯 === END NAVIGATION ===\n');
   }
 
   void _showVirtualTourStopCard() {
-    // No longer using modal bottom sheet
-    // The card is rendered directly in the Stack in build()
     if (_isDisposed) return;
 
-    // Card visibility is controlled by _virtualTourManager.isShowingStopCard
-    // which is already set by completeAnimationToStop()
-    setState(() {
-      // Just trigger rebuild to show the card
-    });
+    setState(() {});
   }
 
   void _endVirtualTour() {
@@ -1109,7 +953,7 @@ class _MapsState extends State<Maps> {
     setState(() {
       _isVirtualTourActive = false;
       _animatedRoutePoints = [];
-      _tourStartPoint = null; // ✨ ADD THIS LINE
+      _tourStartPoint = null;
     });
 
     if (completedAll) {
@@ -1130,13 +974,7 @@ class _MapsState extends State<Maps> {
         ),
       );
     }
-
-    print('🏁 Virtual tour ended');
   }
-
-  // ═══════════════════════════════════════════════════════════════
-  // END VIRTUAL TOUR METHODS
-  // ═══════════════════════════════════════════════════════════════
 
   @override
   Widget build(BuildContext context) {
@@ -1192,23 +1030,28 @@ class _MapsState extends State<Maps> {
                       markers: snapshot.data!.map((gate) {
                         return Marker(
                           point: gate.location,
-                          width: 40,
-                          height: 40,
+                          width: 50,
+                          height: 50,
                           child: Container(
                             decoration: BoxDecoration(
-                              color: Colors.purple,
+                              color: Colors.white,
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                            ),
-                            child: Center(
-                              child: Text(
-                                gate.id.replaceAll('gate_', ''),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
+                              border: Border.all(
+                                color: Colors.blue[700]!,
+                                width: 2,
                               ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  spreadRadius: 1,
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.door_sliding,
+                              color: Colors.blue[700],
+                              size: 24,
                             ),
                           ),
                         );
@@ -1344,7 +1187,6 @@ class _MapsState extends State<Maps> {
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () async {
-                              print('🎓 College marker tapped: ${marker.name}');
                               await MapUtils.animateToBuildingLocation(
                                 _mapController,
                                 marker.position,
@@ -1384,9 +1226,6 @@ class _MapsState extends State<Maps> {
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () async {
-                              print(
-                                '🏛️ Landmark marker tapped: ${marker.name}',
-                              );
                               await MapUtils.animateToBuildingLocation(
                                 _mapController,
                                 marker.position,
@@ -1646,7 +1485,13 @@ class _MapsState extends State<Maps> {
               ignoring: false,
               child: Column(
                 children: [
-                  // 🆕 ADD THIS - Location Permission Toggle
+                  MapWidgets.buildInfoButton(
+                    onPressed: () {
+                      MapWidgets.showMapGuideModal(context, isFirstTime: false);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  //  Location Permission Toggle
                   MapWidgets.buildLocationToggle(
                     onPermissionChanged: () {
                       // Refresh location when permission changes
@@ -1841,7 +1686,6 @@ class _MapsState extends State<Maps> {
 
     final building = MapBuildings.findBuildingAtPoint(latLng);
     if (building != null) {
-      print('🏢 Building tapped: ${building.displayName}');
       await MapUtils.animateToBuildingLocation(
         _mapController,
         building.getCenterPoint(),

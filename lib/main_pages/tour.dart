@@ -40,27 +40,17 @@ class ToursState extends State<Tours> {
         _isLoading = true;
       });
 
-      print('🔍 DEBUG: Fetching tours from database...');
-
       final response = await supabase
           .from('Tours')
           .select('id, name, description, is_active')
           .eq('is_active', true)
           .order('name');
 
-      print('✅ DEBUG: Tours response received');
-      print('📊 DEBUG: Number of tours: ${response.length}');
-      print('🗂️ DEBUG: Tours data: $response');
-
       setState(() {
         _tours = List<Map<String, dynamic>>.from(response);
         _isLoading = false;
       });
-
-      print('✓ DEBUG: Tours state updated successfully');
     } catch (e) {
-      print('❌ ERROR fetching tours: $e');
-      print('📍 ERROR stack trace: ${StackTrace.current}');
       setState(() {
         _isLoading = false;
       });
@@ -114,7 +104,7 @@ class ToursState extends State<Tours> {
                             border: Border.all(color: Colors.grey[300]!),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
+                                color: Colors.black.withValues(alpha: 0.05),
                                 blurRadius: 4,
                                 offset: Offset(0, 2),
                               ),
@@ -387,7 +377,6 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
         _initializeVideoPageController();
       }
     } catch (e) {
-      print('❌ ERROR fetching tour data: $e');
       setState(() {
         _isLoading = false;
       });
@@ -396,15 +385,6 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
 
   Future<void> _fetchBuildings() async {
     try {
-      print('');
-      print('═══════════════════════════════════════════════');
-      print('🏢 FETCHING BUILDINGS FOR TOUR');
-      print('═══════════════════════════════════════════════');
-      print('🆔 Tour ID: ${widget.tour['id']}');
-      print('📝 Tour Name: ${widget.tour['name']}');
-      print('🗂️  Full Tour Object: ${widget.tour}');
-      print('───────────────────────────────────────────────');
-
       final response = await supabase
           .from('Tour Stops')
           .select('''
@@ -420,48 +400,12 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
           .eq('tour_id', widget.tour['id'])
           .order('stop_order', ascending: true);
 
-      print('');
-      print('✅ RESPONSE RECEIVED FROM DATABASE');
-      print('📊 Total Buildings Returned: ${response.length}');
-      print('───────────────────────────────────────────────');
-
       if (response.isEmpty) {
-        print('⚠️  WARNING: No buildings found for this tour!');
-      } else {
-        print('📋 BUILDINGS IN ORDER RETURNED:');
-        for (var i = 0; i < response.length; i++) {
-          final building = response[i];
-          final buildingData = building['Building'];
-          print('');
-          print('  Stop #${i + 1} (Array Index: $i)');
-          print('  ├─ tour_stops_id: ${building['tour_stops_id']}');
-          print('  ├─ building_id: ${building['building_id']}');
-          print('  ├─ stop_order: ${building['stop_order']}');
-          print('  ├─ building_name: ${buildingData['building_name']}');
-          print('  ├─ building_nickname: ${buildingData['building_nickname']}');
-          print('  └─ notes: ${building['notes']}');
-        }
+        // No buildings found for this tour
       }
 
-      print('───────────────────────────────────────────────');
-      print('🗂️  Raw Response Data: $response');
-      print('═══════════════════════════════════════════════');
-      print('');
-
       _buildings = List<Map<String, dynamic>>.from(response);
-
-      print('✓ Buildings state updated successfully');
-      print('✓ UI will now render ${_buildings.length} building cards');
-      print('');
     } catch (e) {
-      print('');
-      print('═══════════════════════════════════════════════');
-      print('❌ ERROR FETCHING BUILDINGS');
-      print('═══════════════════════════════════════════════');
-      print('Error: $e');
-      print('Stack Trace: ${StackTrace.current}');
-      print('═══════════════════════════════════════════════');
-      print('');
       rethrow;
     }
   }
@@ -476,18 +420,8 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
           .trim();
 
       if (tourFolderName == null || tourFolderName.isEmpty) {
-        print('⚠️ No valid tour name for video folder');
         return;
       }
-
-      print('');
-      print('═══════════════════════════════════════════════');
-      print('📹 FETCHING TOUR VIDEOS');
-      print('═══════════════════════════════════════════════');
-      print('🆔 Tour ID: ${widget.tour['id']}');
-      print('📝 Tour Name: ${widget.tour['name']}');
-      print('📁 Folder Name: $tourFolderName');
-      print('───────────────────────────────────────────────');
 
       final videosResponse = await supabase
           .from('storage_objects_snapshot')
@@ -496,50 +430,31 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
           .eq('folder', tourFolderName)
           .order('filename', ascending: true);
 
-      print('📹 Videos Response Length: ${videosResponse.length}');
-
       List<String> videoUrls = [];
       for (var videoData in videosResponse) {
         final videoPath = videoData['name'] as String;
         final filename = videoData['filename'] as String;
 
-        print('📹 Found video - Path: $videoPath, Filename: $filename');
-
         // Skip placeholder files
         if (filename == '.emptyFolderPlaceholder' ||
             videoPath.endsWith('.emptyFolderPlaceholder')) {
-          print('⏭️ Skipping placeholder video: $filename');
           continue;
         }
 
         final publicUrl = supabase.storage
             .from('tours')
             .getPublicUrl(videoPath);
-        print('✅ Added video URL: $publicUrl');
         videoUrls.add(publicUrl);
       }
 
-      print('📹 Total videos added: ${videoUrls.length}');
-      print('═══════════════════════════════════════════════');
-      print('');
-
       tourVideos = videoUrls;
     } catch (e) {
-      print('');
-      print('═══════════════════════════════════════════════');
-      print('❌ ERROR FETCHING TOUR VIDEOS');
-      print('═══════════════════════════════════════════════');
-      print('Error: $e');
-      print('Stack Trace: ${StackTrace.current}');
-      print('═══════════════════════════════════════════════');
-      print('');
+      // No videos found or error occurred
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    print('🎨 Building UI with ${_buildings.length} buildings');
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -654,7 +569,7 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: Color(0xFFFF8C00).withOpacity(0.1),
+                            color: Color(0xFFFF8C00).withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -704,16 +619,6 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
                           itemBuilder: (context, index) {
                             final building = _buildings[index];
                             final displayNumber = index + 1;
-
-                            print(
-                              '🎯 Rendering card at index $index as stop #$displayNumber',
-                            );
-                            print(
-                              '   Building: ${building['Building']['building_name']}',
-                            );
-                            print(
-                              '   stop_order from DB: ${building['stop_order']}',
-                            );
 
                             return _buildBuildingCard(building, displayNumber);
                           },
@@ -806,10 +711,6 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
   }
 
   void _startVirtualTour() {
-    print('\n🎬 === PREPARING VIRTUAL TOUR ===');
-    print('Tour: ${widget.tour['name']}');
-    print('Buildings: ${_buildings.length}');
-
     // Prepare tour stops
     List<VirtualTourStop> stops = [];
 
@@ -829,9 +730,6 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
         ),
       );
     }
-
-    print('✅ Prepared ${stops.length} stops');
-    print('🎬 === END PREPARATION ===\n');
 
     // Navigate to Maps with virtual tour data
     Navigator.push(

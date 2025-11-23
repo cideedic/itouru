@@ -272,9 +272,9 @@ class VideoPlayerCarouselDialog extends StatefulWidget {
 class _VideoPlayerCarouselDialogState extends State<VideoPlayerCarouselDialog> {
   late PageController _pageController;
   late int _currentIndex;
-  Map<int, VideoPlayerController> _controllers = {};
-  Map<int, bool> _initialized = {};
-  Map<int, bool> _errors = {};
+  final Map<int, VideoPlayerController> _controllers = {};
+  final Map<int, bool> _initialized = {};
+  final Map<int, bool> _errors = {};
 
   @override
   void initState() {

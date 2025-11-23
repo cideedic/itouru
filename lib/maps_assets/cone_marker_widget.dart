@@ -112,8 +112,6 @@ class ConePainter extends CustomPainter {
     // Calculate cone edges
     final halfConeAngle = (coneAngle / 2) * math.pi / 180;
     final leftAngle = headingRad - halfConeAngle;
-    final rightAngle = headingRad + halfConeAngle;
-
     // Create cone path
     final path = Path();
     path.moveTo(center.dx, center.dy); // Start at center
@@ -210,7 +208,7 @@ class _PulsingConeMarkerState extends State<PulsingConeMarker>
             coneAngle: widget.coneAngle,
             coneLength: widget.coneLength,
             coneColor: widget.coneColor.withValues(
-              alpha: widget.coneColor.opacity * _scaleAnimation.value * 0.9,
+              alpha: widget.coneColor.a * _scaleAnimation.value * 0.9,
             ),
             circleColor: widget.circleColor,
           ),

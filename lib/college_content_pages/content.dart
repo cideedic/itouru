@@ -228,8 +228,6 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
         );
       }
 
-      print('🎓 Possible College Folder Names: $possibleFolderNames');
-
       List<String> videoUrls = [];
       List<String> imageUrls = [];
       String? fetchedHeaderUrl;
@@ -237,7 +235,6 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
 
       if (possibleFolderNames.isNotEmpty) {
         // Try each possible folder name until we find videos
-        print('📹 Fetching videos from folders: $possibleFolderNames');
         List<dynamic> videosResponse = [];
 
         for (var folderName in possibleFolderNames) {
@@ -250,35 +247,27 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
 
           if (response.isNotEmpty) {
             videosResponse = response;
-            print('✅ Found videos in folder: $folderName');
             break;
           }
         }
 
-        print('📹 Videos Response Length: ${videosResponse.length}');
         for (var videoData in videosResponse) {
           final videoPath = videoData['name'] as String;
           final filename = videoData['filename'] as String;
 
-          print('📹 Found video - Path: $videoPath, Filename: $filename');
-
           // Skip placeholder files
           if (filename == '.emptyFolderPlaceholder' ||
               videoPath.endsWith('.emptyFolderPlaceholder')) {
-            print('⏭️ Skipping placeholder video: $filename');
             continue;
           }
 
           final publicUrl = supabase.storage
               .from('videos')
               .getPublicUrl(videoPath);
-          print('✅ Added video URL: $publicUrl');
           videoUrls.add(publicUrl);
         }
-        print('📹 Total videos added: ${videoUrls.length}');
 
         // Try each possible folder name until we find images
-        print('🖼️ Fetching images from folders: $possibleFolderNames');
         List<dynamic> imagesResponse = [];
 
         for (var folderName in possibleFolderNames) {
@@ -291,24 +280,18 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
 
           if (response.isNotEmpty) {
             imagesResponse = response;
-            print('✅ Found images in folder: $folderName');
             break;
           }
         }
-
-        print('🖼️ Images Response Length: ${imagesResponse.length}');
         for (var i = 0; i < imagesResponse.length; i++) {
           final imageData = imagesResponse[i];
           final imagePath = imageData['name'] as String;
           final filename = imageData['filename'] as String;
 
-          print('🖼️ Found image - Path: $imagePath, Filename: $filename');
-
           // Skip placeholder files and logo files
           if (filename == '.emptyFolderPlaceholder' ||
               imagePath.endsWith('.emptyFolderPlaceholder') ||
               filename.contains('_logo')) {
-            print('⏭️ Skipping: $filename');
             continue;
           }
 
@@ -317,18 +300,12 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
               .getPublicUrl(imagePath);
 
           // Set the first image as header
-          if (fetchedHeaderUrl == null) {
-            fetchedHeaderUrl = publicUrl;
-            print('🎯 Set as header image: $publicUrl');
-          }
+          fetchedHeaderUrl ??= publicUrl;
 
-          print('✅ Added image URL: $publicUrl');
           imageUrls.add(publicUrl);
         }
-        print('🖼️ Total images added: ${imageUrls.length}');
 
         // Try each possible folder name until we find a logo
-        print('🏷️ Fetching logo from folders: $possibleFolderNames');
         for (var folderName in possibleFolderNames) {
           try {
             final logoResponse = await supabase
@@ -344,19 +321,15 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
               fetchedLogoUrl = supabase.storage
                   .from('images')
                   .getPublicUrl(logoPath);
-              print(
-                '✅ College logo found in folder $folderName: $fetchedLogoUrl',
-              );
+
               break; // Stop searching once logo is found
             }
           } catch (e) {
-            print('⚠️ No logo in folder $folderName: $e');
+            // No logo found in this folder, continue to next
           }
         }
 
-        if (fetchedLogoUrl == null) {
-          print('❌ No college logo found in any folder');
-        }
+        if (fetchedLogoUrl == null) {}
       }
 
       setState(() {

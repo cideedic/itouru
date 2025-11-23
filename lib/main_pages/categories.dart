@@ -3,21 +3,21 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/bottom_nav_bar.dart';
 import 'package:itouru/page_components/header.dart';
 import 'package:itouru/page_components/animation.dart';
-import 'package:itouru/college_content_pages/content.dart' as CollegeContent;
-import 'package:itouru/building_content_pages/content.dart' as BuildingContent;
-import 'package:itouru/office_content_pages/content.dart' as OfficeContent;
+import 'package:itouru/college_content_pages/content.dart' as college_content;
+import 'package:itouru/building_content_pages/content.dart' as building_content;
+import 'package:itouru/office_content_pages/content.dart' as office_content;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:itouru/main_pages/maps.dart';
 import 'package:itouru/page_components/loading_widget.dart';
 
 class Categories extends StatefulWidget {
   final bool autoFocusSearch;
-  final String? initialCategory; // ✨ New parameter for category navigation
+  final String? initialCategory;
 
   const Categories({
     super.key,
     this.autoFocusSearch = false,
-    this.initialCategory, // ✨ Accept initial category
+    this.initialCategory,
   });
 
   @override
@@ -43,7 +43,7 @@ class CategoriesState extends State<Categories> {
               ),
               child: CategoriesBody(
                 autoFocusSearch: widget.autoFocusSearch,
-                initialCategory: widget.initialCategory, // ✨ Pass it down
+                initialCategory: widget.initialCategory,
               ),
             ),
           ),
@@ -56,12 +56,12 @@ class CategoriesState extends State<Categories> {
 
 class CategoriesBody extends StatefulWidget {
   final bool autoFocusSearch;
-  final String? initialCategory; // ✨ New parameter
+  final String? initialCategory;
 
   const CategoriesBody({
     super.key,
     this.autoFocusSearch = false,
-    this.initialCategory, // ✨ Accept initial category
+    this.initialCategory,
   });
 
   @override
@@ -89,7 +89,7 @@ class CategoriesBodyState extends State<CategoriesBody>
 
   final supabase = Supabase.instance.client;
 
-  // ✨ Keys for category cards to enable scrolling
+  // Keys for category cards to enable scrolling
   final Map<String, GlobalKey> _categoryKeys = {
     'College': GlobalKey(),
     'Buildings': GlobalKey(),
@@ -97,7 +97,7 @@ class CategoriesBodyState extends State<CategoriesBody>
     'Offices': GlobalKey(),
   };
 
-  // ✨ ScrollController for the main content
+  // ScrollController for the main content
   final ScrollController _mainScrollController = ScrollController();
 
   @override
@@ -105,9 +105,6 @@ class CategoriesBodyState extends State<CategoriesBody>
     super.initState();
     searchController = TextEditingController();
     _searchFocusNode = FocusNode();
-
-    print('🔵 [INIT] CategoriesBody initState called');
-    print('🔵 [INIT] initialCategory: ${widget.initialCategory}');
 
     // Load data from Supabase
     _loadDataFromSupabase();
@@ -121,120 +118,85 @@ class CategoriesBodyState extends State<CategoriesBody>
       });
     }
 
-    // ✨ Scroll to category after data loads and widgets are built
+    //  Scroll to category after data loads and widgets are built
     if (widget.initialCategory != null) {
-      print('🟢 [INIT] Will attempt to scroll to: ${widget.initialCategory}');
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        print('🟡 [CALLBACK] Post frame callback executed');
         // Increased delay to ensure rendering is complete
         Future.delayed(const Duration(milliseconds: 1200), () {
-          print('🟠 [DELAY] Delay completed, checking mounted state');
           if (mounted) {
-            print(
-              '🟣 [SCROLL] Calling _scrollToCategory for: ${widget.initialCategory}',
-            );
             _scrollToCategory(widget.initialCategory!);
-          } else {
-            print('🔴 [ERROR] Widget not mounted!');
-          }
+          } else {}
         });
       });
-    } else {
-      print('🔴 [INIT] No initialCategory provided');
     }
   }
 
-  // ✨ Method to scroll to a specific category card
+  // Method to scroll to a specific category card
   void _scrollToCategory(String category) {
-    print('\n🚀 [SCROLL START] _scrollToCategory called with: $category');
-
     final key = _categoryKeys[category];
-    print('📍 [KEY CHECK] Key exists: ${key != null}');
 
     if (key == null) {
-      print('🔴 [ERROR] No key found for category: $category');
-      print('🔴 [ERROR] Available keys: ${_categoryKeys.keys.toList()}');
       return;
     }
 
     final context = key.currentContext;
-    print('📍 [CONTEXT CHECK] Context exists: ${context != null}');
 
     if (context == null) {
-      print('🔴 [ERROR] No context found for key - widget not yet rendered');
-      print('🔄 [RETRY] Attempting retry after additional delay...');
-
       // Retry after another delay if context is not available
       Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          final retryContext = key.currentContext;
-          print('🔄 [RETRY] Context exists now: ${retryContext != null}');
+        if (!mounted) return;
 
-          if (retryContext != null) {
-            _performScroll(retryContext, key);
-          } else {
-            print('🔴 [RETRY FAILED] Context still not available');
-          }
+        final retryContext = key.currentContext;
+
+        if (retryContext != null && retryContext.mounted) {
+          _performScroll(retryContext, key);
         }
       });
       return;
     }
 
-    print('✅ [SUCCESS] Found context, proceeding with scroll');
     _performScroll(context, key);
   }
 
-  // ✨ Helper method to perform the actual scrolling
-  void _performScroll(BuildContext context, GlobalKey key) {
-    print('🎬 [ANIMATION] Starting Scrollable.ensureVisible');
+  // Helper method to perform the actual scrolling
+  void _performScroll(BuildContext scrollContext, GlobalKey key) {
+    if (!scrollContext.mounted) return;
+
     Scrollable.ensureVisible(
-          context,
+          scrollContext,
           duration: const Duration(milliseconds: 600),
           curve: Curves.easeInOut,
           alignment: 0.15, // Position with some padding from top
           alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
         )
         .then((_) {
-          print('✅ [ANIMATION] Scroll completed');
-          // ✨ Trigger bump animation after scrolling
-          _triggerBumpAnimation(key);
+          // Check if widget is still mounted before triggering animation
+          if (mounted) {
+            _triggerBumpAnimation(key);
+          }
         })
         .catchError((error) {
-          print('🔴 [ERROR] Scroll failed: $error');
+          // Silently handle scroll errors
         });
   }
 
-  // ✨ Bump animation for the category card
+  // Bump animation for the category card
   void _triggerBumpAnimation(GlobalKey key) {
-    print('\n💥 [BUMP] _triggerBumpAnimation called');
-
     final context = key.currentContext;
-    print('📍 [BUMP] Context exists: ${context != null}');
 
     if (context != null) {
       final renderBox = context.findRenderObject() as RenderBox?;
-      print('📍 [BUMP] RenderBox exists: ${renderBox != null}');
 
       if (renderBox != null) {
         // Find the CategoryCard state and trigger animation
         final categoryCardState = context
             .findAncestorStateOfType<_CategoryCardState>();
-        print(
-          '📍 [BUMP] CategoryCardState found: ${categoryCardState != null}',
-        );
 
         if (categoryCardState != null) {
-          print('✅ [BUMP] Triggering bump animation');
           categoryCardState.triggerBumpAnimation();
-        } else {
-          print('🔴 [BUMP ERROR] Could not find CategoryCardState');
-        }
-      } else {
-        print('🔴 [BUMP ERROR] RenderBox is null');
-      }
-    } else {
-      print('🔴 [BUMP ERROR] Context is null');
-    }
+        } else {}
+      } else {}
+    } else {}
   }
 
   Future<void> _loadDataFromSupabase() async {
@@ -244,34 +206,26 @@ class CategoriesBodyState extends State<CategoriesBody>
         errorMessage = null;
       });
 
-      print('🔄 Starting data fetch from Supabase...');
-
       // Fetch colleges with abbreviation
-      print('📚 Fetching colleges...');
       final collegesResponse = await supabase
           .from('College')
           .select(
             'college_id, college_name, college_about, college_abbreviation',
           );
-      print('✅ Colleges fetched: ${collegesResponse.length} items');
 
       // Fetch buildings with nickname and building_type
-      print('🏢 Fetching buildings...');
       final buildingsResponse = await supabase
           .from('Building')
           .select(
             'building_id, building_name, description, building_nickname, building_type',
           );
-      print('✅ Buildings fetched: ${buildingsResponse.length} items');
 
       // Fetch offices with abbreviation
-      print('🏛️ Fetching offices...');
       final officesResponse = await supabase
           .from('Office')
           .select(
             'office_id, office_name, office_services, building_id, office_abbreviation',
           );
-      print('✅ Offices fetched: ${officesResponse.length} items');
 
       setState(() {
         // Map colleges data
@@ -340,14 +294,8 @@ class CategoriesBodyState extends State<CategoriesBody>
         );
 
         isLoading = false;
-        print('✅ [DATA LOAD] All data loaded successfully!');
-        print('   Colleges: ${colleges.length}');
-        print('   Buildings: ${buildings.length}');
-        print('   Landmarks: ${landmarks.length}');
-        print('   Offices: ${offices.length}');
       });
     } catch (e) {
-      print('❌ Error loading data: $e');
       setState(() {
         isLoading = false;
         errorMessage = 'Error loading data: $e';
@@ -741,10 +689,7 @@ class _CategoryCardState extends State<CategoryCard>
 
   // ✨ Method to trigger bump animation
   void triggerBumpAnimation() {
-    print('🎯 [CARD ANIMATION] triggerBumpAnimation called on ${widget.title}');
-    _bumpController.forward(from: 0.0).then((_) {
-      print('✅ [CARD ANIMATION] Bump animation completed on ${widget.title}');
-    });
+    _bumpController.forward(from: 0.0).then((_) {});
   }
 
   void _showItemsList(BuildContext context) {
@@ -949,7 +894,7 @@ class _CategoryCardState extends State<CategoryCard>
                 ],
               ),
             ),
-            Container(
+            SizedBox(
               height: 280,
               child: ListView.builder(
                 controller: _scrollController,
@@ -979,10 +924,6 @@ class ItemCard extends StatelessWidget {
   const ItemCard({super.key, required this.item, required this.color});
 
   void _handleDirections(BuildContext context) async {
-    print('\n🚀 === DIRECTIONS BUTTON PRESSED ===');
-    print('📍 Item Type: ${item.runtimeType}');
-    print('📍 Item Name: ${item.name}');
-
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Row(
@@ -1013,28 +954,17 @@ class ItemCard extends StatelessWidget {
       targetBuildingId = item.buildingId;
       if (item.buildingType?.toLowerCase() == 'landmark') {
         itemType = 'marker';
-        print('🏛️ Landmark ID: $targetBuildingId');
-        print('   Building Type: ${item.buildingType}');
-        print('   Will navigate to landmark marker');
       } else {
         itemType = 'building';
-        print('🏢 Building ID: $targetBuildingId');
-        print('   Building Type: ${item.buildingType}');
       }
     } else if (item is CollegeItem) {
       targetBuildingId = item.collegeId;
       itemType = 'marker';
-      print('🎓 College ID: $targetBuildingId');
-      print('   Will navigate to college marker');
     } else if (item is OfficeItem) {
       targetBuildingId = item.buildingId;
       itemType = 'office';
-      print('🏛️ Office: ${item.name}');
-      print('   Office ID: ${item.officeId}');
-      print('   Building ID: $targetBuildingId');
 
       if (targetBuildingId == null) {
-        print('⚠️ Warning: Office has no building assigned!');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${item.name} has no building location assigned'),
@@ -1044,12 +974,6 @@ class ItemCard extends StatelessWidget {
         return;
       }
     }
-
-    print('📋 Summary:');
-    print('   - Target Building ID: $targetBuildingId');
-    print('   - Destination Name: $destinationName');
-    print('   - Item Type: $itemType');
-    print('🚀 === NAVIGATING TO MAPS PAGE ===\n');
 
     Navigator.pushReplacement(
       context,
@@ -1069,7 +993,7 @@ class ItemCard extends StatelessWidget {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => BuildingContent.BuildingDetailsPage(
+          builder: (context) => building_content.BuildingDetailsPage(
             buildingId: building.buildingId,
             title: building.name,
           ),
@@ -1080,7 +1004,7 @@ class ItemCard extends StatelessWidget {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => CollegeContent.CollegeDetailsPage(
+          builder: (context) => college_content.CollegeDetailsPage(
             collegeId: college.collegeId,
             collegeName: college.name,
             title: college.name,
@@ -1092,7 +1016,7 @@ class ItemCard extends StatelessWidget {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => OfficeContent.OfficeDetailsPage(
+          builder: (context) => office_content.OfficeDetailsPage(
             officeId: office.officeId,
             officeName: office.name,
             title: office.name,

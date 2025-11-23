@@ -15,7 +15,6 @@ class LocationService {
       // Check if compass is available
       final compassEvents = FlutterCompass.events;
       if (compassEvents == null) {
-        print('⚠️ Compass not available on this device');
         _isCompassAvailable = false;
         return;
       }
@@ -28,10 +27,7 @@ class LocationService {
           _currentHeading = event.heading!;
         }
       });
-
-      print('✅ Compass initialized');
     } catch (e) {
-      print('❌ Error initializing compass: $e');
       _isCompassAvailable = false;
     }
   }
@@ -71,9 +67,11 @@ class LocationService {
         return LocationResult.error('Location permission permanently denied');
       }
 
-      // Get current position
+      // Get current position with LocationSettings
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
 
       return LocationResult.success(
@@ -106,7 +104,7 @@ class LocationService {
 
 class LocationResult {
   final LatLng? location;
-  final double? heading; // ✨ NEW: Compass heading (0-360°)
+  final double? heading;
   final String? error;
   final bool isSuccess;
 

@@ -26,33 +26,24 @@ class RoutingService {
       final bool startInsideCampus = MapBoundary.isWithinCampusBounds(start);
       final bool endInsideCampus = MapBoundary.isWithinCampusBounds(end);
 
-      print('🗺️ Route request:');
-      print('   Start inside campus: $startInsideCampus');
-      print('   End inside campus: $endInsideCampus');
-
       // Case 1: Both points inside campus - direct route
       if (startInsideCampus && endInsideCampus) {
-        print('✅ Both inside campus - direct route');
         return await _getDirectRoute(start, end);
       }
 
       // Case 2: Start outside, end inside - route through gate
       if (!startInsideCampus && endInsideCampus) {
-        print('🚪 Start outside, end inside - routing through gate');
         return await _getRouteViaGate(start, end, isEntry: true);
       }
 
       // Case 3: Start inside, end outside - route through gate
       if (startInsideCampus && !endInsideCampus) {
-        print('🚪 Start inside, end outside - routing through gate');
         return await _getRouteViaGate(start, end, isEntry: false);
       }
 
       // Case 4: Both outside - direct route (shouldn't happen in your use case)
-      print('⚠️ Both outside campus - direct route');
       return await _getDirectRoute(start, end);
     } catch (e) {
-      print('❌ Error getting route: $e');
       return RouteResult.error('Error getting route: $e');
     }
   }
@@ -63,8 +54,6 @@ class RoutingService {
         '$_osrmBaseUrl/$_routingProfile/'
         '${start.longitude},${start.latitude};${end.longitude},${end.latitude}?'
         'overview=full&geometries=polyline&steps=true&alternatives=false';
-
-    print('🛣️ Requesting direct route: $url');
 
     final response = await http.get(Uri.parse(url));
 
@@ -83,8 +72,6 @@ class RoutingService {
         final List<LatLng> routePoints = result
             .map((point) => LatLng(point.latitude, point.longitude))
             .toList();
-
-        print('✅ Direct route found: ${routePoints.length} points');
 
         return RouteResult.success(
           points: routePoints,
@@ -107,7 +94,6 @@ class RoutingService {
     final gates = await _getCampusGates();
 
     if (gates.isEmpty) {
-      print('⚠️ No gates found, using direct route');
       return await _getDirectRoute(start, end);
     }
 
@@ -116,7 +102,6 @@ class RoutingService {
     // Removed unused insidePoint variable
 
     final nearestGate = _findNearestGate(gates, outsidePoint);
-    print('🚪 Nearest gate: ${nearestGate.name} at ${nearestGate.location}');
 
     // Get two-segment route
     if (isEntry) {
@@ -145,10 +130,6 @@ class RoutingService {
         '$_osrmBaseUrl/$_routingProfile/$waypointsStr?'
         'overview=full&geometries=polyline&steps=true&alternatives=false';
 
-    print(
-      '🛣️ Requesting multi-segment route via ${waypoints.length} waypoints',
-    );
-
     final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
@@ -166,8 +147,6 @@ class RoutingService {
         final List<LatLng> routePoints = result
             .map((point) => LatLng(point.latitude, point.longitude))
             .toList();
-
-        print('✅ Multi-segment route found: ${routePoints.length} points');
 
         return RouteResult.success(
           points: routePoints,
@@ -187,12 +166,10 @@ class RoutingService {
     if (_cachedGates != null &&
         _gatesCacheTime != null &&
         DateTime.now().difference(_gatesCacheTime!) < _cacheValidity) {
-      print('✅ Using cached gates (${_cachedGates!.length} gates)');
       return _cachedGates!;
     }
 
     // Fetch fresh gates
-    print('🔄 Fetching fresh gate data...');
     final gates = await fetchCampusGates(
       campusCenter: MapBoundary.bicolUniversityCenter,
       radiusMeters: 600,
@@ -228,7 +205,6 @@ class RoutingService {
   }) async {
     // Always use predefined gates for accuracy
     // OSM data may not have correct campus gate information
-    print('✅ Using 7 predefined campus gates');
     return _createDefaultGates(campusCenter);
   }
 

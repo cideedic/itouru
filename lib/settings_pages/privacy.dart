@@ -108,7 +108,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
                 'MMMM d, y',
               ).format(selectedDate!);
             } catch (e) {
-              print('Error parsing date: $e');
+              // Invalid date format
             }
           }
 
@@ -124,7 +124,6 @@ class _PrivacyPageState extends State<PrivacyPage> {
         });
       }
     } catch (e) {
-      print('Error loading user data: $e');
       setState(() {
         isLoading = false;
       });
@@ -167,7 +166,6 @@ class _PrivacyPageState extends State<PrivacyPage> {
         _showSnackBar('Profile updated successfully', isError: false);
       }
     } catch (e) {
-      print('Error saving changes: $e');
       setState(() {
         isSaving = false;
       });
@@ -334,7 +332,6 @@ class _PrivacyPageState extends State<PrivacyPage> {
         );
       }
     } catch (e) {
-      print('Error sending password reset email: $e');
       if (mounted) {
         _showSnackBar('Failed to send password reset email', isError: true);
       }
