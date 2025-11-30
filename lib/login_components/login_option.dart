@@ -3,6 +3,7 @@ import 'package:itouru/login_components/login.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:itouru/main_pages/home.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:itouru/login_components/terms_and_privacy.dart';
 
 class LoginOptionPage extends StatefulWidget {
   const LoginOptionPage({super.key});
@@ -15,7 +16,6 @@ class _LoginOptionPageState extends State<LoginOptionPage> {
   bool _isGuestLoading = false;
 
   Future<void> _handleUniversityLogin() async {
-    // No loading state needed here!
     try {
       Navigator.push(
         context,
@@ -56,11 +56,17 @@ class _LoginOptionPageState extends State<LoginOptionPage> {
   }
 
   void _showTerms() {
-    // Open Terms of Service
+    showDialog(
+      context: context,
+      builder: (context) => const TermsOfServiceModal(),
+    );
   }
 
   void _showPrivacy() {
-    // Open Privacy Concerns
+    showDialog(
+      context: context,
+      builder: (context) => const PrivacyPolicyModal(),
+    );
   }
 
   @override
@@ -68,10 +74,8 @@ class _LoginOptionPageState extends State<LoginOptionPage> {
     return Scaffold(
       body: Stack(
         children: [
-          // Background with 50/50 split
           Column(
             children: [
-              // Blue top half
               Expanded(
                 child: Container(
                   decoration: const BoxDecoration(
@@ -91,12 +95,11 @@ class _LoginOptionPageState extends State<LoginOptionPage> {
                   ),
                 ),
               ),
-              // White bottom half
               Expanded(child: Container(color: const Color(0xFFF5F5F5))),
             ],
           ),
 
-          // Content - Centered with max width constraint
+          // Content
           SafeArea(
             child: Center(
               child: Container(
@@ -154,7 +157,7 @@ class _LoginOptionPageState extends State<LoginOptionPage> {
 
                               const SizedBox(height: 40),
 
-                              // Login Card (centered over the split)
+                              // Login Card
                               Container(
                                 constraints: const BoxConstraints(
                                   maxWidth: 400,
@@ -184,7 +187,7 @@ class _LoginOptionPageState extends State<LoginOptionPage> {
 
                                     const SizedBox(height: 24),
 
-                                    // University Account Button (never shows loading)
+                                    // University Account Button
                                     OutlinedButton(
                                       onPressed: _handleUniversityLogin,
                                       style: OutlinedButton.styleFrom(
@@ -220,7 +223,6 @@ class _LoginOptionPageState extends State<LoginOptionPage> {
 
                                     const SizedBox(height: 16),
 
-                                    // Divider with "or"
                                     Row(
                                       children: const [
                                         Expanded(
@@ -246,7 +248,7 @@ class _LoginOptionPageState extends State<LoginOptionPage> {
 
                                     const SizedBox(height: 16),
 
-                                    // Guest Button (shows loading spinner only here)
+                                    // Guest Button
                                     ElevatedButton(
                                       onPressed: _isGuestLoading
                                           ? null

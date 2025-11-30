@@ -49,7 +49,7 @@ class ExploreSection extends StatelessWidget {
                 ),
               ),
 
-              // Title - ANIMATED
+              // Title
               FadeTransition(
                 opacity: fadeAnimation ?? AlwaysStoppedAnimation(0.0),
                 child: SlideTransition(
@@ -90,7 +90,7 @@ class ExploreSection extends StatelessWidget {
 
           const SizedBox(height: 40),
 
-          // Enhanced content card
+          // Content card
           FadeTransition(
             opacity: fadeAnimation ?? AlwaysStoppedAnimation(0.0),
             child: Container(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/login_components/login_option.dart';
 import 'package:itouru/login_components/reset_password.dart';
 import 'package:itouru/login_components/new_registration.dart';
@@ -11,12 +12,10 @@ import 'package:itouru/page_components/connectivity_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🆕 Check internet connection before initializing Supabase
   final connectivityService = ConnectivityService();
   final hasInternet = await connectivityService.hasConnection();
 
   if (!hasInternet) {
-    // No internet - show error screen
     runApp(const NoInternetApp());
     return;
   }
@@ -26,6 +25,10 @@ void main() async {
       url: 'https://mgkmorkhbabqeejotfxl.supabase.co',
       anonKey:
           'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1na21vcmtoYmFicWVlam90ZnhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1Mzg1NDcsImV4cCI6MjA3NjExNDU0N30.LDm9z2hTW9wL9SxBAOdMZU2JnYcN47G-n_7xhjTABcs',
+      authOptions: const FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.implicit, // Changed from PKCE to implicit
+        autoRefreshToken: true,
+      ),
     );
 
     runApp(const MyApp());
@@ -34,7 +37,6 @@ void main() async {
   }
 }
 
-// No Internet App - shown when app starts without internet
 class NoInternetApp extends StatelessWidget {
   const NoInternetApp({super.key});
 
@@ -77,11 +79,9 @@ class NoInternetApp extends StatelessWidget {
                 const SizedBox(height: 32),
                 ElevatedButton.icon(
                   onPressed: () async {
-                    // Check connection and restart
                     final hasInternet = await ConnectivityService()
                         .hasConnection();
                     if (hasInternet) {
-                      // Restart the app
                       main();
                     }
                   },
@@ -120,27 +120,31 @@ class _MyAppState extends State<MyApp> {
   bool _isCheckingSession = true;
   Widget _initialPage = const LoginOptionPage();
 
-  // 🆕 Connectivity monitoring
   final ConnectivityService _connectivityService = ConnectivityService();
   bool _hasShownNoInternetDialog = false;
 
   @override
   void initState() {
     super.initState();
-    _initConnectivityMonitoring(); // 🆕 Initialize connectivity first
+    _initConnectivityMonitoring();
     _checkSession();
     _initDeepLinks();
     _initAuthListener();
   }
 
-  // 🆕 Initialize connectivity monitoring
   void _initConnectivityMonitoring() {
     _connectivityService.initialize();
+    bool isFirstConnectivityCheck = true;
+
     _connectivityService.onConnectivityChanged = (isConnected) {
+      if (isFirstConnectivityCheck) {
+        isFirstConnectivityCheck = false;
+        return;
+      }
+
       if (!isConnected && !_hasShownNoInternetDialog) {
         _hasShownNoInternetDialog = true;
 
-        // Use a slight delay to ensure context is ready
         Future.delayed(const Duration(milliseconds: 300), () {
           if (_navigatorKey.currentContext != null) {
             ConnectivityService.showNoInternetDialog(
@@ -149,9 +153,10 @@ class _MyAppState extends State<MyApp> {
                 _hasShownNoInternetDialog = false;
               },
             );
-          } else {}
+          }
         });
-      } else if (isConnected) {
+      } else if (isConnected && _hasShownNoInternetDialog) {
+        // Only show if dialog was shown before
         _hasShownNoInternetDialog = false;
 
         Future.delayed(const Duration(milliseconds: 300), () {
@@ -177,7 +182,6 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _checkSession() async {
-    // 🆕 Check internet before checking session
     final hasInternet = await _connectivityService.hasConnection();
 
     if (!hasInternet) {
@@ -192,7 +196,6 @@ class _MyAppState extends State<MyApp> {
       final session = Supabase.instance.client.auth.currentSession;
 
       if (session != null) {
-        // Check if current session is anonymous
         final isAnonymous =
             session.user.isAnonymous ||
             session.user.appMetadata['provider'] == 'anonymous' ||
@@ -200,13 +203,11 @@ class _MyAppState extends State<MyApp> {
             session.user.email!.isEmpty;
 
         if (isAnonymous) {
-          // Guest user - go directly to Home
           setState(() {
             _initialPage = const Home();
             _isCheckingSession = false;
           });
         } else {
-          // Check if email domain is @bicol-u.edu.ph
           if (!session.user.email!.endsWith('@bicol-u.edu.ph')) {
             await Supabase.instance.client.auth.signOut();
             setState(() {
@@ -216,7 +217,6 @@ class _MyAppState extends State<MyApp> {
             return;
           }
 
-          // Non-anonymous user with valid domain - check if registered
           try {
             final existingUser = await Supabase.instance.client
                 .from('Users')
@@ -225,20 +225,20 @@ class _MyAppState extends State<MyApp> {
                 .maybeSingle();
 
             if (existingUser != null) {
-              // User is registered - go to Home
+              // User is registered, go to Home
               setState(() {
                 _initialPage = const Home();
                 _isCheckingSession = false;
               });
             } else {
-              // User not registered - go to registration page
+              // User NOT registered - sign them out and go to login
+              await Supabase.instance.client.auth.signOut();
               setState(() {
-                _initialPage = NewUserPanels(email: session.user.email!);
+                _initialPage = const LoginOptionPage();
                 _isCheckingSession = false;
               });
             }
           } catch (e) {
-            // Error checking registration - sign out and go to login
             await Supabase.instance.client.auth.signOut();
             setState(() {
               _initialPage = const LoginOptionPage();
@@ -247,14 +247,12 @@ class _MyAppState extends State<MyApp> {
           }
         }
       } else {
-        // No session - go to login
         setState(() {
           _initialPage = const LoginOptionPage();
           _isCheckingSession = false;
         });
       }
     } catch (e) {
-      // Any error during session check - go to login
       setState(() {
         _initialPage = const LoginOptionPage();
         _isCheckingSession = false;
@@ -263,17 +261,31 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _initAuthListener() {
-    // Listen to auth state changes globally
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
       data,
     ) async {
       final event = data.event;
       final session = data.session;
 
+      // Handle password recovery event
+      if (event == AuthChangeEvent.passwordRecovery) {
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        scheduleMicrotask(() {
+          if (_navigatorKey.currentState != null) {
+            _navigatorKey.currentState!.push(
+              MaterialPageRoute(
+                builder: (context) => const ResetPasswordPage(),
+              ),
+            );
+          }
+        });
+        return;
+      }
+
       if (event == AuthChangeEvent.signedIn && session != null) {
         final user = session.user;
 
-        // Check if user is anonymous - check multiple ways
         final isAnonymous =
             user.isAnonymous ||
             user.appMetadata['provider'] == 'anonymous' ||
@@ -281,7 +293,6 @@ class _MyAppState extends State<MyApp> {
             user.email!.isEmpty;
 
         if (isAnonymous) {
-          // Allow guest users to stay logged in
           scheduleMicrotask(() {
             if (_navigatorKey.currentState != null) {
               _navigatorKey.currentState!.pushAndRemoveUntil(
@@ -293,7 +304,6 @@ class _MyAppState extends State<MyApp> {
           return;
         }
 
-        // Check if email domain is @bicol-u.edu.ph
         if (!user.email!.endsWith('@bicol-u.edu.ph')) {
           await Supabase.instance.client.auth.signOut();
 
@@ -320,7 +330,6 @@ class _MyAppState extends State<MyApp> {
           return;
         }
 
-        // For non-anonymous users with valid domain, check if registered
         try {
           final existingUser = await Supabase.instance.client
               .from('Users')
@@ -329,7 +338,6 @@ class _MyAppState extends State<MyApp> {
               .maybeSingle();
 
           if (existingUser == null) {
-            // User not registered, navigate to registration page
             scheduleMicrotask(() {
               if (_navigatorKey.currentState != null) {
                 _navigatorKey.currentState!.pushAndRemoveUntil(
@@ -341,7 +349,6 @@ class _MyAppState extends State<MyApp> {
               }
             });
           } else {
-            // User is registered, navigate to home
             scheduleMicrotask(() {
               if (_navigatorKey.currentState != null) {
                 _navigatorKey.currentState!.pushAndRemoveUntil(
@@ -385,57 +392,112 @@ class _MyAppState extends State<MyApp> {
         _handleDeepLink(uri);
       }
     } catch (e) {
-      // Initial link not available or error getting it - ignore
+      // Handle initial link error if necessary
     }
 
-    _linkSubscription = _appLinks.uriLinkStream.listen(
-      (uri) {
-        _handleDeepLink(uri);
-      },
-      onError: (err) {
-        // Error in deep link stream - ignore and continue
-      },
-    );
+    _linkSubscription = _appLinks.uriLinkStream.listen((uri) {
+      _handleDeepLink(uri);
+    }, onError: (err) {});
   }
 
   Future<void> _handleDeepLink(Uri uri) async {
+    // Password reset links
     if (uri.host == 'reset-password' ||
         uri.path.contains('reset-password') ||
         uri.fragment.contains('type=recovery')) {
-      scheduleMicrotask(() {
-        if (_navigatorKey.currentState != null) {
-          _navigatorKey.currentState!.push(
-            MaterialPageRoute(builder: (context) => const ResetPasswordPage()),
-          );
+      // Check for errors in the URL
+      if (uri.queryParameters.containsKey('error') ||
+          uri.fragment.contains('error=')) {
+        final errorCode =
+            uri.queryParameters['error_code'] ??
+            Uri.splitQueryString(uri.fragment)['error_code'] ??
+            '';
+        final errorDesc =
+            uri.queryParameters['error_description'] ??
+            Uri.splitQueryString(uri.fragment)['error_description'] ??
+            'Link is invalid or expired';
+
+        scheduleMicrotask(() {
+          if (_navigatorKey.currentContext != null) {
+            _showPasswordResetErrorDialog(
+              _navigatorKey.currentContext!,
+              errorCode,
+              errorDesc,
+            );
+          }
+        });
+        return;
+      }
+
+      // Wait for auth event
+      bool passwordRecoveryFired = false;
+
+      final tempSub = Supabase.instance.client.auth.onAuthStateChange.listen((
+        data,
+      ) {
+        if (data.event == AuthChangeEvent.passwordRecovery) {
+          passwordRecoveryFired = true;
         }
       });
-    } else if (uri.host == 'login-callback' ||
-        uri.fragment.contains('access_token')) {
-      // Parse the OAuth tokens from the deep link fragment
-      if (uri.fragment.isNotEmpty) {
-        try {
-          // Supabase will automatically handle the OAuth callback
-          // through the auth state listener
-          // Add a timeout in case auth listener doesn't fire
-          Future.delayed(Duration(seconds: 10), () {
-            final session = Supabase.instance.client.auth.currentSession;
-            if (session == null) {
-              scheduleMicrotask(() {
-                if (_navigatorKey.currentContext != null) {
-                  ScaffoldMessenger.of(
-                    _navigatorKey.currentContext!,
-                  ).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Authentication timed out. Please try again.',
-                      ),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                }
-              });
+
+      // Wait up to 5 seconds
+      for (int i = 0; i < 10; i++) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (passwordRecoveryFired) break;
+      }
+
+      tempSub.cancel();
+
+      if (passwordRecoveryFired) {
+      } else {
+        final session = Supabase.instance.client.auth.currentSession;
+        if (session != null) {
+          scheduleMicrotask(() {
+            if (_navigatorKey.currentState != null) {
+              _navigatorKey.currentState!.push(
+                MaterialPageRoute(
+                  builder: (context) => const ResetPasswordPage(),
+                ),
+              );
             }
           });
+        } else {
+          scheduleMicrotask(() {
+            if (_navigatorKey.currentContext != null) {
+              _showPasswordResetErrorDialog(
+                _navigatorKey.currentContext!,
+                'expired',
+                'The password reset link has expired or has already been used.',
+              );
+            }
+          });
+        }
+      }
+    }
+    // OAuth callback links
+    else if (uri.host == 'login-callback' ||
+        uri.fragment.contains('access_token')) {
+      if (uri.fragment.isNotEmpty) {
+        try {
+          await Future.delayed(const Duration(seconds: 10));
+          final session = Supabase.instance.client.auth.currentSession;
+
+          if (session == null) {
+            scheduleMicrotask(() {
+              if (_navigatorKey.currentContext != null) {
+                ScaffoldMessenger.of(
+                  _navigatorKey.currentContext!,
+                ).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Authentication timed out. Please try again.',
+                    ),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+            });
+          }
         } catch (e) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (_navigatorKey.currentContext != null) {
@@ -452,11 +514,86 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  void _showPasswordResetErrorDialog(
+    BuildContext context,
+    String errorCode,
+    String errorDescription,
+  ) {
+    String title = 'Link Expired';
+    String message = errorDescription.replaceAll('+', ' ');
+    IconData icon = Icons.access_time_filled;
+    Color iconColor = Colors.orange;
+
+    // Customize message based on error code
+    if (errorCode.contains('expired') || errorDescription.contains('expired')) {
+      title = 'Link Expired';
+      message =
+          'This password reset link has expired. Password reset links expire after 1 hour.\n\nPlease request a new link.';
+      icon = Icons.access_time_filled;
+      iconColor = Colors.orange;
+    } else if (errorCode.contains('code') ||
+        errorDescription.contains('code')) {
+      title = 'Link Already Used';
+      message =
+          'This password reset link has already been used. For security reasons, each link can only be used once.\n\nPlease request a new password reset link.';
+      icon = Icons.lock_clock;
+      iconColor = Colors.orange;
+    } else {
+      title = 'Invalid Link';
+      message =
+          'This password reset link is invalid or cannot be processed.\n\n$message';
+      icon = Icons.error_outline;
+      iconColor = Colors.red;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          message,
+          style: GoogleFonts.poppins(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: Text(
+              'OK',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.orange,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _linkSubscription?.cancel();
     _authSubscription?.cancel();
-    _connectivityService.dispose(); // 🆕 Dispose connectivity service
+    _connectivityService.dispose();
     super.dispose();
   }
 

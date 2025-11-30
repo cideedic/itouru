@@ -5,6 +5,9 @@ import 'package:itouru/page_components/header.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:itouru/page_components/bottom_nav_bar.dart';
+import 'terms_of_service.dart';
+import 'privacy_policy.dart';
+import 'package:itouru/page_components/contact_support.dart';
 
 class PrivacyPage extends StatefulWidget {
   const PrivacyPage({super.key});
@@ -30,17 +33,14 @@ class _PrivacyPageState extends State<PrivacyPage> {
   // Controllers for read-only fields
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _nationalityController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController(
-    text: 'BuAccount123!',
-  );
 
   String? selectedSex;
   DateTime? selectedDate;
   String userEmail = "";
+  String college = "";
   bool _showEmail = false;
-  bool _showPassword = false;
 
-  // Sex options (Male and Female only)
+  // Sex options
   static const List<String> sexs = ['Male', 'Female'];
 
   @override
@@ -63,8 +63,21 @@ class _PrivacyPageState extends State<PrivacyPage> {
     _contactController.dispose();
     _emailController.dispose();
     _nationalityController.dispose();
-    _passwordController.dispose();
     super.dispose();
+  }
+
+  void _navigateToTermsOfService() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TermsOfServicePage()),
+    );
+  }
+
+  void _navigateToPrivacyPolicy() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const PrivacyPolicyPage()),
+    );
   }
 
   Future<void> _loadUserData() async {
@@ -85,7 +98,8 @@ class _PrivacyPageState extends State<PrivacyPage> {
             nationality,
             sex,
             phone_number,
-            email
+            email,
+            college
           ''')
           .eq('email', userEmail)
           .maybeSingle();
@@ -100,7 +114,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
           _suffixController.text = response['suffix']?.toString() ?? "";
           _contactController.text = response['phone_number']?.toString() ?? "";
 
-          // Birth date (now editable)
+          // Birth date
           if (response['birthday'] != null) {
             try {
               selectedDate = DateTime.parse(response['birthday'].toString());
@@ -112,13 +126,14 @@ class _PrivacyPageState extends State<PrivacyPage> {
             }
           }
 
-          // Sex (editable)
+          // Sex
           selectedSex = response['sex']?.toString();
 
           // Read-only fields
           _emailController.text = response['email']?.toString() ?? "";
           _nationalityController.text =
               response['nationality']?.toString() ?? "";
+          college = response['college']?.toString() ?? "N/A";
 
           isLoading = false;
         });
@@ -322,12 +337,15 @@ class _PrivacyPageState extends State<PrivacyPage> {
 
   Future<void> _sendPasswordResetEmail() async {
     try {
-      // Send password reset email
-      await Supabase.instance.client.auth.resetPasswordForEmail(userEmail);
+      // Send password reset email with proper deep link redirect
+      await Supabase.instance.client.auth.resetPasswordForEmail(
+        userEmail,
+        redirectTo: 'itouru://reset-password',
+      );
 
       if (mounted) {
         _showSnackBar(
-          'Password reset link has been sent to your Gmail',
+          'Password reset link has been sent to your email',
           isError: false,
         );
       }
@@ -425,6 +443,109 @@ class _PrivacyPageState extends State<PrivacyPage> {
                         'Strict measures prevent unauthorized access',
                       ),
                       const SizedBox(height: 16),
+                      // Legal Documents Section
+                      Text(
+                        'LEGAL DOCUMENTS',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
+                          color: Colors.black54,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Terms of Service Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context); // Close modal first
+                            _navigateToTermsOfService();
+                          },
+                          icon: Icon(
+                            Icons.description,
+                            size: 16,
+                            color: Colors.blue,
+                          ),
+                          label: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Terms of Service',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                Icons.arrow_forward_ios,
+                                size: 14,
+                                color: Colors.blue,
+                              ),
+                            ],
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: Colors.blue),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Privacy Policy Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context); // Close modal first
+                            _navigateToPrivacyPolicy();
+                          },
+                          icon: Icon(
+                            Icons.privacy_tip,
+                            size: 16,
+                            color: Colors.green,
+                          ),
+                          label: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Privacy Policy',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                Icons.arrow_forward_ios,
+                                size: 14,
+                                color: Colors.green,
+                              ),
+                            ],
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: Colors.green),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
 
                       // User Rights & Controls
                       _buildSectionTitle('Your Rights & Controls'),
@@ -463,6 +584,8 @@ class _PrivacyPageState extends State<PrivacyPage> {
                           ],
                         ),
                       ),
+
+                      const SizedBox(height: 20),
                     ],
                   ),
                 ),
@@ -622,7 +745,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Middle Name and Suffix (70-30 row)
+                          // Middle Name and Suffix
                           Row(
                             children: [
                               Expanded(
@@ -663,7 +786,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Birth Date (Editable)
+                          // Birth Date
                           _buildDateField(),
                           const SizedBox(height: 16),
 
@@ -737,8 +860,14 @@ class _PrivacyPageState extends State<PrivacyPage> {
                             ),
                           ),
                           const SizedBox(height: 24),
-
-                          // Nationality (Read-only)
+                          _buildTextField(
+                            label: 'College',
+                            controller: TextEditingController(text: college),
+                            icon: Icons.school,
+                            enabled: false,
+                          ),
+                          const SizedBox(height: 24),
+                          // Nationality
                           _buildTextField(
                             label: 'Nationality',
                             controller: _nationalityController,
@@ -746,12 +875,53 @@ class _PrivacyPageState extends State<PrivacyPage> {
                             enabled: false,
                           ),
                           const SizedBox(height: 16),
-                          // Email (Read-only with masked display)
+                          // Email
                           _buildMaskedEmailField(),
                           const SizedBox(height: 16),
 
-                          // Default Password (Read-only with masked display)
-                          _buildMaskedPasswordField(),
+                          // Password Management Section
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.orange.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.lock_outline,
+                                      color: Color(0xFFFF8C00),
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Password Security',
+                                      style: GoogleFonts.montserrat(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Your password is securely encrypted and cannot be viewed. For security reasons, we recommend changing your password regularly.',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    color: Colors.grey[700],
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                           const SizedBox(height: 12),
 
                           // Change Password Button
@@ -782,6 +952,15 @@ class _PrivacyPageState extends State<PrivacyPage> {
                                 ),
                               ),
                             ),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Use the reusable Contact Support Card
+                          ContactSupportCard(
+                            title: 'Need Help?',
+                            subtitle:
+                                'Our support team is here to assist you with any account or privacy concerns',
                           ),
 
                           // Action Buttons
@@ -859,6 +1038,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
                               ],
                             ),
                           ],
+                          const SizedBox(height: 24),
                         ],
                       ),
                     ),
@@ -1040,7 +1220,6 @@ class _PrivacyPageState extends State<PrivacyPage> {
             ),
           ),
 
-          // Styling improvements
           dropdownColor: Colors.white,
           borderRadius: BorderRadius.circular(12),
           elevation: 8,
@@ -1106,66 +1285,6 @@ class _PrivacyPageState extends State<PrivacyPage> {
               onPressed: () {
                 setState(() {
                   _showEmail = !_showEmail;
-                });
-              },
-            ),
-            filled: true,
-            fillColor: Colors.grey[100],
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[200]!),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMaskedPasswordField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Default Password',
-          style: GoogleFonts.poppins(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[700],
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: _passwordController,
-          readOnly: true,
-          obscureText: !_showPassword,
-          style: GoogleFonts.poppins(
-            fontSize: 14,
-            color: Colors.grey[600],
-            letterSpacing: _showPassword ? 0 : 2,
-          ),
-          decoration: InputDecoration(
-            prefixIcon: Icon(Icons.lock, color: Colors.grey[400], size: 20),
-            suffixIcon: IconButton(
-              icon: Icon(
-                _showPassword ? Icons.visibility : Icons.visibility_off,
-                size: 20,
-                color: Color(0xFFFF8C00),
-              ),
-              onPressed: () {
-                setState(() {
-                  _showPassword = !_showPassword;
                 });
               },
             ),

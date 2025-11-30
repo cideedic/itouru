@@ -1,4 +1,3 @@
-// about.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/info_card.dart';
@@ -36,7 +35,7 @@ class AboutTab extends StatelessWidget {
           SizedBox(height: 16),
         ],
 
-        // Learning Outcomes (previously Goals)
+        // Learning Outcomes
         if (_isNotEmpty(learningOutcomes)) ...[
           _buildSectionCard(
             'Learning Outcomes',
@@ -109,7 +108,7 @@ class AboutTab extends StatelessWidget {
   }
 
   Widget _buildTextContent(String content) {
-    // Check if content has numbered items (e.g., "1. Item\n2. Item")
+    // Check if content has numbered items
     if (content.contains(RegExp(r'^\d+\.', multiLine: true))) {
       return _buildNumberedList(content);
     }

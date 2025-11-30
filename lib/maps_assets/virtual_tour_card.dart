@@ -1,4 +1,3 @@
-// virtual_tour_card.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../maps_assets/virtual_tour_manager.dart';
@@ -337,7 +336,7 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
                               Text(
                                 widget.stop.buildingName,
                                 style: GoogleFonts.poppins(
-                                  fontSize: 18,
+                                  fontSize: 14,
                                   color: Colors.black87,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -347,7 +346,7 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
                                 Text(
                                   widget.stop.buildingNickname,
                                   style: GoogleFonts.poppins(
-                                    fontSize: 14,
+                                    fontSize: 11,
                                     color: Colors.grey[600],
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -472,45 +471,6 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
                           ],
                         ],
                       ),
-
-                    // Notes section
-                    if (widget.stop.notes != null &&
-                        widget.stop.notes!.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.blue[50],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.blue[200]!,
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              Icons.info_outline,
-                              color: Colors.blue[700],
-                              size: 20,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                widget.stop.notes!,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  color: Colors.blue[900],
-                                  fontWeight: FontWeight.w500,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
 
                     const SizedBox(height: 20),
 

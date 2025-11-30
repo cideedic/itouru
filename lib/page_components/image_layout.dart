@@ -1,4 +1,3 @@
-// image_layout.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -6,14 +5,23 @@ class ImageLayout extends StatelessWidget {
   final List<String> imageUrls;
   final PageController? pageController;
   final bool isForMap;
+  final bool showGalleryText;
+  final Color? buttonColor;
 
-  const ImageLayout({super.key, required this.imageUrls, this.pageController})
-    : isForMap = false;
+  const ImageLayout({
+    super.key,
+    required this.imageUrls,
+    this.pageController,
+    this.showGalleryText = true,
+    this.buttonColor,
+  }) : isForMap = false;
 
   const ImageLayout.forMap({
     super.key,
     required this.imageUrls,
     this.pageController,
+    this.showGalleryText = true,
+    this.buttonColor,
   }) : isForMap = true;
 
   @override
@@ -24,34 +32,74 @@ class ImageLayout extends StatelessWidget {
       return _buildMapImageCarousel(context);
     }
 
+    // Get the effective button color
+    final effectiveButtonColor = buttonColor ?? const Color(0xFF1A31C8);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'GALLERY',
-                style: GoogleFonts.montserrat(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF1A31C8),
-                  letterSpacing: 1.2,
+          // Only show header if showGalleryText is true
+          if (showGalleryText)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'GALLERY',
+                  style: GoogleFonts.montserrat(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: effectiveButtonColor,
+                    letterSpacing: 1.2,
+                  ),
                 ),
-              ),
-              if (imageUrls.length > 1)
-                TextButton(
+                if (imageUrls.length > 1)
+                  TextButton(
+                    onPressed: () => _showAllImagesDialog(context),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      backgroundColor: effectiveButtonColor.withValues(
+                        alpha: 0.1,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: Text(
+                      'View All',
+                      style: GoogleFonts.montserrat(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: effectiveButtonColor,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+
+          // Add spacing only if header was shown
+          if (showGalleryText) const SizedBox(height: 16),
+
+          // Show "View All" button above images if gallery text is hidden
+          if (!showGalleryText && imageUrls.length > 1)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
                   onPressed: () => _showAllImagesDialog(context),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 6,
                     ),
-                    backgroundColor: const Color(
-                      0xFF1A31C8,
-                    ).withValues(alpha: 0.1),
+                    backgroundColor: effectiveButtonColor.withValues(
+                      alpha: 0.1,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -61,13 +109,13 @@ class ImageLayout extends StatelessWidget {
                     style: GoogleFonts.montserrat(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF1A31C8),
+                      color: effectiveButtonColor,
                     ),
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: 16),
+              ),
+            ),
+
           imageUrls.length == 1
               ? _buildSingleImage(context)
               : _buildImageCarousel(context),
@@ -134,7 +182,7 @@ class ImageLayout extends StatelessWidget {
                             ? loadingProgress.cumulativeBytesLoaded /
                                   loadingProgress.expectedTotalBytes!
                             : null,
-                        color: const Color(0xFF1A31C8),
+                        color: buttonColor ?? const Color(0xFF1A31C8),
                       ),
                     ),
                   );
@@ -172,6 +220,8 @@ class ImageLayout extends StatelessWidget {
   }
 
   Widget _buildPageIndicator(int count, PageController controller) {
+    final effectiveButtonColor = buttonColor ?? const Color(0xFF1A31C8);
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(
@@ -194,7 +244,7 @@ class ImageLayout extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: Color.lerp(
                   Colors.grey[400],
-                  const Color(0xFF1A31C8),
+                  effectiveButtonColor,
                   selectedness,
                 ),
               ),
@@ -239,7 +289,7 @@ class ImageLayout extends StatelessWidget {
                             ? loadingProgress.cumulativeBytesLoaded /
                                   loadingProgress.expectedTotalBytes!
                             : null,
-                        color: const Color(0xFF1A31C8),
+                        color: buttonColor ?? const Color(0xFF1A31C8),
                       ),
                     ),
                   );
@@ -368,7 +418,7 @@ class ImageLayout extends StatelessWidget {
                             ? loadingProgress.cumulativeBytesLoaded /
                                   loadingProgress.expectedTotalBytes!
                             : null,
-                        color: const Color(0xFF1A31C8),
+                        color: buttonColor ?? const Color(0xFF1A31C8),
                       ),
                     ),
                   );
@@ -408,15 +458,19 @@ class ImageLayout extends StatelessWidget {
   void _showImageDialog(BuildContext context, int initialIndex) {
     showDialog(
       context: context,
-      builder: (context) =>
-          ImageCarouselDialog(imageUrls: imageUrls, initialIndex: initialIndex),
+      builder: (context) => ImageCarouselDialog(
+        imageUrls: imageUrls,
+        initialIndex: initialIndex,
+        accentColor: buttonColor,
+      ),
     );
   }
 
   void _showAllImagesDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => ImageGridDialog(imageUrls: imageUrls),
+      builder: (context) =>
+          ImageGridDialog(imageUrls: imageUrls, accentColor: buttonColor),
     );
   }
 }
@@ -424,11 +478,14 @@ class ImageLayout extends StatelessWidget {
 // Image Grid Dialog Widget
 class ImageGridDialog extends StatelessWidget {
   final List<String> imageUrls;
+  final Color? accentColor;
 
-  const ImageGridDialog({super.key, required this.imageUrls});
+  const ImageGridDialog({super.key, required this.imageUrls, this.accentColor});
 
   @override
   Widget build(BuildContext context) {
+    final effectiveColor = accentColor ?? const Color(0xFF1A31C8);
+
     return Dialog(
       backgroundColor: Colors.white,
       insetPadding: const EdgeInsets.all(20),
@@ -438,7 +495,7 @@ class ImageGridDialog extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF1A31C8),
+              color: effectiveColor,
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(12),
                 topRight: Radius.circular(12),
@@ -484,6 +541,7 @@ class ImageGridDialog extends StatelessWidget {
                       builder: (context) => ImageCarouselDialog(
                         imageUrls: imageUrls,
                         initialIndex: index,
+                        accentColor: accentColor,
                       ),
                     );
                   },
@@ -516,7 +574,7 @@ class ImageGridDialog extends StatelessWidget {
                                           loadingProgress.expectedTotalBytes!
                                     : null,
                                 strokeWidth: 2,
-                                color: const Color(0xFF1A31C8),
+                                color: effectiveColor,
                               ),
                             ),
                           );
@@ -550,11 +608,13 @@ class ImageGridDialog extends StatelessWidget {
 class ImageCarouselDialog extends StatefulWidget {
   final List<String> imageUrls;
   final int initialIndex;
+  final Color? accentColor;
 
   const ImageCarouselDialog({
     super.key,
     required this.imageUrls,
     required this.initialIndex,
+    this.accentColor,
   });
 
   @override
@@ -598,6 +658,8 @@ class _ImageCarouselDialogState extends State<ImageCarouselDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveColor = widget.accentColor ?? const Color(0xFF1A31C8);
+
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(10),
@@ -631,7 +693,7 @@ class _ImageCarouselDialogState extends State<ImageCarouselDialog> {
                                   ? loadingProgress.cumulativeBytesLoaded /
                                         loadingProgress.expectedTotalBytes!
                                   : null,
-                              color: const Color(0xFF1A31C8),
+                              color: effectiveColor,
                             ),
                           ),
                         );

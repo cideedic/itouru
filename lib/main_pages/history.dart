@@ -238,7 +238,7 @@ class HistoryTimeline {
   }
 }
 
-// Enhanced Animated Timeline Sheet
+// Timeline Sheet
 class _AnimatedTimelineSheet extends StatefulWidget {
   final List<Map<String, dynamic>> timelineData;
 

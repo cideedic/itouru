@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/login_components/login.dart';
 
 class GuestRestrictionModal extends StatelessWidget {
-  final String feature; // "Profile" or "Feedback"
+  final String feature;
 
   const GuestRestrictionModal({super.key, required this.feature});
 
@@ -24,10 +24,14 @@ class GuestRestrictionModal extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.1),
+                color: Color(0xFFFF8C00).withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.lock_outline, size: 48, color: Colors.orange),
+              child: Icon(
+                Icons.lock_outline,
+                size: 48,
+                color: Color(0xFFFF8C00),
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -91,7 +95,7 @@ class GuestRestrictionModal extends StatelessWidget {
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
+                      backgroundColor: Color(0xFFFF8C00),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

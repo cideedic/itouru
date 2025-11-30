@@ -231,7 +231,7 @@ class _FeedbackSectionState extends State<FeedbackSection> {
           Stack(
             alignment: Alignment.center,
             children: [
-              // Background Icon with glow effect
+              // Background Icon
               Container(
                 width: 200,
                 height: 200,
@@ -254,7 +254,7 @@ class _FeedbackSectionState extends State<FeedbackSection> {
                 ),
               ),
 
-              // Title - ANIMATED
+              // Title
               FadeTransition(
                 opacity: widget.fadeAnimation ?? AlwaysStoppedAnimation(0.0),
                 child: SlideTransition(

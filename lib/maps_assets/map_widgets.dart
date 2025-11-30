@@ -1,4 +1,3 @@
-// lib/maps_assets/map_widgets.dart
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,13 +6,8 @@ import 'map_building.dart';
 import 'building_matcher.dart';
 
 class MapWidgets {
-  static const Color _textColor = Color.fromARGB(
-    136,
-    55,
-    107,
-    132,
-  ); // Darker blue for text
-  static const Color _iconColor = Color(0xFF1976D2); // Blue for icons
+  static const Color _textColor = Color.fromARGB(136, 55, 107, 132);
+  static const Color _iconColor = Color(0xFF1976D2);
   static const String _hasSeenGuideKey = 'has_seen_map_guide';
 
   // Build legend item
@@ -39,14 +33,12 @@ class MapWidgets {
     );
   }
 
-  // 🆕 NEW: Build location permission toggle button
   static Widget buildLocationToggle({
     required VoidCallback? onPermissionChanged,
   }) {
     return _LocationToggleButton(onPermissionChanged: onPermissionChanged);
   }
 
-  // 🆕 NEW: Build info/guide button
   static Widget buildInfoButton({required VoidCallback onPressed}) {
     return Container(
       width: 48,
@@ -71,19 +63,19 @@ class MapWidgets {
     );
   }
 
-  // 🆕 NEW: Check if user has seen the guide
+  // Check if user has seen the guide
   static Future<bool> hasSeenGuide() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_hasSeenGuideKey) ?? false;
   }
 
-  // 🆕 NEW: Mark guide as seen
+  //  Mark guide as seen
   static Future<void> markGuideAsSeen() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_hasSeenGuideKey, true);
   }
 
-  // 🆕 NEW: Show map guide modal (styled like GuestAccessModal)
+  // Show map guide modal
   static Future<void> showMapGuideModal(
     BuildContext context, {
     bool isFirstTime = false,
@@ -181,8 +173,13 @@ class MapWidgets {
                         title: 'Buildings',
                         description: 'Academic structures',
                       ),
-
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
+                      _buildLegendItemWithBorder(
+                        icon: Icons.door_sliding,
+                        iconColor: Colors.green.shade500,
+                        title: 'Campus Gates',
+                        description: 'Entry and exit points to the campus',
+                      ),
 
                       // Features
                       _buildSectionTitle('Features'),
@@ -271,7 +268,7 @@ class MapWidgets {
     );
   }
 
-  // Helper: Build section title
+  //  Build section title
   static Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -286,7 +283,7 @@ class MapWidgets {
     );
   }
 
-  // Helper: Build info text
+  // Build info text
   static Widget _buildInfoText(String text) {
     return Text(
       text,
@@ -417,6 +414,86 @@ class MapWidgets {
     );
   }
 
+  static Widget _buildLegendItemWithBorder({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String description,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: iconColor, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: iconColor, size: 16),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                Text(
+                  description,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Widget buildFilterButton({required VoidCallback onPressed}) {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: IconButton(
+        icon: Icon(Icons.filter_list, color: _iconColor),
+        onPressed: onPressed,
+        tooltip: 'Map Filters',
+      ),
+    );
+  }
+
   // Build search bar
   static Widget buildSearchBar({
     required TextEditingController controller,
@@ -531,7 +608,7 @@ class MapWidgets {
                   } else {
                     subtitle = 'Landmark';
                     icon = Icons.place;
-                    iconColor = Colors.green;
+                    iconColor = Colors.red;
                   }
                 } else if (result is OfficeData) {
                   name = result.name;
@@ -694,7 +771,7 @@ class MapWidgets {
   }
 }
 
-// 🆕 Internal widget for location toggle
+// location toggle with permission modal
 class _LocationToggleButton extends StatefulWidget {
   final VoidCallback? onPermissionChanged;
 
@@ -711,25 +788,49 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
   @override
   void initState() {
     super.initState();
-    _checkLocationStatus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _checkLocationStatus();
+      }
+    });
   }
 
   Future<void> _checkLocationStatus() async {
+    if (!mounted) return;
+
     setState(() => _isChecking = true);
 
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+      if (!serviceEnabled) {
+        if (mounted) {
+          setState(() {
+            _isLocationEnabled = false;
+            _isChecking = false;
+          });
+        }
+        return;
+      }
+
       final permission = await Geolocator.checkPermission();
 
-      setState(() {
-        _isLocationEnabled =
-            serviceEnabled &&
-            (permission == LocationPermission.whileInUse ||
-                permission == LocationPermission.always);
-        _isChecking = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLocationEnabled =
+              permission == LocationPermission.whileInUse ||
+              permission == LocationPermission.always;
+          _isChecking = false;
+        });
+      }
     } catch (e) {
-      setState(() => _isChecking = false);
+      debugPrint('Location check error: $e');
+      if (mounted) {
+        setState(() {
+          _isLocationEnabled = false;
+          _isChecking = false;
+        });
+      }
     }
   }
 
@@ -737,8 +838,178 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
     if (_isLocationEnabled) {
       _showDisableDialog();
     } else {
-      await _requestPermission();
+      // Show location access modal before requesting permission
+      final shouldRequest = await _showLocationAccessModal();
+      if (shouldRequest == true) {
+        await _requestPermission();
+      }
     }
+  }
+
+  // Location Access Modal
+  Future<bool?> _showLocationAccessModal() async {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.orange.withValues(alpha: 0.1),
+                ),
+                child: Icon(
+                  Icons.location_on,
+                  size: 48,
+                  color: Color(0xFFFF8C00),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Title
+              Text(
+                'Enable Location Access',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.montserrat(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Description
+              Text(
+                'iTOURu needs access to your location to provide accurate navigation and show your position on the campus map.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Benefits list
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Column(
+                  children: [
+                    _buildBenefitItem(Icons.navigation, 'Real-time navigation'),
+                    const SizedBox(height: 12),
+                    _buildBenefitItem(
+                      Icons.my_location,
+                      'Show your current position',
+                    ),
+                    const SizedBox(height: 12),
+                    _buildBenefitItem(
+                      Icons.directions_walk,
+                      'Turn-by-turn directions',
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: BorderSide(color: Colors.grey[300]!),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Not Now',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFFFF8C00),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        'Enable',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Privacy note
+              Text(
+                'Your location data is only used for navigation and is not stored.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  color: Colors.grey[500],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBenefitItem(IconData icon, String text) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Color(0xFFFF8C00).withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 16, color: Color(0xFFFF8C00)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.poppins(fontSize: 13, color: Colors.black87),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _requestPermission() async {
@@ -795,20 +1066,28 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
           children: [
             Icon(Icons.location_off, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Location Service Disabled'),
+            const SizedBox(width: 8),
+            Text(
+              'Location Service Disabled',
+              style: GoogleFonts.poppins(fontSize: 16),
+            ),
           ],
         ),
-        content: const Text(
+        content: Text(
           'Please enable location services in your device settings.',
+          style: GoogleFonts.poppins(fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: Colors.grey[600]),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -817,7 +1096,16 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
               await Future.delayed(const Duration(seconds: 1));
               _checkLocationStatus();
             },
-            child: const Text('Open Settings'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(0xFFFF8C00),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              'Open Settings',
+              style: GoogleFonts.poppins(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -828,20 +1116,28 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
           children: [
             Icon(Icons.block, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Permission Required'),
+            const SizedBox(width: 8),
+            Text(
+              'Permission Required',
+              style: GoogleFonts.poppins(fontSize: 16),
+            ),
           ],
         ),
-        content: const Text(
+        content: Text(
           'Location permission was permanently denied. Please enable it in app settings.',
+          style: GoogleFonts.poppins(fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: Colors.grey[600]),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -850,7 +1146,16 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
               await Future.delayed(const Duration(seconds: 1));
               _checkLocationStatus();
             },
-            child: const Text('App Settings'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(0xFFFF8C00),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              'App Settings',
+              style: GoogleFonts.poppins(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -861,20 +1166,25 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
           children: [
             Icon(Icons.info_outline, color: Colors.blue),
-            SizedBox(width: 8),
-            Text('Disable Location'),
+            const SizedBox(width: 8),
+            Text('Disable Location', style: GoogleFonts.poppins(fontSize: 16)),
           ],
         ),
-        content: const Text(
+        content: Text(
           'To disable location, please go to app settings and revoke location permission.',
+          style: GoogleFonts.poppins(fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: Colors.grey[600]),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -883,7 +1193,16 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
               await Future.delayed(const Duration(seconds: 1));
               _checkLocationStatus();
             },
-            child: const Text('App Settings'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(0xFFFF8C00),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              'App Settings',
+              style: GoogleFonts.poppins(color: Colors.white),
+            ),
           ),
         ],
       ),

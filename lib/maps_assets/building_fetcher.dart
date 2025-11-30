@@ -2,12 +2,12 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'dart:math' as math;
-import 'map_building.dart'; // Import for GeometryUtils
+import 'map_building.dart';
 
 class OSMBuildingFetcher {
   static const String _overpassUrl = 'https://overpass-api.de/api/interpreter';
 
-  /// ✨ NEW: Fetch landmarks (parks, monuments, etc.)
+  /// Fetch landmarks (parks, monuments, etc.)
   static Future<List<LandmarkPoint>> fetchCampusLandmarks({
     required List<LatLng> campusBoundaryPoints,
     required LatLng campusCenter,
@@ -55,7 +55,7 @@ class OSMBuildingFetcher {
     }
   }
 
-  /// ✨ IMPROVED: Fetch sports/leisure facilities including ALL pool types
+  /// Fetch sports/leisure facilities including ALL pool types
   static Future<List<FacilityArea>> fetchCampusFacilities({
     required List<LatLng> campusBoundaryPoints,
     required LatLng campusCenter,
@@ -99,7 +99,6 @@ class OSMBuildingFetcher {
 
         // Filter to only include facilities within campus polygon
         return allFacilities.where((facility) {
-          // For point facilities (like pools marked as nodes)
           if (facility.points.length == 1) {
             return GeometryUtils.isPointInPolygon(
               facility.points[0],
@@ -201,7 +200,7 @@ class OSMBuildingFetcher {
     }
   }
 
-  /// ✨ NEW: Parse landmarks from OSM response
+  /// Parse landmarks from OSM response
   static List<LandmarkPoint> _parseLandmarkPoints(
     Map<String, dynamic> data,
     List<LatLng> campusBoundary,
@@ -253,7 +252,7 @@ class OSMBuildingFetcher {
     return landmarks;
   }
 
-  /// ✨ IMPROVED: Parse facilities (including node-based pools)
+  /// Parse facilities (including node-based pools)
   static List<FacilityArea> _parseFacilities(
     Map<String, dynamic> data,
     List<LatLng> campusBoundary,
@@ -275,7 +274,7 @@ class OSMBuildingFetcher {
             }
           }
         }
-        // ✨ NEW: Handle nodes (points) - especially for swimming pools
+        // Handle nodes (points)
         else if (element['type'] == 'node' &&
             element['lat'] != null &&
             element['lon'] != null) {
@@ -348,7 +347,7 @@ class OSMBuildingFetcher {
     return colleges;
   }
 
-  /// ✨ IMPROVED: Get default name for facility (better pool detection)
+  /// Get default name for facility
   static String _getFacilityDefaultName(Map<String, dynamic> tags) {
     // Check for swimming pool first
     if (tags['leisure'] == 'swimming_pool' ||
@@ -364,7 +363,7 @@ class OSMBuildingFetcher {
     return 'Sports Facility';
   }
 
-  /// ✨ IMPROVED: Get facility description (better pool info)
+  /// Get facility description
   static String _getFacilityDescription(Map<String, dynamic> tags) {
     if (tags['description'] != null) return tags['description'];
 
@@ -383,7 +382,7 @@ class OSMBuildingFetcher {
     return 'Sports Facility';
   }
 
-  /// ✨ IMPROVED: Determine facility type (better pool detection)
+  ///Determine facility type (better pool detection)
   static FacilityType _getFacilityType(Map<String, dynamic> tags) {
     final leisure = tags['leisure']?.toString().toLowerCase();
     final amenity = tags['amenity']?.toString().toLowerCase();
@@ -548,7 +547,7 @@ class CollegeGroundPoint {
   });
 }
 
-/// ✨ NEW: Landmark point class (for parks, monuments, etc.)
+/// landmark point class (for parks, monuments, etc.)
 class LandmarkPoint {
   final LatLng position;
   final String name;
@@ -563,7 +562,7 @@ class LandmarkPoint {
   });
 }
 
-/// ✨ Facility Area class (fields, pools, ovals, etc.)
+/// Facility Area class (fields, pools, ovals, etc.)
 class FacilityArea {
   final List<LatLng> points;
   final String name;

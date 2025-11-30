@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/header.dart';
 import 'package:itouru/page_components/bottom_nav_bar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:itouru/main_pages/maps.dart';
+import 'package:itouru/main_pages/tour_loading_widget.dart';
 import 'package:itouru/maps_assets/virtual_tour_manager.dart';
 import 'package:itouru/page_components/loading_widget.dart';
 import 'package:itouru/page_components/video_layout.dart';
@@ -42,7 +42,7 @@ class ToursState extends State<Tours> {
 
       final response = await supabase
           .from('Tours')
-          .select('id, name, description, is_active')
+          .select('id, name, description, is_active, building_ids, total_stops')
           .eq('is_active', true)
           .order('name');
 
@@ -270,6 +270,8 @@ class ToursState extends State<Tours> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
+                        SizedBox(height: 4),
+
                         if (tour['description'] != null &&
                             tour['description'].toString().isNotEmpty) ...[
                           SizedBox(height: 4),
@@ -304,7 +306,7 @@ class ToursState extends State<Tours> {
   }
 }
 
-// Tour Buildings Page with Video Support
+// Tour Buildings Page with Single Table Support
 class TourBuildingsPage extends StatefulWidget {
   final Map<String, dynamic> tour;
 
@@ -362,7 +364,7 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
         _isLoading = true;
       });
 
-      // Fetch buildings
+      // Fetch buildings based on building_ids array
       await _fetchBuildings();
 
       // Fetch videos
@@ -385,26 +387,32 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
 
   Future<void> _fetchBuildings() async {
     try {
-      final response = await supabase
-          .from('Tour Stops')
-          .select('''
-            tour_stops_id,
-            building_id,
-            stop_order,
-            notes,
-            Building!inner(
-              building_name,
-              building_nickname
-            )
-          ''')
-          .eq('tour_id', widget.tour['id'])
-          .order('stop_order', ascending: true);
+      // Get building_ids from tour
+      final buildingIds = widget.tour['building_ids'] as List?;
 
-      if (response.isEmpty) {
-        // No buildings found for this tour
+      if (buildingIds == null || buildingIds.isEmpty) {
+        _buildings = [];
+        return;
       }
 
-      _buildings = List<Map<String, dynamic>>.from(response);
+      // Convert to List<int>
+      final buildingIdList = buildingIds.map((id) => id as int).toList();
+
+      // Fetch all buildings in one query
+      final response = await supabase
+          .from('Building')
+          .select('building_id, building_name, building_nickname')
+          .inFilter('building_id', buildingIdList);
+
+      // Sort buildings by the order in building_ids array
+      final buildingsMap = {
+        for (var building in response) building['building_id']: building,
+      };
+
+      _buildings = buildingIdList
+          .where((id) => buildingsMap.containsKey(id))
+          .map((id) => buildingsMap[id]!)
+          .toList();
     } catch (e) {
       rethrow;
     }
@@ -477,7 +485,6 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
           ? LoadingScreen.dots(
               title: 'Loading Tour',
               subtitle: 'Preparing your tour',
-              primaryColor: Color(0xFFFF8C00),
             )
           : SingleChildScrollView(
               child: Column(
@@ -711,43 +718,39 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
   }
 
   void _startVirtualTour() {
-    // Prepare tour stops
+    // Prepare tour stops from building_ids
     List<VirtualTourStop> stops = [];
 
-    for (var building in _buildings) {
-      final buildingData = building['Building'];
-      final stopOrder = building['stop_order'] as int;
+    for (int i = 0; i < _buildings.length; i++) {
+      final building = _buildings[i];
       final buildingId = building['building_id'] as int;
+      final stopNumber = i + 1;
 
       stops.add(
         VirtualTourStop(
-          stopNumber: stopOrder,
+          stopNumber: stopNumber,
           buildingId: buildingId,
-          buildingName: buildingData['building_name'] ?? 'Unknown Building',
-          buildingNickname: buildingData['building_nickname'] ?? '',
-          notes: building['notes'] as String?,
+          buildingName: building['building_name'] ?? 'Unknown Building',
+          buildingNickname: building['building_nickname'] ?? '',
+
           location: null,
         ),
       );
     }
 
-    // Navigate to Maps with virtual tour data
+    // Navigate to loading screen
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => Maps(
-          startVirtualTour: true,
-          tourName: widget.tour['name'],
-          tourStops: stops,
-        ),
+        builder: (context) =>
+            TourLoadingScreen(tourName: widget.tour['name'], tourStops: stops),
       ),
     );
   }
 
   Widget _buildBuildingCard(Map<String, dynamic> building, int number) {
-    final buildingData = building['Building'];
-    final buildingName = buildingData?['building_name'] ?? 'Unknown Building';
-    final buildingNickname = buildingData?['building_nickname'] ?? '';
+    final buildingName = building['building_name'] ?? 'Unknown Building';
+    final buildingNickname = building['building_nickname'] ?? '';
 
     return Container(
       margin: EdgeInsets.only(bottom: 16),
@@ -796,7 +799,7 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
                   Text(
                     buildingName,
                     style: GoogleFonts.poppins(
-                      fontSize: 16,
+                      fontSize: 13,
                       color: Colors.black87,
                       fontWeight: FontWeight.w600,
                     ),
@@ -806,22 +809,9 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
                     Text(
                       buildingNickname,
                       style: GoogleFonts.poppins(
-                        fontSize: 13,
+                        fontSize: 11,
                         color: Colors.grey[600],
                         fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                  if (building['notes'] != null &&
-                      building['notes'].toString().isNotEmpty) ...[
-                    SizedBox(height: 8),
-                    Text(
-                      building['notes'],
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: Colors.grey[500],
-                        fontWeight: FontWeight.w400,
-                        fontStyle: FontStyle.italic,
                       ),
                     ),
                   ],

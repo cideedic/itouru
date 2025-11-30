@@ -27,7 +27,6 @@ class Settings extends StatelessWidget {
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          // Use the reusable header
           ReusableHeader(),
 
           // Main content for Settings page
@@ -245,7 +244,7 @@ class Settings extends StatelessWidget {
   }
 }
 
-// Animated Setting Item Widget
+// Setting Item Widget
 class AnimatedSettingItem extends StatefulWidget {
   final IconData icon;
   final Color iconColor;
@@ -287,7 +286,7 @@ class _AnimatedSettingItemState extends State<AnimatedSettingItem> {
         onTapCancel: () => setState(() => _pressed = false),
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 400), // Smooth transition
+          duration: const Duration(milliseconds: 400),
           curve: Curves.easeInOut,
           margin: const EdgeInsets.only(bottom: 16),
           padding: const EdgeInsets.all(16),

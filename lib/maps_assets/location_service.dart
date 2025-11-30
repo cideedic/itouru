@@ -1,4 +1,3 @@
-// lib/maps_assets/location_service.dart
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_compass/flutter_compass.dart';
@@ -9,7 +8,7 @@ class LocationService {
   static double _currentHeading = 0.0;
   static bool _isCompassAvailable = false;
 
-  /// Initialize compass stream (call this once in your app)
+  /// Initialize compass stream
   static Future<void> initializeCompass() async {
     try {
       // Check if compass is available

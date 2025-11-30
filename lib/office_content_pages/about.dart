@@ -1,4 +1,3 @@
-// about.dart (for Office)
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/info_card.dart';
@@ -31,14 +30,7 @@ class OfficeAboutTab extends StatelessWidget {
           _buildSectionCard(
             'Description',
             Icons.description,
-            Text(
-              officeServices,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                height: 1.6,
-                color: Colors.black87,
-              ),
-            ),
+            _buildTextContent(officeServices),
           ),
           SizedBox(height: 16),
         ],
@@ -186,6 +178,85 @@ class OfficeAboutTab extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildTextContent(String content) {
+    // Check if content has numbered items
+    if (content.contains(RegExp(r'^\d+\.', multiLine: true))) {
+      return _buildNumberedList(content);
+    }
+
+    // Otherwise, display as regular text
+    return Text(
+      content,
+      style: GoogleFonts.poppins(
+        fontSize: 13,
+        height: 1.6,
+        color: Colors.black87,
+      ),
+    );
+  }
+
+  Widget _buildNumberedList(String content) {
+    // Split by newlines and filter out empty lines
+    final items = content
+        .split('\n')
+        .where((line) => line.trim().isNotEmpty)
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: items.map((item) {
+        // Check if item starts with a number
+        final match = RegExp(r'^(\d+)\.\s*(.+)').firstMatch(item.trim());
+        if (match != null) {
+          final number = match.group(1);
+          final text = match.group(2);
+          return _buildNumberedItem(int.parse(number!), text!);
+        }
+        // If no number, just display as text
+        return Padding(
+          padding: EdgeInsets.only(bottom: 8),
+          child: Text(
+            item,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              height: 1.5,
+              color: Colors.black87,
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildNumberedItem(int number, String text) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$number. ',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                height: 1.5,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

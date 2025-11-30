@@ -23,7 +23,7 @@ class ReusableHeaderState extends State<ReusableHeader> {
   bool _isLoading = true;
   String? _userAvatar;
 
-  // Avatar bucket and default avatar - same as ProfilePage
+  // Avatar bucket and default avatar
   static const String avatarBucket = 'avatars';
   static const String defaultAvatar = 'avatar_1.webp';
 
@@ -234,7 +234,7 @@ class ReusableHeaderState extends State<ReusableHeader> {
               Spacer(),
               GestureDetector(
                 onTap: () {
-                  // Navigate to QR scanner (available for all users including guests)
+                  // Navigate to QR scanner
                   Navigator.push(
                     context,
                     MaterialPageRoute(

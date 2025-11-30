@@ -1,4 +1,4 @@
-package com.example.itouru
+package com.bicoluniversity.itouru 
 
 import io.flutter.embedding.android.FlutterActivity
 

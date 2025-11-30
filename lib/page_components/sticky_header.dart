@@ -1,13 +1,12 @@
-// sticky_header.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class StickyHeader extends StatelessWidget {
   final bool isVisible;
   final String title;
-  final String? abbreviation; // New: Pass the actual abbreviation/nickname
+  final String? abbreviation; //  Pass the actual abbreviation/nickname
   final String? logoImageUrl;
-  final bool showLogo; // New: Control whether to show logo
+  final bool showLogo; //  Control whether to show logo
   final VoidCallback? onBackPressed;
 
   const StickyHeader({
@@ -16,7 +15,7 @@ class StickyHeader extends StatelessWidget {
     required this.title,
     this.abbreviation,
     this.logoImageUrl,
-    this.showLogo = true, // Default to true for backward compatibility
+    this.showLogo = true,
     this.onBackPressed,
   });
 

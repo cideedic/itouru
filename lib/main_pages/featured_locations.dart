@@ -7,7 +7,6 @@ import 'package:itouru/college_content_pages/content.dart';
 import 'package:itouru/building_content_pages/content.dart';
 import 'package:itouru/page_components/loading_widget.dart';
 
-// Global singleton to cache featured locations across the entire app
 class FeaturedLocationsCache {
   static final FeaturedLocationsCache _instance =
       FeaturedLocationsCache._internal();

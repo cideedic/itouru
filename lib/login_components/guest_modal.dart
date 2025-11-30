@@ -138,7 +138,7 @@ class GuestAccessModal extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
+                  backgroundColor: Color(0xFFFF8C00),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -195,7 +195,7 @@ class GuestAccessModal extends StatelessWidget {
             '• ',
             style: GoogleFonts.poppins(
               fontSize: 13,
-              color: Colors.orange,
+              color: Color(0xFFFF8C00),
               fontWeight: FontWeight.bold,
             ),
           ),

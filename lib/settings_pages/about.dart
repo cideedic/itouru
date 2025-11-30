@@ -30,7 +30,6 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
           final position = renderBox.localToGlobal(Offset.zero);
           final screenHeight = MediaQuery.of(context).size.height;
 
-          // Trigger animation when 30% of the widget is visible
           if (position.dy < screenHeight * 0.7) {
             setState(() {
               _hasAnimated[i] = true;
@@ -62,8 +61,6 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 10),
-
-                  // Replace the existing Back Button section with this code:
 
                   // Back Button and Title
                   Row(
@@ -150,7 +147,7 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
                   ),
                   const SizedBox(height: 40),
 
-                  // Meet the Creators Section - Centered
+                  // Meet the Creators Section
                   Center(child: _buildSectionTitle('Meet the Creators')),
                   const SizedBox(height: 25),
 
@@ -383,12 +380,12 @@ class _CreatorPanelState extends State<CreatorPanel>
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image, Name, and Role section (overlapping)
+            // Image, Name, and Role section
             SizedBox(
               height: 280,
               child: Stack(
                 children: [
-                  // Name section with slide animation (behind image)
+                  // Name section with slide animation
                   Positioned(
                     left: 0,
                     top: 20,

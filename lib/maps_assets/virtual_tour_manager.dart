@@ -6,18 +6,18 @@ class VirtualTourStop {
   final int buildingId;
   final String buildingName;
   final String buildingNickname;
-  final String? notes;
-  LatLng? location; // Will be resolved in Maps
-  bool isMarker; // ✨ NEW: Track if this stop is a marker (landmark)
+  LatLng? location;
+  bool isMarker;
+  LatLng? entranceLocation;
 
   VirtualTourStop({
     required this.stopNumber,
     required this.buildingId,
     required this.buildingName,
     required this.buildingNickname,
-    required this.notes,
     this.location,
-    this.isMarker = false, // ✨ NEW: Default to false
+    this.isMarker = false,
+    this.entranceLocation,
   });
 
   /// Helper method to update location and type
@@ -26,7 +26,13 @@ class VirtualTourStop {
     isMarker = isMarkerType;
   }
 
-  /// Helper method (legacy - for backward compatibility)
+  void setEntranceLocation(LatLng entrance) {
+    entranceLocation = entrance;
+  }
+
+  LatLng get navigationTarget => entranceLocation ?? location!;
+
+  /// Helper method to update location
   void updateLocation(LatLng newLocation) {
     location = newLocation;
   }

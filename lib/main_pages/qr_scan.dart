@@ -1,4 +1,4 @@
-// qr_scanner_page.dart - The QR Scanner Screen
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -51,17 +51,59 @@ class _QRScannerPageState extends State<QRScannerPage>
     setState(() => isProcessing = true);
 
     try {
-      // Parse the QR code data
       int buildingId;
 
-      if (qrData.startsWith('building:')) {
-        buildingId = int.parse(qrData.split(':')[1]);
-      } else {
-        buildingId = int.parse(qrData);
+      // Try to parse as JSON first
+      try {
+        final jsonData = json.decode(qrData);
+
+        if (jsonData is Map && jsonData.containsKey('id')) {
+          // Handle both string and int types for the id field
+          final idValue = jsonData['id'];
+
+          if (idValue is int) {
+            buildingId = idValue;
+          } else if (idValue is String) {
+            buildingId = int.parse(idValue);
+          } else {
+            throw Exception('ID field is not int or String');
+          }
+        } else {
+          throw Exception('Invalid JSON format');
+        }
+      } catch (jsonError) {
+        // If JSON parsing fails, try other formats
+        if (qrData.startsWith('building:')) {
+          buildingId = int.parse(qrData.split(':')[1]);
+        } else {
+          buildingId = int.parse(qrData);
+        }
+      }
+
+      // Look up the QR code in the QR Code table using building_id
+      final qrCodeResponse = await supabase
+          .from('QR Code')
+          .select('qr_code_id, building_id, is_active, qr_data')
+          .eq('building_id', buildingId)
+          .maybeSingle();
+
+      if (qrCodeResponse == null) {
+        throw Exception('QR code not found in database');
+      }
+
+      // Check if the QR code is active
+      if (qrCodeResponse['is_active'] != true) {
+        if (!mounted) return;
+        _showErrorDialog(
+          'Inactive QR Code',
+          'This QR code is no longer active. Please contact the administrator.',
+          qrData,
+        );
+        return;
       }
 
       // Fetch building data from Supabase
-      final response = await supabase
+      final buildingResponse = await supabase
           .from('Building')
           .select('building_id, building_name')
           .eq('building_id', buildingId)
@@ -82,9 +124,9 @@ class _QRScannerPageState extends State<QRScannerPage>
         context,
         MaterialPageRoute(
           builder: (context) => BuildingDetailsPage(
-            buildingId: response['building_id'],
-            buildingName: response['building_name'],
-            title: response['building_name'] ?? 'Building',
+            buildingId: buildingResponse['building_id'],
+            buildingName: buildingResponse['building_name'],
+            title: buildingResponse['building_name'] ?? 'Building',
           ),
         ),
       );
@@ -92,106 +134,115 @@ class _QRScannerPageState extends State<QRScannerPage>
       if (!mounted) return;
 
       // Show error dialog
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.red[50],
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.error_outline,
-                  color: Colors.red[400],
-                  size: 28,
-                ),
+      _showErrorDialog(
+        'Scan Failed',
+        'Unable to process this QR code. Please make sure it\'s a valid building QR code.\n\nError: $e',
+        qrData,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => isProcessing = false);
+      }
+    }
+  }
+
+  void _showErrorDialog(String title, String message, String qrData) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                shape: BoxShape.circle,
               ),
-              SizedBox(width: 12),
-              Text(
-                'Scan Failed',
+              child: Icon(
+                Icons.error_outline,
+                color: Colors.red[400],
+                size: 28,
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
                 style: GoogleFonts.montserrat(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
                 ),
               ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Unable to process this QR code. Please make sure it\'s a valid building QR code.',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  color: Colors.grey[700],
-                ),
-              ),
-              SizedBox(height: 12),
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'QR Data: $qrData',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                setState(() => isProcessing = false);
-              },
-              child: Text(
-                'Try Again',
-                style: GoogleFonts.poppins(
-                  color: Color(0xFFFF8C00),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
             ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF1A31C8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              message,
+              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[700]),
+            ),
+            SizedBox(height: 12),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(
-                'Cancel',
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'QR Data: $qrData',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
-      );
-    }
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() => isProcessing = false);
+            },
+            child: Text(
+              'Try Again',
+              style: GoogleFonts.poppins(
+                color: Color(0xFFFF8C00),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(0xFF1A31C8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSuccessOverlay() {

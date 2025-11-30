@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'dart:async';
 import '../page_components/bottom_nav_bar.dart';
-
+import 'package:geolocator/geolocator.dart';
+import 'dart:io';
+import 'dart:async';
+import 'package:google_fonts/google_fonts.dart';
 // map_assets:
 import '../maps_assets/map_boundary.dart';
 import '../maps_assets/map_building.dart';
@@ -13,8 +15,8 @@ import '../maps_assets/map_widgets.dart';
 import '../maps_assets/bottom_content.dart';
 import '../maps_assets/routing_service.dart';
 import '../maps_assets/building_matcher.dart';
-import '../maps_assets/virtual_tour_manager.dart'; // ✨ NEW
-import '../maps_assets/virtual_tour_card.dart'; // ✨ NEW
+import '../maps_assets/virtual_tour_manager.dart';
+import '../maps_assets/virtual_tour_card.dart';
 import '../maps_assets/destination_marker.dart';
 
 class Maps extends StatefulWidget {
@@ -23,7 +25,6 @@ class Maps extends StatefulWidget {
   final int? buildingId;
   final String? itemType;
 
-  //  Virtual tour parameters
   final bool startVirtualTour;
   final String? tourName;
   final List<VirtualTourStop>? tourStops;
@@ -57,8 +58,15 @@ class _MapsState extends State<Maps> {
   LatLng? _tourStartPoint;
   double _currentRotation = 0.0;
   double _currentHeading = 0.0;
+  bool _isLoadingMapData = true;
+  bool _mapDataLoadFailed = false;
+  String? _mapDataError;
+  int _retryAttempts = 0;
+  static const int maxRetryAttempts = 3;
+  bool _showColleges = true;
+  bool _showLandmarks = true;
+  bool _showGates = true;
 
-  // Virtual tour management
   late VirtualTourManager _virtualTourManager;
   bool _isVirtualTourActive = false;
 
@@ -70,13 +78,13 @@ class _MapsState extends State<Maps> {
     _virtualTourManager = VirtualTourManager();
     _setupNavigationCallbacks();
     _setupVirtualTourCallbacks();
+    _startContinuousLocationTracking();
     _startLocationTracking();
-    _loadBuildingData();
+    _loadMapDataWithRetry();
     _currentZoom = MapBoundary.getInitialZoom();
     LocationService.initializeCompass();
     _checkAndShowFirstTimeGuide();
 
-    // Check if starting virtual tour
     if (widget.startVirtualTour && widget.tourStops != null) {
       _scheduleVirtualTourStart();
     } else if (widget.buildingId != null || widget.destinationName != null) {
@@ -87,12 +95,237 @@ class _MapsState extends State<Maps> {
   Future<void> _checkAndShowFirstTimeGuide() async {
     final hasSeenGuide = await MapWidgets.hasSeenGuide();
     if (!hasSeenGuide) {
-      // Wait for the map to render first
       await Future.delayed(const Duration(milliseconds: 1000));
       if (mounted && context.mounted) {
         await MapWidgets.showMapGuideModal(context, isFirstTime: true);
       }
     }
+  }
+
+  void _showFilterModal() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(
+                  children: [
+                    Icon(Icons.filter_list, color: Colors.blue[700]),
+                    SizedBox(width: 12),
+                    Text(
+                      'Map Filters',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    Spacer(),
+                    IconButton(
+                      icon: Icon(Icons.close, color: Colors.grey[600]),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                Text(
+                  'Show or hide map elements',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                SizedBox(height: 12),
+
+                // College Markers Toggle
+                _buildFilterTile(
+                  icon: Icons.school,
+                  iconColor: Colors.blue,
+                  title: 'College Markers',
+                  description: 'Academic colleges and departments',
+                  value: _showColleges,
+                  onChanged: (value) {
+                    setModalState(() => _showColleges = value);
+                    setState(() => _showColleges = value);
+                  },
+                ),
+                Divider(height: 32),
+
+                // Landmarks Toggle
+                _buildFilterTile(
+                  icon: Icons.place,
+                  iconColor: Colors.red,
+                  title: 'Landmarks',
+                  description: 'Important campus locations',
+                  value: _showLandmarks,
+                  onChanged: (value) {
+                    setModalState(() => _showLandmarks = value);
+                    setState(() => _showLandmarks = value);
+                  },
+                ),
+                Divider(height: 32),
+
+                // Gates Toggle
+                Padding(
+                  padding: const EdgeInsets.only(left: 0),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.green.shade700,
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.door_sliding,
+                          color: Colors.green.shade700,
+                          size: 20,
+                        ),
+                      ),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Campus Gates',
+                              style: GoogleFonts.poppins(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            Text(
+                              'Entry and exit points',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: _showGates,
+                        onChanged: (value) {
+                          setModalState(() => _showGates = value);
+                          setState(() => _showGates = value);
+                        },
+                        activeColor: Colors.orange,
+                      ),
+                    ],
+                  ),
+                ),
+
+                SizedBox(height: 24),
+
+                // Reset Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      setModalState(() {
+                        _showColleges = true;
+                        _showLandmarks = true;
+                        _showGates = true;
+                      });
+                      setState(() {
+                        _showColleges = true;
+                        _showLandmarks = true;
+                        _showGates = true;
+                      });
+                    },
+                    icon: Icon(Icons.refresh, color: Colors.orange),
+                    label: Text(
+                      'Reset to Default',
+                      style: TextStyle(color: Colors.orange),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.grey[300]!),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: MediaQuery.of(context).padding.bottom),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildFilterTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String description,
+    required bool value,
+    required Function(bool) onChanged,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+            border: Border.all(color: iconColor, width: 2),
+          ),
+          child: Icon(icon, color: iconColor, size: 20),
+        ),
+        SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              Text(
+                description,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ),
+        Switch(value: value, onChanged: onChanged, activeColor: Colors.orange),
+      ],
+    );
   }
 
   void _onMapMove(MapCamera camera, bool hasGesture) {
@@ -343,15 +576,21 @@ class _MapsState extends State<Maps> {
       if (!_isDisposed && mounted) {
         setState(() {
           _currentLocation = location;
-          // ✨ NEW: Update heading from LocationService
-          _currentHeading = LocationService.getCurrentHeading();
+          _currentHeading = bearing;
         });
-        if (_autoFollowLocation || _navigationManager.isNavigating) {
-          _followUserLocation();
+
+        // Auto-follow ONLY when navigating
+        if (_navigationManager.isNavigating) {
+          _followUserLocationSmooth();
         }
       }
     };
-
+    // Handle dynamic route updates
+    _navigationManager.onRouteUpdated = (newRoute) {
+      if (!_isDisposed && mounted) {
+        setState(() {});
+      }
+    };
     _navigationManager.onDestinationReached = (destination) {
       if (!_isDisposed && context.mounted) {
         _handleDestinationReached(destination);
@@ -365,6 +604,58 @@ class _MapsState extends State<Maps> {
         );
       }
     };
+  }
+
+  // Smooth camera follow during navigation
+  void _followUserLocationSmooth() {
+    if (_currentLocation == null || _isDisposed) return;
+
+    // During navigation, instantly center on user location
+    _mapController.move(_currentLocation!, 19.0);
+  }
+
+  void _startContinuousLocationTracking() async {
+    if (_isDisposed) return;
+
+    // Initial location
+    final initialLocation = await LocationService.getCurrentLocation();
+    if (initialLocation.isSuccess && mounted && !_isDisposed) {
+      setState(() {
+        _currentLocation = initialLocation.location;
+        _currentHeading = initialLocation.heading ?? 0.0;
+      });
+
+      _navigationManager.updateLocation(
+        initialLocation.location!,
+        initialLocation.heading ?? 0.0,
+      );
+    }
+
+    // Set up continuous updates
+    const LocationSettings locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 1,
+    );
+
+    Geolocator.getPositionStream(locationSettings: locationSettings).listen((
+      Position position,
+    ) {
+      if (_isDisposed || !mounted) return;
+
+      final newLocation = LatLng(position.latitude, position.longitude);
+      final compassHeading = LocationService.getCurrentHeading();
+
+      setState(() {
+        _currentLocation = newLocation;
+        _currentHeading = compassHeading;
+      });
+
+      _navigationManager.updateLocation(newLocation, compassHeading);
+
+      if (_autoFollowLocation && !_navigationManager.isNavigating) {
+        _followUserLocation();
+      }
+    }, onError: (error) {});
   }
 
   Future<void> _startLocationTracking() async {
@@ -502,6 +793,11 @@ class _MapsState extends State<Maps> {
       routePoints: _navigationManager.polylinePoints,
       distance: _navigationManager.routeDistance,
       duration: _navigationManager.routeDuration,
+      onRouteUpdated: (newRoute) {
+        if (mounted && !_isDisposed) {
+          setState(() {});
+        }
+      },
     );
   }
 
@@ -564,31 +860,125 @@ class _MapsState extends State<Maps> {
     });
   }
 
-  Future<void> _loadBuildingData() async {
+  Future<void> _loadMapDataWithRetry() async {
+    if (_isDisposed) return;
+
+    setState(() {
+      _isLoadingMapData = true;
+      _mapDataLoadFailed = false;
+      _mapDataError = null;
+    });
+
+    // Calculate delay with exponential backoff for rate limiting
+    int delaySeconds = 0;
+    if (_retryAttempts > 0) {
+      delaySeconds = (2 * (_retryAttempts)).clamp(2, 10);
+
+      debugPrint(
+        '⏳ Waiting ${delaySeconds}s before retry (attempt ${_retryAttempts + 1})...',
+      );
+
+      // Show countdown in UI
+      for (int i = delaySeconds; i > 0; i--) {
+        if (_isDisposed) return;
+        setState(() {
+          _mapDataError = 'Retrying in ${i}s...';
+        });
+        await Future.delayed(const Duration(seconds: 1));
+      }
+    }
+
     try {
       await MapBuildings.initializeWithBoundary(
         campusBoundaryPoints: MapBoundary.getCampusBoundaryPoints(),
+      ).timeout(
+        const Duration(seconds: 45), //
+        onTimeout: () {
+          throw TimeoutException('Map loading timed out after 45 seconds');
+        },
       );
 
-      if (mounted) {
-        setState(() {});
+      // Verify data loaded
+      final hasBuildings = MapBuildings.campusBuildings.isNotEmpty;
+      final hasMarkers = MapBuildings.campusMarkers.isNotEmpty;
+      final isInitialized = MapBuildings.isInitialized;
+
+      if (!isInitialized) {
+        throw Exception('Map initialization incomplete');
       }
+
+      if (!hasBuildings && !hasMarkers) {
+        throw Exception('No map data received from server');
+      }
+
+      // Success!
+      if (mounted && !_isDisposed) {
+        setState(() {
+          _isLoadingMapData = false;
+          _mapDataLoadFailed = false;
+          _retryAttempts = 0;
+          _mapDataError = null;
+        });
+
+        ScaffoldMessenger.of(context).clearSnackBars();
+      }
+    } on TimeoutException catch (e) {
+      _handleMapLoadError('Connection timed out', isTimeout: true);
+      debugPrint('⏱️ Timeout: $e');
+    } on SocketException catch (e) {
+      _handleMapLoadError('No internet connection', isNetworkError: true);
+      debugPrint('📡 Network error: $e');
     } catch (e) {
-      if (mounted && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load building data: $e'),
-            backgroundColor: Colors.red,
-          ),
+      final errorMessage = e.toString();
+      final isRateLimited = errorMessage.contains('429');
+
+      if (isRateLimited) {
+        _handleMapLoadError(
+          'Server busy - too many requests',
+          isRateLimited: true,
         );
+        debugPrint('🚫 Rate limit hit (429): $e');
+      } else {
+        _handleMapLoadError(errorMessage);
+        debugPrint('❌ Error: $e');
       }
     }
+  }
+
+  void _handleMapLoadError(
+    String errorMessage, {
+    bool isTimeout = false,
+    bool isNetworkError = false,
+    bool isRateLimited = false,
+  }) {
+    if (!mounted || _isDisposed) return;
+
+    setState(() {
+      _isLoadingMapData = false;
+      _mapDataLoadFailed = true;
+      _retryAttempts++;
+
+      // User-friendly error messages
+      if (isRateLimited) {
+        _mapDataError = 'Server is busy. Please wait...';
+      } else if (isTimeout) {
+        _mapDataError = 'Connection timed out';
+      } else if (isNetworkError) {
+        _mapDataError = 'No internet connection';
+      } else if (errorMessage.contains('initialization')) {
+        _mapDataError = 'Map initialization failed';
+      } else if (errorMessage.contains('No map data')) {
+        _mapDataError = 'No data received';
+      } else {
+        _mapDataError = 'Could not load map';
+      }
+    });
   }
 
   Widget _buildPinMarker(
     BicolMarker marker,
     double currentZoom,
-    double currentRotation, // Keep parameter but don't use it
+    double currentRotation,
   ) {
     IconData icon;
     Color color;
@@ -610,7 +1000,6 @@ class _MapsState extends State<Maps> {
 
     final markerType = marker.isCollege ? 'college' : 'landmark';
 
-    // ✅ NO ROTATION - markers stay upright naturally
     final markerWidget = Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -717,7 +1106,6 @@ class _MapsState extends State<Maps> {
       if (!_isDisposed &&
           _currentLocation != null &&
           MapBuildings.isInitialized) {
-        // Virtual tours should work from anywhere!
         _initializeVirtualTour();
       } else {
         Future.delayed(const Duration(milliseconds: 500), () {
@@ -741,28 +1129,38 @@ class _MapsState extends State<Maps> {
       // First, try to find as a landmark marker
       final marker = MapBuildings.landmarks.firstWhere(
         (m) => m.buildingId == stop.buildingId,
-        orElse: () =>
-            MapBuildings.landmarks.first, // Will be null-checked below
+        orElse: () => MapBuildings.landmarks.first,
       );
 
       if (marker.buildingId == stop.buildingId) {
         // Found as landmark marker
         stop.setLocation(marker.position, isMarkerType: true);
         resolvedStops.add(stop);
-
         continue;
       }
 
-      // ✅ If not a landmark, try to find as building polygon
+      // If not a landmark, try to find as building polygon
       try {
         final building = MapBuildings.campusBuildings.firstWhere(
           (b) => b.buildingId == stop.buildingId,
         );
 
         stop.setLocation(building.getCenterPoint(), isMarkerType: false);
+
+        // Fetch entrance from OSM
+        final entrance = await RoutingService.fetchBuildingEntrance(
+          building.getCenterPoint(),
+          building.name,
+        );
+
+        if (entrance != null) {
+          stop.setEntranceLocation(entrance);
+        } else {
+          debugPrint(' No entrance found for ${building.name}, using center');
+        }
+
         resolvedStops.add(stop);
       } catch (e) {
-        // Skip this stop if we can't resolve it
         continue;
       }
     }
@@ -784,11 +1182,8 @@ class _MapsState extends State<Maps> {
 
     if (_currentLocation != null &&
         MapBoundary.isWithinCampusBounds(_currentLocation!)) {
-      // User is ON campus - start from their location
       startingPoint = _currentLocation!;
     } else {
-      // User is OFF campus - find nearest gate
-
       final gates = await RoutingService.fetchCampusGates(
         campusCenter: MapBoundary.bicolUniversityCenter,
         radiusMeters: 600,
@@ -796,7 +1191,7 @@ class _MapsState extends State<Maps> {
 
       CampusGate? nearestGate;
       if (gates.isNotEmpty) {
-        final firstBuilding = resolvedStops.first.location!;
+        final firstBuilding = resolvedStops.first.navigationTarget;
         double minDistance = double.infinity;
         for (var gate in gates) {
           final distance = RoutingService.calculateDistance(
@@ -848,7 +1243,7 @@ class _MapsState extends State<Maps> {
       ),
     );
 
-    // ✅ Step 5: First show entire campus overview
+    // Step 5: First show entire campus overview
     await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
 
@@ -859,13 +1254,13 @@ class _MapsState extends State<Maps> {
       duration: const Duration(milliseconds: 1500),
     );
 
-    // ✅ Step 6: Wait a moment, then navigate to first stop
+    // Step 6: Wait a moment, then navigate to first stop
     await Future.delayed(const Duration(milliseconds: 1500));
     if (!mounted) return;
     _navigateToCurrentVirtualTourStop();
   }
 
-  Future<void> _navigateToCurrentVirtualTourStop() async {
+  Future<void> _navigateToCurrentVirtualTourStop({LatLng? fromLocation}) async {
     if (_isDisposed || !_virtualTourManager.isActive) return;
 
     final currentStop = _virtualTourManager.currentStop;
@@ -873,23 +1268,22 @@ class _MapsState extends State<Maps> {
 
     _virtualTourManager.beginAnimationToStop();
 
-    // ✅ Determine start point based on tour progress
     LatLng startPoint;
 
-    if (_virtualTourManager.currentStopIndex == 0) {
-      // First stop: Start from gate
+    if (fromLocation != null) {
+      startPoint = fromLocation;
+    } else if (_virtualTourManager.currentStopIndex == 0) {
       startPoint = _virtualTourManager.startingGate!;
     } else {
-      // Subsequent stops: Start from previous building
       final previousStop =
           _virtualTourManager.stops[_virtualTourManager.currentStopIndex - 1];
-      startPoint = previousStop.location!;
+      startPoint = previousStop.navigationTarget;
     }
 
-    // ✅ Get route from start point to current building
+    // Get route to entrance (or center if no entrance found)
     final routeResult = await RoutingService.getRoute(
       startPoint,
-      currentStop.location!,
+      currentStop.navigationTarget, // Use navigationTarget
     );
 
     if (routeResult.isSuccess && routeResult.points != null) {
@@ -1016,8 +1410,8 @@ class _MapsState extends State<Maps> {
                   ),
                 ],
               ),
-
-              if (_isVirtualTourActive)
+              // Campus gate markers
+              if (_showGates)
                 FutureBuilder<List<CampusGate>>(
                   future: RoutingService.fetchCampusGates(
                     campusCenter: MapBoundary.bicolUniversityCenter,
@@ -1030,16 +1424,13 @@ class _MapsState extends State<Maps> {
                       markers: snapshot.data!.map((gate) {
                         return Marker(
                           point: gate.location,
-                          width: 50,
-                          height: 50,
+                          width: 36,
+                          height: 36,
                           child: Container(
                             decoration: BoxDecoration(
                               color: Colors.white,
                               shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.blue[700]!,
-                                width: 2,
-                              ),
+                              border: Border.all(color: Colors.green[500]!),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withValues(alpha: 0.3),
@@ -1050,8 +1441,8 @@ class _MapsState extends State<Maps> {
                             ),
                             child: Icon(
                               Icons.door_sliding,
-                              color: Colors.blue[700],
-                              size: 24,
+                              color: Colors.green[700],
+                              size: 18,
                             ),
                           ),
                         );
@@ -1111,12 +1502,11 @@ class _MapsState extends State<Maps> {
                         ? MapUtils.createNavigationMarker(
                             _currentLocation!,
                             _navigationManager.currentBearing,
-                            compassHeading:
-                                _currentHeading, // ✨ Pass compass heading
+                            compassHeading: _currentHeading,
                           )
                         : MapUtils.createUserLocationMarker(
                             _currentLocation!,
-                            heading: _currentHeading, // ✨ Pass compass heading
+                            heading: _currentHeading,
                           ),
                   ],
                 ),
@@ -1152,14 +1542,13 @@ class _MapsState extends State<Maps> {
                   ],
                 ),
 
-              // Tour destination marker
               if (_isVirtualTourActive &&
                   _virtualTourManager.currentStop != null &&
                   _virtualTourManager.currentStop!.location != null)
                 MarkerLayer(
                   markers: [
                     Marker(
-                      point: _virtualTourManager.currentStop!.location!,
+                      point: _virtualTourManager.currentStop!.navigationTarget,
                       width: 50,
                       height: 50,
                       child: PulsingDestinationMarker(
@@ -1168,9 +1557,8 @@ class _MapsState extends State<Maps> {
                     ),
                   ],
                 ),
-
               // College markers
-              if (MapUtils.shouldShowColleges(_currentZoom))
+              if (MapUtils.shouldShowColleges(_currentZoom) && _showColleges)
                 MarkerLayer(
                   markers: MapBuildings.colleges
                       .where(
@@ -1183,7 +1571,7 @@ class _MapsState extends State<Maps> {
                           width: 150,
                           height: 40,
                           alignment: Alignment.center,
-                          // ❌ REMOVE THIS: rotate: true,
+
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () async {
@@ -1200,7 +1588,7 @@ class _MapsState extends State<Maps> {
                             child: _buildPinMarker(
                               marker,
                               _currentZoom,
-                              _currentRotation, // We don't use this anymore
+                              _currentRotation,
                             ),
                           ),
                         );
@@ -1209,7 +1597,7 @@ class _MapsState extends State<Maps> {
                 ),
 
               // Landmark markers
-              if (MapUtils.shouldShowLandmarks(_currentZoom))
+              if (MapUtils.shouldShowLandmarks(_currentZoom) && _showLandmarks)
                 MarkerLayer(
                   markers: MapBuildings.landmarks
                       .where(
@@ -1222,7 +1610,6 @@ class _MapsState extends State<Maps> {
                           width: 150,
                           height: 40,
                           alignment: Alignment.center,
-                          // ❌ REMOVE THIS: rotate: true,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () async {
@@ -1239,7 +1626,7 @@ class _MapsState extends State<Maps> {
                             child: _buildPinMarker(
                               marker,
                               _currentZoom,
-                              _currentRotation, // We don't use this anymore
+                              _currentRotation,
                             ),
                           ),
                         );
@@ -1248,8 +1635,154 @@ class _MapsState extends State<Maps> {
                 ),
             ],
           ),
+          if (_isLoadingMapData)
+            Positioned(
+              left: 16,
+              right: 16,
+              top: MediaQuery.of(context).padding.top + 120,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Loading map content...',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          if (_retryAttempts > 0)
+                            Text(
+                              'Attempt ${_retryAttempts + 1} of $maxRetryAttempts',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
-          // UI Overlays - Campus label
+          // Error bar with retry button
+          if (_mapDataLoadFailed && !_isLoadingMapData)
+            Positioned(
+              left: 16,
+              right: 16,
+              top: MediaQuery.of(context).padding.top + 120,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red[700],
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _mapDataError?.contains('timeout') ?? false
+                          ? Icons.hourglass_empty
+                          : _mapDataError?.contains('internet') ?? false
+                          ? Icons.wifi_off
+                          : Icons.cloud_off,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Map content not loaded',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _retryAttempts >= maxRetryAttempts
+                                ? 'Check your connection'
+                                : _mapDataError?.contains('timeout') ?? false
+                                ? 'Connection timed out'
+                                : 'Could not load buildings',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                        _loadMapDataWithRetry();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.red[700],
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'RETRY',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          // UI Overlays
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             left: 16,
@@ -1485,6 +2018,10 @@ class _MapsState extends State<Maps> {
               ignoring: false,
               child: Column(
                 children: [
+                  MapWidgets.buildFilterButton(
+                    onPressed: () => _showFilterModal(),
+                  ),
+                  const SizedBox(height: 12),
                   MapWidgets.buildInfoButton(
                     onPressed: () {
                       MapWidgets.showMapGuideModal(context, isFirstTime: false);
@@ -1513,7 +2050,7 @@ class _MapsState extends State<Maps> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Existing zoom controls
+                  // zoom controls
                   MapWidgets.buildZoomControls(
                     onZoomIn: _zoomIn,
                     onZoomOut: _zoomOut,
@@ -1624,37 +2161,10 @@ class _MapsState extends State<Maps> {
                       ],
                     ),
                   ),
-                if (_isLoadingLocation)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.orange,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 8),
-                        Text('Loading', style: TextStyle(color: Colors.white)),
-                      ],
-                    ),
-                  ),
               ],
             ),
           ),
 
-          // ✨✨✨ VIRTUAL TOUR STOP CARD - ADD THIS HERE ✨✨✨
           if (_isVirtualTourActive &&
               _virtualTourManager.isShowingStopCard &&
               _virtualTourManager.currentStop != null)
@@ -1668,8 +2178,13 @@ class _MapsState extends State<Maps> {
                 _navigateToCurrentVirtualTourStop();
               },
               onPrevious: () {
+                // Store current location before going back
+                final currentLocation =
+                    _virtualTourManager.currentStop?.location;
                 _virtualTourManager.previousStop();
-                _navigateToCurrentVirtualTourStop();
+                _navigateToCurrentVirtualTourStop(
+                  fromLocation: currentLocation,
+                );
               },
               onEndTour: () {
                 _endVirtualTour();

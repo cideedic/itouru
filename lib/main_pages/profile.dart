@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:itouru/settings_pages/privacy.dart';
 
 class ProfilePage extends StatefulWidget {
   final String email;
@@ -21,10 +22,10 @@ class _ProfilePageState extends State<ProfilePage> {
   String contactNumber = "";
   String email = "";
   String? selectedAvatar;
+  String college = "";
 
   bool isLoading = true;
 
-  // Available avatars stored in Supabase Storage
   static const List<String> avatarOptions = [
     'avatar_1.png',
     'avatar_2.webp',
@@ -34,7 +35,6 @@ class _ProfilePageState extends State<ProfilePage> {
     'avatar_6.png',
   ];
 
-  // Supabase bucket name
   static const String avatarBucket = 'avatars';
 
   String _getAvatarUrl(String filename) {
@@ -59,6 +59,7 @@ class _ProfilePageState extends State<ProfilePage> {
           last_name,
           suffix,
           user_type,
+          college,
           birthday,
           nationality,
           sex,
@@ -81,7 +82,6 @@ class _ProfilePageState extends State<ProfilePage> {
         final last = response['last_name'] ?? "";
         final suffix = response['suffix'] ?? "";
 
-        // Build full name with suffix if it exists
         String fullName = "$first ${middle.isNotEmpty ? "$middle " : ""}$last"
             .trim();
         if (suffix.isNotEmpty) {
@@ -91,6 +91,7 @@ class _ProfilePageState extends State<ProfilePage> {
         setState(() {
           studentName = fullName.isNotEmpty ? fullName : "No Name";
           userType = response['user_type']?.toString() ?? "N/A";
+          college = response['college']?.toString() ?? "N/A";
 
           if (response['birthday'] != null &&
               response['birthday'].toString().isNotEmpty) {
@@ -109,7 +110,6 @@ class _ProfilePageState extends State<ProfilePage> {
           contactNumber = response['phone_number']?.toString() ?? "N/A";
           email = response['email']?.toString() ?? "N/A";
 
-          // Load the saved avatar from database, or use default
           selectedAvatar = response['avatar']?.toString() ?? avatarOptions[0];
           isLoading = false;
         });
@@ -118,6 +118,7 @@ class _ProfilePageState extends State<ProfilePage> {
           isLoading = false;
           studentName = "User Not Found";
           userType = "N/A";
+          college = "N/A";
           selectedAvatar = avatarOptions[0];
         });
       }
@@ -126,10 +127,10 @@ class _ProfilePageState extends State<ProfilePage> {
         isLoading = false;
         studentName = "Error Loading";
         userType = "N/A";
+        college = "N/A";
         selectedAvatar = avatarOptions[0];
       });
 
-      // Show error to user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -150,7 +151,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _updateAvatar(String newAvatar) async {
     try {
-      // Update avatar in database - this makes it persistent
       await Supabase.instance.client
           .from('Users')
           .update({'avatar': newAvatar})
@@ -291,7 +291,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
                     const SizedBox(height: 24),
 
-                    // Buttons in Column (Confirm above Cancel)
+                    // Buttons in Column
                     Column(
                       children: [
                         SizedBox(
@@ -522,17 +522,22 @@ class _ProfilePageState extends State<ProfilePage> {
                                               color: const Color(0xFF060870),
                                             ),
                                             textAlign: TextAlign.center,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
+                                            maxLines: 3,
+                                            overflow: TextOverflow.visible,
                                           ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            userType,
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 14,
-                                              color: Colors.grey[600],
+                                          const SizedBox(height: 8),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 6,
                                             ),
-                                            textAlign: TextAlign.center,
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange.withValues(
+                                                alpha: 0.15,
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -560,16 +565,66 @@ class _ProfilePageState extends State<ProfilePage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'PERSONAL INFORMATION',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.5,
-                                  color: Colors.black54,
-                                ),
+                              // Header with Edit Button
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'PERSONAL INFORMATION',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.5,
+                                      color: Colors.black54,
+                                    ),
+                                  ),
+                                  GestureDetector(
+                                    onTap: () {
+                                      // Navigate to Privacy Page
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const PrivacyPage(),
+                                        ),
+                                      ).then((_) {
+                                        // Refresh data when coming back from privacy page
+                                        _fetchUserData();
+                                      });
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.withValues(
+                                          alpha: 0.1,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Icon(
+                                        Icons.edit,
+                                        color: Colors.orange,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 20),
+                              // User Type
+                              _buildInfoItem(
+                                icon: Icons.badge,
+                                iconColor: Colors.orange,
+                                label: 'User Type',
+                                value: userType,
+                              ),
+                              // College
+                              _buildInfoItem(
+                                icon: Icons.school,
+                                iconColor: Colors.orange,
+                                label: 'College',
+                                value: college,
+                              ),
                               _buildInfoItem(
                                 icon: Icons.calendar_today,
                                 iconColor: Colors.orange,

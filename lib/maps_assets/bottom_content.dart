@@ -1,4 +1,3 @@
-// lib/maps_assets/bottom_sheets.dart
 import 'package:flutter/material.dart';
 import 'map_building.dart';
 import 'package:itouru/building_content_pages/content.dart';
@@ -7,7 +6,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/image_layout.dart';
 
-// Color constants for consistency
 const kPrimaryOrange = Color(0xFFFF8C00);
 const kPrimaryBlue = Color(0xFF2196F3);
 

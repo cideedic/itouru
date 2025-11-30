@@ -1,4 +1,3 @@
-// building_details.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,13 +6,12 @@ import 'package:itouru/page_components/video_layout.dart';
 import 'package:itouru/page_components/image_layout.dart';
 import 'package:itouru/page_components/sticky_header.dart';
 import 'package:itouru/page_components/loading_widget.dart';
-// Import tab widgets
 import 'about.dart';
 import 'rooms.dart';
 
 class BuildingDetailsPage extends StatefulWidget {
-  final int buildingId; // Required - primary identifier
-  final String? buildingName; // Optional - fallback for display
+  final int buildingId;
+  final String? buildingName;
   final String title;
 
   const BuildingDetailsPage({
@@ -33,7 +31,6 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
   Set<String> expandedSections = {};
   Map<String, AnimationController> sectionControllers = {};
 
-  // Data from Supabase
   Map<String, dynamic>? buildingData;
   List<Map<String, dynamic>>? roomsData;
   List<String> buildingVideos = [];
@@ -48,7 +45,7 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
   int _currentVideoPage = 0;
   static const int _infiniteMultiplier = 10000;
 
-  // Gallery carousel controller (no longer infinite)
+  // Gallery carousel controller
   PageController? _pageController;
 
   // Scroll controller for sticky header
@@ -190,39 +187,46 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
         }
       }
 
-      // Determine building folder names (try both building_name and nickname)
-      final buildingFolderName = response['building_name']
-          ?.toString()
-          .toLowerCase()
-          .replaceAll('.', '')
-          .replaceAll(' ', '-')
-          .trim();
+      // Helper function to normalize folder names
+      String normalizeFolderName(String name) {
+        return name
+            .toLowerCase()
+            .replaceAll('.', '')
+            .replaceAll("'", '')
+            .replaceAll(' ', '-')
+            .trim();
+      }
 
-      final nicknameFolderName = response['building_nickname']
-          ?.toString()
-          .toLowerCase()
-          .replaceAll('.', '')
-          .replaceAll(' ', '-')
-          .trim();
+      // Determine building folder names
+      final buildingName = response['building_name']?.toString();
+      final nickname = response['building_nickname']?.toString();
 
       // Create list of possible folder names to check
       List<String> possibleFolderNames = [];
-      if (buildingFolderName != null) {
-        possibleFolderNames.add(buildingFolderName);
+
+      if (buildingName != null) {
+        final fullName = normalizeFolderName(buildingName);
+        possibleFolderNames.add(fullName);
+
+        if (fullName.startsWith('bicol-university-')) {
+          final withoutPrefix = fullName.replaceFirst('bicol-university-', '');
+          if (withoutPrefix.isNotEmpty &&
+              !possibleFolderNames.contains(withoutPrefix)) {
+            possibleFolderNames.add(withoutPrefix);
+          }
+        }
       }
-      if (nicknameFolderName != null &&
-          nicknameFolderName != buildingFolderName) {
-        possibleFolderNames.add(nicknameFolderName);
+
+      if (nickname != null) {
+        final normalizedNickname = normalizeFolderName(nickname);
+        if (!possibleFolderNames.contains(normalizedNickname)) {
+          possibleFolderNames.add(normalizedNickname);
+        }
       }
-      // Fallback to widget.buildingName if both are null
+
       if (possibleFolderNames.isEmpty && widget.buildingName != null) {
-        possibleFolderNames.add(
-          widget.buildingName!
-              .toLowerCase()
-              .replaceAll('.', '')
-              .replaceAll(' ', '-')
-              .trim(),
-        );
+        final widgetFolderName = normalizeFolderName(widget.buildingName!);
+        possibleFolderNames.add(widgetFolderName);
       }
 
       List<String> videoUrls = [];
@@ -231,7 +235,6 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
       String? fetchedLogoUrl;
 
       if (possibleFolderNames.isNotEmpty) {
-        // Try each possible folder name until we find videos
         List<dynamic> videosResponse = [];
 
         for (var folderName in possibleFolderNames) {
@@ -252,7 +255,6 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
           final videoPath = videoData['name'] as String;
           final filename = videoData['filename'] as String;
 
-          // Skip placeholder files
           if (filename == '.emptyFolderPlaceholder' ||
               videoPath.endsWith('.emptyFolderPlaceholder')) {
             continue;
@@ -264,7 +266,6 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
           videoUrls.add(publicUrl);
         }
 
-        // Try each possible folder name until we find images
         List<dynamic> imagesResponse = [];
 
         for (var folderName in possibleFolderNames) {
@@ -286,7 +287,6 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
           final imagePath = imageData['name'] as String;
           final filename = imageData['filename'] as String;
 
-          // Skip placeholder files and logo files
           if (filename == '.emptyFolderPlaceholder' ||
               imagePath.endsWith('.emptyFolderPlaceholder') ||
               filename.contains('_logo')) {
@@ -302,6 +302,7 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
 
           imageUrls.add(publicUrl);
         }
+
         // Try each possible folder name until we find a building logo
         for (var folderName in possibleFolderNames) {
           try {
@@ -319,14 +320,12 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
                   .from('images')
                   .getPublicUrl(logoPath);
 
-              break; // Stop searching once logo is found
-            }
+              break;
+            } else {}
           } catch (e) {
-            // Logo not found for this folder, continue to next
+            // No logo found in this folder, continue to next
           }
         }
-
-        if (fetchedLogoUrl == null) {}
 
         // If no building logo found, try to fetch college logo as fallback
         if (fetchedLogoUrl == null && response['College'] != null) {
@@ -369,18 +368,17 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
 
               if (collegeLogoResponse != null) {
                 final collegeLogoPath = collegeLogoResponse['name'] as String;
+                collegeLogoResponse['filename'] as String;
                 fetchedLogoUrl = supabase.storage
                     .from('images')
                     .getPublicUrl(collegeLogoPath);
 
                 break; // Stop searching once logo is found
-              }
+              } else {}
             } catch (e) {
-              // Logo not found for this folder, continue to next
+              // No logo found in this folder, continue to next
             }
           }
-
-          if (fetchedLogoUrl == null) {}
         }
       }
 
@@ -434,7 +432,6 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
             controller: _scrollController,
             child: Column(
               children: [
-                // Background image + card
                 Stack(
                   clipBehavior: Clip.none,
                   children: [

@@ -17,7 +17,7 @@
     <!-- Camera Module -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <application
-        android:label="itouru"
+        android:label="iTOURu"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

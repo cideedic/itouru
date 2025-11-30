@@ -12,8 +12,8 @@ import 'package:itouru/settings_pages/about.dart';
 import 'package:itouru/main_pages/history.dart';
 import 'package:itouru/main_pages/explore.dart';
 import 'package:itouru/main_pages/feedback.dart';
+import 'package:itouru/page_components/image_layout.dart';
 
-// Polygon Background Painter
 class PolygonBackgroundPainter extends CustomPainter {
   final double animationValue;
 
@@ -23,9 +23,7 @@ class PolygonBackgroundPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..style = PaintingStyle.fill;
 
-    // Generate subtle polygons
     final polygons = [
-      // Top right orange polygon
       {
         'color': Colors.orange.withValues(alpha: 0.03),
         'points': [
@@ -34,7 +32,6 @@ class PolygonBackgroundPainter extends CustomPainter {
           Offset(size.width * 0.9, size.height * 0.25),
         ],
       },
-      // Top left blue polygon
       {
         'color': Colors.blue.withValues(alpha: 0.03),
         'points': [
@@ -43,7 +40,6 @@ class PolygonBackgroundPainter extends CustomPainter {
           Offset(size.width * 0.15, size.height * 0.3),
         ],
       },
-      // Middle right polygon
       {
         'color': Colors.purple.withValues(alpha: 0.02),
         'points': [
@@ -52,7 +48,6 @@ class PolygonBackgroundPainter extends CustomPainter {
           Offset(size.width * 0.95, size.height * 0.65),
         ],
       },
-      // Bottom left polygon
       {
         'color': Colors.teal.withValues(alpha: 0.025),
         'points': [
@@ -136,11 +131,15 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   List<Map<String, dynamic>> _timelineData = [];
   bool _isLoadingTimeline = false;
 
+  List<String> historyImages = [];
+  PageController? _historyPageController;
+
   @override
   void initState() {
     super.initState();
 
     _loadTimelineData();
+    _loadHistoryImages();
 
     // Vision slide and fade animation
     _visionController = AnimationController(
@@ -361,6 +360,67 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     }
   }
 
+  Future<void> _loadHistoryImages() async {
+    try {
+      final imagesResponse = await supabase
+          .from('storage_objects_snapshot')
+          .select('name, filename')
+          .eq('bucket_id', 'history')
+          .order('filename', ascending: true);
+
+      List<String> imageUrls = [];
+
+      for (var imageData in imagesResponse) {
+        final imagePath = imageData['name'] as String;
+        final filename = imageData['filename'] as String;
+
+        if (filename == '.emptyFolderPlaceholder' ||
+            imagePath.endsWith('.emptyFolderPlaceholder')) {
+          continue;
+        }
+
+        // Only include image files
+        if (filename.toLowerCase().endsWith('.jpg') ||
+            filename.toLowerCase().endsWith('.jpeg') ||
+            filename.toLowerCase().endsWith('.png') ||
+            filename.toLowerCase().endsWith('.gif') ||
+            filename.toLowerCase().endsWith('.webp')) {
+          final publicUrl = supabase.storage
+              .from('history')
+              .getPublicUrl(imagePath);
+          imageUrls.add(publicUrl);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          historyImages = imageUrls;
+        });
+
+        // Initialize page controller if we have multiple images
+        if (imageUrls.length > 1) {
+          _initializeHistoryPageController();
+        }
+      }
+    } catch (e) {
+      // Handle errors if necessary
+      if (mounted) {
+        setState(() {
+          historyImages = [];
+        });
+      }
+    }
+  }
+
+  void _initializeHistoryPageController() {
+    if (historyImages.isEmpty || historyImages.length == 1) return;
+
+    _historyPageController = PageController(
+      viewportFraction: 0.8,
+      initialPage: 0,
+    );
+  }
+
   Future<void> _loadTimelineData() async {
     setState(() {
       _isLoadingTimeline = true;
@@ -388,6 +448,10 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     _feedbackAnimController?.dispose();
     _exploreController?.dispose();
     _scrollController.dispose();
+
+    if (_historyPageController != null) {
+      _historyPageController!.dispose();
+    }
     super.dispose();
   }
 
@@ -462,7 +526,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     );
   }
 
-  // Enhanced Section Builder with gradient box style
+  // Section Builder with gradient box style
   Widget _buildEnhancedSection({
     required String title,
     required String subtitle,
@@ -480,11 +544,11 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
       child: Column(
         children: [
-          // Title with decorative elements
+          // Title
           Stack(
             alignment: Alignment.center,
             children: [
-              // Background Icon with glow effect
+              // Background Icon
               Container(
                 width: 200,
                 height: 200,
@@ -507,7 +571,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                 ),
               ),
 
-              // Title - ANIMATED
+              // Title
               FadeTransition(
                 opacity: fadeAnimation ?? AlwaysStoppedAnimation(0.0),
                 child: SlideTransition(
@@ -899,7 +963,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                               children: [
                                 _buildCategoryIcon(
                                   icon: Icons.school,
-                                  label: 'College',
+                                  label: 'Colleges',
                                   color: Colors.blue,
                                   onTap: () => _navigateToCategory('College'),
                                 ),
@@ -1038,7 +1102,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                         ),
                       ),
 
-                      // VISION SECTION - Replace the existing vision section
+                      // VISION SECTION
                       _buildEnhancedSection(
                         title: 'Vision',
                         subtitle: 'Our Future Aspiration',
@@ -1052,7 +1116,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
 
                       const SizedBox(height: 40),
 
-                      // MISSION SECTION - Replace the existing mission section
+                      // MISSION SECTION
                       _buildEnhancedSection(
                         title: 'Mission',
                         subtitle: 'Our Core Purpose',
@@ -1066,7 +1130,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
 
                       const SizedBox(height: 40),
 
-                      // QUALITY POLICY SECTION - Replace the existing quality policy section
+                      // QUALITY POLICY SECTION
                       _buildEnhancedSection(
                         title: 'Quality Policy',
                         subtitle: 'Our Commitment to Excellence',
@@ -1095,7 +1159,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                             Stack(
                               alignment: Alignment.center,
                               children: [
-                                // Background Icon - STATIC with glow effect
+                                // Background Icon with glow effect
                                 Container(
                                   width: 200,
                                   height: 200,
@@ -1120,7 +1184,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                                   ),
                                 ),
 
-                                // Title - ANIMATED
+                                // Title
                                 FadeTransition(
                                   opacity:
                                       _historyFadeAnimation ??
@@ -1165,7 +1229,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
 
                             const SizedBox(height: 40),
 
-                            // Enhanced content card
+                            // content card
                             FadeTransition(
                               opacity:
                                   _historyFadeAnimation ??
@@ -1423,6 +1487,17 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                                         fontStyle: FontStyle.italic,
                                       ),
                                     ),
+
+                                    // ✨ History Images Section
+                                    if (historyImages.isNotEmpty) ...[
+                                      const SizedBox(height: 30),
+                                      ImageLayout(
+                                        imageUrls: historyImages,
+                                        pageController: _historyPageController,
+                                        showGalleryText: false,
+                                        buttonColor: Colors.orange.shade600,
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
@@ -1434,7 +1509,6 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                       SizedBox(height: 40),
 
                       // Featured Locations Section
-                      // Replace this section:
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(
@@ -1472,7 +1546,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                                   ),
                                 ),
 
-                                // Title - ANIMATED
+                                // Title
                                 FadeTransition(
                                   opacity:
                                       _featuredFadeAnimation ??

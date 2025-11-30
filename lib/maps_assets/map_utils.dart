@@ -7,30 +7,30 @@ import 'routing_service.dart';
 import 'cone_marker_widget.dart';
 
 class MapUtils {
-  // ✨ Zoom level thresholds for marker visibility
+  // Zoom level thresholds for marker visibility
   static const double zoomShowColleges = 17.5;
   static const double zoomShowLandmarks = 18.0;
   static const double zoomShowAllDetails = 19.0;
 
-  // ✨ Fade transition zone (how many zoom levels for smooth fade)
+  // Fade transition zone (how many zoom levels for smooth fade)
   static const double fadeDuration = 1; // 1 zoom level for fade transition
 
-  // ✨ Check if colleges should be visible at current zoom
+  // Check if colleges should be visible at current zoom
   static bool shouldShowColleges(double currentZoom) {
     return currentZoom >= zoomShowColleges;
   }
 
-  // ✨ Check if landmarks should be visible at current zoom
+  // Check if landmarks should be visible at current zoom
   static bool shouldShowLandmarks(double currentZoom) {
     return currentZoom >= zoomShowLandmarks;
   }
 
-  // ✨ Check if all details should be shown
+  // Check if all details should be shown
   static bool shouldShowAllDetails(double currentZoom) {
     return currentZoom >= zoomShowAllDetails;
   }
 
-  // ✨ ENHANCED: Get marker opacity with smoother fade-in/fade-out
+  // get marker opacity with smoother fade-in/fade-out
   static double getMarkerOpacity(double currentZoom, String markerType) {
     switch (markerType) {
       case 'college':
@@ -47,20 +47,16 @@ class MapUtils {
     }
   }
 
-  // ✨ NEW: Calculate smooth fade opacity with easing
+  // Calculate smooth fade opacity with easing
   static double _calculateFadeOpacity(double currentZoom, double threshold) {
-    // Fade starts 0.5 zoom levels before threshold
     final fadeStartZoom = threshold - 0.5;
     final fadeEndZoom = threshold + 0.5;
 
     if (currentZoom < fadeStartZoom) {
-      // Completely invisible before fade starts
       return 0.0;
     } else if (currentZoom >= fadeEndZoom) {
-      // Completely visible after fade ends
       return 1.0;
     } else {
-      // Calculate fade progress (0.0 to 1.0)
       final progress =
           (currentZoom - fadeStartZoom) / (fadeEndZoom - fadeStartZoom);
 
@@ -69,12 +65,12 @@ class MapUtils {
     }
   }
 
-  // ✨ NEW: Easing function for smooth fade
+  // Easing function for smooth fade
   static double _easeInOutQuad(double t) {
     return t < 0.5 ? 2 * t * t : 1 - math.pow(-2 * t + 2, 2) / 2;
   }
 
-  // ✨ ENHANCED: Get marker size with smooth scaling
+  // Get marker size with smooth scaling
   static double getMarkerSize(double currentZoom, String markerType) {
     final baseSize = markerType == 'landmark' ? 60.0 : 70.0;
 
@@ -92,7 +88,7 @@ class MapUtils {
     }
 
     if (currentZoom < threshold - 0.5) {
-      return 0; // Hidden
+      return 0;
     } else if (currentZoom < threshold + 0.5) {
       // Scale up smoothly during fade-in
       final progress = (currentZoom - (threshold - 0.5)) / 1.0;
@@ -106,7 +102,7 @@ class MapUtils {
     }
   }
 
-  // ✨ NEW: Create animated marker wrapper (FADE ONLY - NO SCALING)
+  //  Create animated marker wrapper
   static Widget createAnimatedMarker({
     required Widget child,
     required double currentZoom,
@@ -124,7 +120,7 @@ class MapUtils {
     );
   }
 
-  // ✨ NEW: Wrap any custom marker widget with animation (FADE ONLY - NO SCALING)
+  //Wrap any custom marker widget with animation
   static Widget wrapMarkerWithAnimation({
     required Widget markerWidget,
     required double currentZoom,
@@ -141,7 +137,7 @@ class MapUtils {
     );
   }
 
-  // ✅ Get default map options with all callbacks
+  // Get default map options with all callbacks
   static MapOptions getDefaultMapOptions(
     LatLng center,
     CameraConstraint cameraConstraint, {
@@ -321,25 +317,21 @@ class MapUtils {
     controller.move(controller.camera.center, newZoom);
   }
 
-  // User location marker
-  static Marker createUserLocationMarker(
-    LatLng location, {
-    double? heading, // Optional compass heading
-  }) {
+  static Marker createUserLocationMarker(LatLng location, {double? heading}) {
     return Marker(
       point: location,
-      width: 160, // Larger to accommodate cone
-      height: 160,
+      width: 100,
+      height: 100,
       alignment: Alignment.center,
       child: heading != null
           ? ConeMarkerWidget(
               heading: heading,
-              coneAngle: 60.0, // 60° field of view
-              coneLength: 80.0,
-              coneColor: const Color(0x4D2196F3), // Semi-transparent blue
+              coneAngle: 45.0,
+              coneLength: 50.0,
+              coneColor: const Color(0x4D2196F3),
               circleColor: Colors.blue,
             )
-          : _createSimpleUserMarker(), // Fallback if no heading available
+          : _createSimpleUserMarker(),
     );
   }
 
@@ -347,20 +339,20 @@ class MapUtils {
   static Marker createNavigationMarker(
     LatLng location,
     double bearing, {
-    double? compassHeading, // Use compass if available, else use bearing
+    double? compassHeading,
   }) {
     final effectiveHeading = compassHeading ?? bearing;
 
     return Marker(
       point: location,
-      width: 160,
-      height: 160,
+      width: 100,
+      height: 100,
       alignment: Alignment.center,
-      child: PulsingConeMarker(
+      child: ConeMarkerWidget(
         heading: effectiveHeading,
-        coneAngle: 60.0,
-        coneLength: 80.0,
-        coneColor: const Color(0x4D4CAF50), // Semi-transparent green
+        coneAngle: 45.0,
+        coneLength: 50.0,
+        coneColor: const Color(0x4D4CAF50),
         circleColor: Colors.green,
       ),
     );
@@ -408,7 +400,7 @@ class MapUtils {
     double destinationZoom = 19.5,
     Duration overviewDuration = const Duration(milliseconds: 1000),
     Duration zoomInDuration = const Duration(milliseconds: 800),
-    Duration routeDrawDuration = const Duration(seconds: 5),
+    Duration routeDrawDuration = const Duration(seconds: 7),
     Duration finalZoomDuration = const Duration(milliseconds: 800),
   }) async {
     if (routePoints.isEmpty) {
@@ -448,7 +440,7 @@ class MapUtils {
         duration: finalZoomDuration,
       );
     } catch (e) {
-      onRouteUpdate(routePoints); // Fail gracefully
+      onRouteUpdate(routePoints);
     }
   }
 
@@ -484,7 +476,7 @@ class MapUtils {
 
     LatLng? currentCameraTarget;
 
-    // ✨ CRITICAL: Camera FOLLOWS the endpoint of visible route
+    // Camera FOLLOWS the endpoint of visible route
     while (true) {
       final elapsed = DateTime.now().difference(startTime);
       final globalProgress = (elapsed.inMilliseconds / duration.inMilliseconds)
@@ -501,7 +493,7 @@ class MapUtils {
       // Update visible route
       onRouteUpdate(visibleRoute);
 
-      // ✨ CAMERA FOLLOWS: Move camera to endpoint of visible route
+      // CAMERA FOLLOWS: Move camera to endpoint of visible route
       if (visibleRoute.isNotEmpty) {
         final targetPoint = visibleRoute.last;
 
@@ -518,7 +510,7 @@ class MapUtils {
             );
           }
 
-          // ✨ SMOOTH CAMERA: Move camera with rotation (like Waze)
+          // SMOOTH CAMERA: Move camera with rotation (like Waze)
           mapController.moveAndRotate(
             targetPoint,
             zoom,
@@ -550,7 +542,7 @@ class MapUtils {
 
     final targetDistance = totalDistance * progress;
 
-    // ✨ OPTIMIZATION: Binary search for segment (faster for long routes)
+    //  Binary search for segment (faster for long routes)
     int segmentIndex = 0;
     int left = 0;
     int right = distances.length - 1;
@@ -572,7 +564,6 @@ class MapUtils {
     // Get complete points up to current segment
     final visiblePoints = fullRoute.sublist(0, segmentIndex + 1).toList();
 
-    // ✨ CRITICAL: Add interpolated partial point for smooth growth
     if (segmentIndex < fullRoute.length - 1) {
       final segmentStart = distances[segmentIndex];
       final segmentEnd = distances[segmentIndex + 1];
@@ -585,7 +576,7 @@ class MapUtils {
         final startPoint = fullRoute[segmentIndex];
         final endPoint = fullRoute[segmentIndex + 1];
 
-        // ✨ Interpolate with HIGH precision
+        // Interpolate with HIGH precision
         final lat =
             startPoint.latitude +
             (endPoint.latitude - startPoint.latitude) * segmentProgress;

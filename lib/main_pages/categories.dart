@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/bottom_nav_bar.dart';
 import 'package:itouru/page_components/header.dart';
-import 'package:itouru/page_components/animation.dart';
 import 'package:itouru/college_content_pages/content.dart' as college_content;
 import 'package:itouru/building_content_pages/content.dart' as building_content;
 import 'package:itouru/office_content_pages/content.dart' as office_content;
@@ -68,18 +67,15 @@ class CategoriesBody extends StatefulWidget {
   CategoriesBodyState createState() => CategoriesBodyState();
 }
 
-class CategoriesBodyState extends State<CategoriesBody>
-    with TickerProviderStateMixin, ContentAnimationMixin {
+class CategoriesBodyState extends State<CategoriesBody> {
   late TextEditingController searchController;
   late FocusNode _searchFocusNode;
 
-  // Data lists from Supabase
   List<CollegeItem> colleges = [];
   List<BuildingItem> buildings = [];
   List<BuildingItem> landmarks = [];
   List<OfficeItem> offices = [];
 
-  // Filtered data
   String searchQuery = '';
   String selectedCategory = 'All';
   List<String> visibleCategories = [];
@@ -89,7 +85,6 @@ class CategoriesBodyState extends State<CategoriesBody>
 
   final supabase = Supabase.instance.client;
 
-  // Keys for category cards to enable scrolling
   final Map<String, GlobalKey> _categoryKeys = {
     'College': GlobalKey(),
     'Buildings': GlobalKey(),
@@ -97,7 +92,6 @@ class CategoriesBodyState extends State<CategoriesBody>
     'Offices': GlobalKey(),
   };
 
-  // ScrollController for the main content
   final ScrollController _mainScrollController = ScrollController();
 
   @override
@@ -106,10 +100,8 @@ class CategoriesBodyState extends State<CategoriesBody>
     searchController = TextEditingController();
     _searchFocusNode = FocusNode();
 
-    // Load data from Supabase
     _loadDataFromSupabase();
 
-    // Delay to ensure the widget is fully built before requesting focus
     if (widget.autoFocusSearch) {
       Future.delayed(const Duration(milliseconds: 100), () {
         if (mounted) {
@@ -118,10 +110,8 @@ class CategoriesBodyState extends State<CategoriesBody>
       });
     }
 
-    //  Scroll to category after data loads and widgets are built
     if (widget.initialCategory != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        // Increased delay to ensure rendering is complete
         Future.delayed(const Duration(milliseconds: 1200), () {
           if (mounted) {
             _scrollToCategory(widget.initialCategory!);
@@ -142,7 +132,6 @@ class CategoriesBodyState extends State<CategoriesBody>
     final context = key.currentContext;
 
     if (context == null) {
-      // Retry after another delay if context is not available
       Future.delayed(const Duration(milliseconds: 500), () {
         if (!mounted) return;
 
@@ -166,17 +155,16 @@ class CategoriesBodyState extends State<CategoriesBody>
           scrollContext,
           duration: const Duration(milliseconds: 600),
           curve: Curves.easeInOut,
-          alignment: 0.15, // Position with some padding from top
+          alignment: 0.15,
           alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
         )
         .then((_) {
-          // Check if widget is still mounted before triggering animation
           if (mounted) {
             _triggerBumpAnimation(key);
           }
         })
         .catchError((error) {
-          // Silently handle scroll errors
+          // Handle any errors during scrolling
         });
   }
 
@@ -547,7 +535,7 @@ class CategoriesBodyState extends State<CategoriesBody>
                 // College Category Card
                 if (_shouldShowCategory('College') && colleges.isNotEmpty)
                   CategoryCard(
-                    key: _categoryKeys['College'], // ✨ Add key
+                    key: _categoryKeys['College'],
                     title: 'Colleges',
                     icon: Icons.school,
                     color: Color(0xFFFF8C00),
@@ -559,7 +547,7 @@ class CategoriesBodyState extends State<CategoriesBody>
                 // Buildings Category Card
                 if (_shouldShowCategory('Buildings') && buildings.isNotEmpty)
                   CategoryCard(
-                    key: _categoryKeys['Buildings'], // ✨ Add key
+                    key: _categoryKeys['Buildings'],
                     title: 'Buildings',
                     icon: Icons.business,
                     color: Color(0xFFFF8C00),
@@ -571,7 +559,7 @@ class CategoriesBodyState extends State<CategoriesBody>
                 // Landmarks Category Card
                 if (_shouldShowCategory('Landmarks') && landmarks.isNotEmpty)
                   CategoryCard(
-                    key: _categoryKeys['Landmarks'], // ✨ Add key
+                    key: _categoryKeys['Landmarks'],
                     title: 'Landmarks & Others',
                     icon: Icons.place,
                     color: Color(0xFFFF8C00),
@@ -583,7 +571,7 @@ class CategoriesBodyState extends State<CategoriesBody>
                 // Offices Category Card
                 if (_shouldShowCategory('Offices') && offices.isNotEmpty)
                   CategoryCard(
-                    key: _categoryKeys['Offices'], // ✨ Add key
+                    key: _categoryKeys['Offices'],
                     title: 'Offices',
                     icon: Icons.work_outline,
                     color: Color(0xFFFF8C00),
@@ -657,7 +645,7 @@ class _CategoryCardState extends State<CategoryCard>
   @override
   void initState() {
     super.initState();
-    // ✨ Setup bump animation
+    // Setup bump animation
     _bumpController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -687,7 +675,7 @@ class _CategoryCardState extends State<CategoryCard>
     super.dispose();
   }
 
-  // ✨ Method to trigger bump animation
+  // Method to trigger bump animation
   void triggerBumpAnimation() {
     _bumpController.forward(from: 0.0).then((_) {});
   }

@@ -1,4 +1,3 @@
-// office_details.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,12 +5,11 @@ import 'package:itouru/page_components/bottom_nav_bar.dart';
 import 'package:itouru/page_components/sticky_header.dart';
 import 'package:itouru/main_pages/maps.dart';
 import 'package:itouru/page_components/loading_widget.dart';
-// Import tab widget
 import 'about.dart';
 
 class OfficeDetailsPage extends StatefulWidget {
-  final int officeId; // Required - primary identifier
-  final String? officeName; // Optional - fallback for display
+  final int officeId;
+  final String? officeName;
   final String title;
 
   const OfficeDetailsPage({
@@ -101,7 +99,7 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
       String? buildingFolderName;
       int? fetchedBuildingId;
 
-      // PRIORITY 1: Get building from building_id in Office table
+      // Get building from building_id in Office table
       if (response['building_id'] != null) {
         fetchedBuildingId = response['building_id'] as int;
 
@@ -122,7 +120,7 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
               .trim();
         }
       }
-      // FALLBACK: Try to get building through room_id if building_id is null
+      // try to get building through room_id if building_id is null
       else if (response['room_id'] != null) {
         final roomResponse = await supabase
             .from('Room')
@@ -195,7 +193,7 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
           }
         }
 
-        // Create list of possible building folder names (name and nickname)
+        // Create list of possible building folder names
         List<String> possibleBuildingFolderNames = [];
         possibleBuildingFolderNames.add(buildingFolderName);
         if (buildingNicknameFolderName != null &&
@@ -370,7 +368,6 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
 
   @override
   Widget build(BuildContext context) {
-    // Show full screen loading animation
     if (isLoading) {
       return LoadingScreen.dots(
         title: ' ${widget.title}',
@@ -385,7 +382,6 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
             controller: _scrollController,
             child: Column(
               children: [
-                // Background image + card
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -464,7 +460,6 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
               ],
             ),
           ),
-          // Sticky Header with conditional logo
           StickyHeader(
             isVisible: _showStickyHeader,
             title: widget.title,

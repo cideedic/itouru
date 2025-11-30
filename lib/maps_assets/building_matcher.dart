@@ -196,7 +196,7 @@ class BuildingMatcher {
     return null;
   }
 
-  // ✨ IMPROVED: Smart building matching with prioritization
+  // Smart building matching with prioritization
   static BuildingMatch? matchBuilding(String osmName) {
     if (_buildings.isEmpty) return null;
 
@@ -216,7 +216,7 @@ class BuildingMatcher {
 
       final buildingNormalized = _normalizeForMatching(buildingName);
 
-      // 1. EXACT MATCH - highest priority
+      // EXACT MATCH
       if (normalized == buildingNormalized) {
         exactMatch = BuildingMatch(
           id: buildingId as int,
@@ -227,7 +227,7 @@ class BuildingMatcher {
         break; // Stop searching, we found exact match
       }
 
-      // 2. Calculate match score for partial matches
+      // Calculate match score for partial matches
       int matchScore = _calculateMatchScore(
         normalized,
         buildingNormalized,
@@ -266,18 +266,15 @@ class BuildingMatcher {
   ) {
     int score = 0;
 
-    // Score based on containment (prefer longer matches)
+    // Score based on containment
     if (osmNormalized.contains(dbNormalized)) {
-      // How much of the OSM name does the DB name cover?
       double coverage = dbNormalized.length / osmNormalized.length;
-      score += (coverage * 5).round(); // 0-5 points
+      score += (coverage * 5).round();
     } else if (dbNormalized.contains(osmNormalized)) {
-      // How much of the DB name does the OSM name cover?
       double coverage = osmNormalized.length / dbNormalized.length;
-      score += (coverage * 5).round(); // 0-5 points
+      score += (coverage * 5).round();
     }
 
-    // Bonus for matching important words
     final osmWords = osmNormalized.split(' ');
     final dbWords = dbNormalized.split(' ');
     int matchingWords = 0;
@@ -288,9 +285,8 @@ class BuildingMatcher {
       }
     }
 
-    score += matchingWords * 2; // 2 points per matching word
+    score += matchingWords * 2;
 
-    // Penalty for too much extra content in DB name
     if (dbWords.length > osmWords.length * 2) {
       score -= 2;
     }
@@ -298,7 +294,7 @@ class BuildingMatcher {
     return score;
   }
 
-  // Match OSM college ground name to Supabase college (with NULL safety)
+  // Match OSM college ground name to Supabase college
   static CollegeMatch? matchCollegeGround(String osmName) {
     if (_colleges.isEmpty) return null;
 
@@ -348,7 +344,6 @@ class BuildingMatcher {
     return null;
   }
 
-  //  Old method - kept for backwards compatibility
   static int? matchCollege(String osmName) {
     final match = matchCollegeGround(osmName);
     return match?.id;
@@ -358,10 +353,9 @@ class BuildingMatcher {
   static String _normalizeForMatching(String text) {
     String normalized = text.toLowerCase();
 
-    // Remove "Bicol University" prefix but keep other important words
     normalized = normalized
         .replaceAll('bicol university', '')
-        .replaceAll(RegExp(r'^bu\s+'), '') // Only remove BU at start
+        .replaceAll(RegExp(r'^bu\s+'), '')
         .trim();
 
     // Apply synonym mappings for better matching
@@ -376,7 +370,7 @@ class BuildingMatcher {
     return normalized;
   }
 
-  // ✨ NEW: Apply synonym mappings for common variations
+  // pply synonym mappings for common variations
   static String _applySynonyms(String text) {
     // Gender synonyms
     text = text.replaceAll('male dormitory', 'mens dormitory');

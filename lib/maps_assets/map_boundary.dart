@@ -100,7 +100,7 @@ class MapBoundary {
     return intersections % 2 == 1;
   }
 
-  // ✅ STRICT BOUNDARY: Camera constraint that keeps view within campus
+  // Camera constraint that keeps view within campus
   static CameraConstraint getCameraConstraint() {
     final bounds = getCampusBounds();
 
@@ -112,16 +112,15 @@ class MapBoundary {
       LatLng(bounds.north + padding, bounds.east + padding),
     );
 
-    // Use contain to prevent ANY part of the view from going outside bounds
     // This stops users from swiping/panning beyond the campus area
     return CameraConstraint.contain(bounds: constrainedBounds);
   }
 
-  // ✅ FLEXIBLE BOUNDARY: For virtual tours that need to show gates/routes outside
+  // For virtual tours that need to show gates/routes outside
   static CameraConstraint getFlexibleCameraConstraint() {
     final bounds = getCampusBounds();
 
-    // Larger padding for virtual tours (≈700 meters)
+    // Larger padding for virtual tours
     const double padding = 0.007;
 
     final expandedBounds = LatLngBounds(
@@ -132,12 +131,11 @@ class MapBoundary {
     return CameraConstraint.contain(bounds: expandedBounds);
   }
 
-  // ✅ UNCONSTRAINED: For special cases (testing, debugging)
   static CameraConstraint getUnconstrainedCamera() {
     return CameraConstraint.unconstrained();
   }
 
-  // ✅ SMART SELECTOR: Get appropriate constraint based on context
+  //  Get appropriate constraint based on context
   static CameraConstraint getCameraConstraintForContext({
     bool isVirtualTour = false,
     bool allowExternal = false,
@@ -147,23 +145,22 @@ class MapBoundary {
     } else if (isVirtualTour) {
       return getFlexibleCameraConstraint();
     } else {
-      return getCameraConstraint(); // Strict by default
+      return getCameraConstraint();
     }
   }
 
-  // ✅ STRICTER ZOOM LEVELS: More restrictive for campus-only view
   // These prevent zooming out too far or in beyond OSM tile limits
   static double getMinZoom() =>
       17.0; // Can't zoom out too far (campus fills screen)
-  static double getMaxZoom() => 21.0; // Can't zoom in beyond OSM tiles
+  static double getMaxZoom() => 23.0; // Can't zoom in beyond OSM tiles
   static double getInitialZoom() => 17.45; // Good starting view
 
-  // ✅ Check if point is reasonably close to campus (for routing)
+  // Check if point is reasonably close to campus (for routing)
   static bool isNearCampus(LatLng point, {double radiusKm = 1.0}) {
     return _distanceBetween(point, bicolUniversityCenter) <= radiusKm * 1000;
   }
 
-  // ✅ Calculate distance between two points (Haversine formula)
+  // Calculate distance between two points (Haversine formula)
   static double _distanceBetween(LatLng point1, LatLng point2) {
     const double earthRadius = 6371000; // meters
 
@@ -181,9 +178,8 @@ class MapBoundary {
     return earthRadius * c;
   }
 
-  // ✅ ACTIVE USE: Clamp a point to stay within campus bounds
-  // Used by: Location tracking, user positioning, route calculations
-  // Purpose: Ensures coordinates don't go outside valid campus area
+  // Location tracking, user positioning, route calculations
+  // Ensures coordinates don't go outside valid campus area
   static LatLng clampToCampusBounds(LatLng point) {
     final bounds = getCampusBounds();
 
@@ -193,9 +189,8 @@ class MapBoundary {
     return LatLng(clampedLat, clampedLng);
   }
 
-  // ✅ ACTIVE USE: Get the closest point on campus boundary to a given point
-  // Used by: Entrance/exit detection, gate finding, boundary snapping
-  // Purpose: Find nearest valid campus entry point for off-campus users
+  // Entrance/exit detection, gate finding, boundary snapping
+  // Find nearest valid campus entry point for off-campus users
   static LatLng getClosestPointOnBoundary(LatLng point) {
     final boundaryPoints = getCampusBoundaryPoints();
 

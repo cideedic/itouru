@@ -76,7 +76,6 @@ class _BuildingRoomsTabState extends State<BuildingRoomsTab> {
 
       // Both have room numbers - sort by room number
       if (aHasNumber && bHasNumber) {
-        // Try to parse as numbers first for proper numeric sorting
         final aNum = int.tryParse(aNumber);
         final bNum = int.tryParse(bNumber);
 
@@ -315,7 +314,7 @@ class _BuildingRoomsTabState extends State<BuildingRoomsTab> {
                   children: [
                     Row(
                       children: [
-                        // Highlight: room name (or fallback to Room <number> if number exists)
+                        // room name (or fallback to Room <number> if number exists)
                         Expanded(
                           child: Text(
                             hasName

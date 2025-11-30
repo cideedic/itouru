@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:itouru/main_pages/home.dart';
+import 'package:itouru/login_components/terms_and_privacy.dart';
+import 'dart:async';
+import 'package:itouru/login_components/login_option.dart';
+import 'package:itouru/login_components/login.dart';
 
 class NewUserPanels extends StatefulWidget {
   final String email;
@@ -12,11 +16,11 @@ class NewUserPanels extends StatefulWidget {
   State<NewUserPanels> createState() => _NewUserPanelsState();
 }
 
-class _NewUserPanelsState extends State<NewUserPanels> {
+class _NewUserPanelsState extends State<NewUserPanels>
+    with WidgetsBindingObserver {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  // Form and controllers
   final _formKey = GlobalKey<FormState>();
   final supabase = Supabase.instance.client;
   final _scrollController = ScrollController();
@@ -27,6 +31,17 @@ class _NewUserPanelsState extends State<NewUserPanels> {
   final _suffixController = TextEditingController();
   final _phoneController = TextEditingController();
   final _birthdayController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+
+  bool _hasMinLength = false;
+  bool _hasUppercase = false;
+  bool _hasLowercase = false;
+  bool _hasDigit = false;
+  bool _hasSpecialChar = false;
 
   String? _selectedUserType;
   String? _selectedCollegeAbbreviation;
@@ -35,10 +50,16 @@ class _NewUserPanelsState extends State<NewUserPanels> {
   DateTime? _selectedBirthday;
   bool _isSubmitting = false;
   bool _isLoadingColleges = true;
+  bool _acceptedTerms = false;
+  bool _acceptedPrivacy = false;
+  bool _hasReadTerms = false;
+  bool _hasReadPrivacy = false;
+  bool _registrationComplete = false;
 
-  final List<String> _userTypes = ['Student', 'Faculty', 'Maintenance'];
+  StreamSubscription<AuthState>? _authSubscription;
 
-  // Store colleges data from database
+  final List<String> _userTypes = ['Student', 'Faculty', 'Staff'];
+
   List<Map<String, dynamic>> _colleges = [];
   Map<String, String> _collegeAbbreviationToName = {};
 
@@ -48,8 +69,43 @@ class _NewUserPanelsState extends State<NewUserPanels> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadColleges();
+    _passwordController.addListener(_validatePassword);
+
+    // Listen to auth state changes
+    _authSubscription = supabase.auth.onAuthStateChange.listen((data) {
+      final AuthChangeEvent event = data.event;
+
+      // If user logs out or session expires, redirect to login options
+      if (event == AuthChangeEvent.signedOut || data.session == null) {
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const LoginOptionPage()),
+            (route) => false,
+          );
+        }
+      }
+    });
   }
+
+  void _validatePassword() {
+    final password = _passwordController.text;
+    setState(() {
+      _hasMinLength = password.length >= 8;
+      _hasUppercase = password.contains(RegExp(r'[A-Z]'));
+      _hasLowercase = password.contains(RegExp(r'[a-z]'));
+      _hasDigit = password.contains(RegExp(r'[0-9]'));
+      _hasSpecialChar = password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
+    });
+  }
+
+  bool get _isPasswordValid =>
+      _hasMinLength &&
+      _hasUppercase &&
+      _hasLowercase &&
+      _hasDigit &&
+      _hasSpecialChar;
 
   Future<void> _loadColleges() async {
     try {
@@ -63,7 +119,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
           _colleges = List<Map<String, dynamic>>.from(response);
           _collegeAbbreviationToName = {
             for (var college in _colleges)
-              college['college_abbreviation'] as String:
+              '${college['college_name']} (${college['college_abbreviation']})':
                   college['college_name'] as String,
           };
           _isLoadingColleges = false;
@@ -93,6 +149,8 @@ class _NewUserPanelsState extends State<NewUserPanels> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+
     _pageController.dispose();
     _firstNameController.dispose();
     _middleNameController.dispose();
@@ -100,7 +158,10 @@ class _NewUserPanelsState extends State<NewUserPanels> {
     _suffixController.dispose();
     _phoneController.dispose();
     _birthdayController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
     _scrollController.dispose();
+    _authSubscription?.cancel();
     super.dispose();
   }
 
@@ -111,11 +172,20 @@ class _NewUserPanelsState extends State<NewUserPanels> {
         curve: Curves.easeInOut,
       );
     } else {
-      // Navigate to home when on success panel
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const Home()),
       );
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      if (!_registrationComplete) {
+        supabase.auth.signOut();
+      }
     }
   }
 
@@ -125,7 +195,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
     } else if (sex == 'Female') {
       return 'avatar_3.png';
     }
-    return 'avatar_1.png'; // fallback default
+    return 'avatar_1.png';
   }
 
   Future<void> _selectDate() async {
@@ -138,7 +208,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.light(
-              primary: Colors.orange,
+              primary: Color(0xFFFF8C00),
               onPrimary: Colors.white,
               onSurface: Colors.black,
             ),
@@ -175,30 +245,92 @@ class _NewUserPanelsState extends State<NewUserPanels> {
       return;
     }
 
+    // Check password validity
+    if (!_isPasswordValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Please meet all password requirements',
+            style: GoogleFonts.montserrat(fontSize: 12),
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Check if passwords match
+    if (_passwordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Passwords do not match',
+            style: GoogleFonts.montserrat(fontSize: 12),
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Check if terms and privacy are accepted
+    if (!_acceptedTerms || !_acceptedPrivacy) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Please accept Terms of Service and Privacy Policy',
+            style: GoogleFonts.montserrat(fontSize: 12),
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {
-      final authUserId = supabase.auth.currentUser?.id;
+      // Get the current authenticated user
+      final currentUser = supabase.auth.currentUser;
 
-      if (authUserId == null) {
-        throw Exception('User not authenticated');
+      if (currentUser == null) {
+        throw Exception('No authenticated user found');
       }
 
-      // Get the highest user_id from the database
+      // Update the password in Supabase Auth
+      final authResponse = await supabase.auth.updateUser(
+        UserAttributes(password: _passwordController.text),
+      );
+
+      if (authResponse.user == null) {
+        throw Exception('Failed to set password');
+      }
+
       final response = await supabase
           .from('Users')
           .select('user_id')
           .order('user_id', ascending: false)
           .limit(1);
 
-      int nextUserId = 1; // Default if no users exist
+      int nextUserId = 1;
 
       if (response.isNotEmpty) {
         final maxId = response.first['user_id'] as int;
         nextUserId = maxId + 1;
       }
 
-      // Get full college name from abbreviation
       final collegeFullName = _selectedCollegeAbbreviation != null
           ? _collegeAbbreviationToName[_selectedCollegeAbbreviation]
           : null;
@@ -215,7 +347,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
             : _suffixController.text.trim(),
         'email': widget.email,
         'user_type': _selectedUserType,
-        'college': collegeFullName, // Store full name in database
+        'college': collegeFullName,
         'birthday': _selectedBirthday?.toIso8601String().split('T')[0],
         'nationality': _selectedNationality,
         'sex': _selectedSex,
@@ -224,6 +356,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
       };
 
       await supabase.from('Users').insert(insertData);
+      _registrationComplete = true;
 
       if (mounted) {
         _pageController.nextPage(
@@ -260,6 +393,36 @@ class _NewUserPanelsState extends State<NewUserPanels> {
       if (mounted) {
         setState(() => _isSubmitting = false);
       }
+    }
+  }
+
+  void _showTerms() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const TermsOfServiceModal(),
+    );
+
+    if (result == true && mounted) {
+      setState(() {
+        _hasReadTerms = true;
+        _acceptedTerms = true;
+      });
+    }
+  }
+
+  void _showPrivacy() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const PrivacyPolicyModal(),
+    );
+
+    if (result == true && mounted) {
+      setState(() {
+        _hasReadPrivacy = true;
+        _acceptedPrivacy = true;
+      });
     }
   }
 
@@ -318,7 +481,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.orange, width: 2),
+              borderSide: BorderSide(color: Color(0xFFFF8C00), width: 2),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -338,7 +501,42 @@ class _NewUserPanelsState extends State<NewUserPanels> {
     );
   }
 
-  Widget _buildDropdown({
+  Widget _buildRequirementItem(String text, bool isMet) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isMet ? Colors.green : Colors.grey[300],
+            ),
+            child: Icon(
+              isMet ? Icons.check : Icons.close,
+              color: Colors.white,
+              size: 14,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: isMet ? Colors.green : Colors.grey[600],
+                fontWeight: isMet ? FontWeight.w500 : FontWeight.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModalSelector({
     required String label,
     required String hint,
     required String? value,
@@ -372,60 +570,223 @@ class _NewUserPanelsState extends State<NewUserPanels> {
           ),
         ),
         const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          value: value,
-          isExpanded: true,
-          menuMaxHeight: 200, // Limits to ~5 items with scrolling
-          decoration: InputDecoration(
-            hintText: isLoading ? 'Loading...' : hint,
-            hintStyle: GoogleFonts.montserrat(
-              fontSize: 12,
-              color: Colors.grey[400],
-            ),
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
+        InkWell(
+          onTap: isLoading
+              ? null
+              : () => _showSelectionModal(
+                  context: context,
+                  title: label,
+                  items: items,
+                  currentValue: value,
+                  onSelected: onChanged,
+                ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+              border: Border.all(color: Colors.grey[300]!),
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.orange, width: 2),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    isLoading ? 'Loading...' : value ?? hint,
+                    style: GoogleFonts.montserrat(
+                      fontSize: 13,
+                      color: value == null ? Colors.grey[400] : Colors.black87,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Icon(Icons.arrow_drop_down, color: Colors.grey[600]),
+              ],
             ),
           ),
-          items: isLoading
-              ? []
-              : items.map((String item) {
-                  return DropdownMenuItem(
-                    value: item,
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: Text(
-                        item,
-                        style: GoogleFonts.montserrat(fontSize: 13),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 2,
-                      ),
-                    ),
-                  );
-                }).toList(),
-          onChanged: isLoading ? null : onChanged,
-          validator: (value) {
-            if (required && value == null) {
-              return 'Please select an option';
-            }
-            return null;
-          },
         ),
       ],
+    );
+  }
+
+  // Method to show the modal with radio buttons
+  Future<void> _showSelectionModal({
+    required BuildContext context,
+    required String title,
+    required List<String> items,
+    required String? currentValue,
+    required Function(String?) onSelected,
+  }) async {
+    String? tempSelected = currentValue;
+
+    final sortedItems = List<String>.from(items)..sort();
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.7,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(25),
+                  topRight: Radius.circular(25),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Handle bar
+                  Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  // Title
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Select $title',
+                          style: GoogleFonts.montserrat(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: Icon(Icons.close, color: Colors.grey[600]),
+                          padding: EdgeInsets.zero,
+                          constraints: BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Divider(height: 1, color: Colors.grey[300]),
+                  // Options list
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: sortedItems.length,
+                      itemBuilder: (context, index) {
+                        final item = sortedItems[index];
+                        final isSelected = tempSelected == item;
+
+                        return InkWell(
+                          onTap: () {
+                            setModalState(() {
+                              tempSelected = item;
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 16,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Color(0xFFFF8C00).withValues(alpha: 0.1)
+                                  : Colors.transparent,
+                            ),
+                            child: Row(
+                              children: [
+                                // Radio button
+                                Container(
+                                  width: 20,
+                                  height: 20,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? Color(0xFFFF8C00)
+                                          : Colors.grey[400]!,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: isSelected
+                                      ? Center(
+                                          child: Container(
+                                            width: 10,
+                                            height: 10,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Color(0xFFFF8C00),
+                                            ),
+                                          ),
+                                        )
+                                      : null,
+                                ),
+                                const SizedBox(width: 16),
+                                // Item text
+                                Expanded(
+                                  child: Text(
+                                    item,
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 14,
+                                      color: isSelected
+                                          ? Color(0xFFFF8C00)
+                                          : Colors.black87,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w600
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  // Confirm button
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          onSelected(tempSelected);
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFFFF8C00),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          'Confirm',
+                          style: GoogleFonts.montserrat(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -437,16 +798,13 @@ class _NewUserPanelsState extends State<NewUserPanels> {
           final halfHeight = constraints.maxHeight / 2;
           return Stack(
             children: [
-              // Background - flipped layout
               Column(
                 children: [
-                  // White section on top
                   Container(
                     height: halfHeight,
                     width: double.infinity,
                     color: Color(0xFFF5F5F5),
                   ),
-                  // Blue gradient on bottom
                   Container(
                     height: halfHeight,
                     width: double.infinity,
@@ -499,37 +857,63 @@ class _NewUserPanelsState extends State<NewUserPanels> {
       child: Column(
         children: [
           const SizedBox(height: 40),
-          // Page indicators
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: Colors.orange,
-                  borderRadius: BorderRadius.circular(4),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Back button
+                IconButton(
+                  onPressed: () async {
+                    // Sign out and go back to login
+                    await supabase.auth.signOut();
+                    if (mounted) {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (context) => const LoginPage(),
+                        ),
+                        (route) => false,
+                      );
+                    }
+                  },
+                  icon: Icon(Icons.arrow_back, color: Colors.black, size: 28),
+                  tooltip: 'Back to Login',
                 ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(4),
+                // Page indicators
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Color(0xFFFF8C00),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ],
+                SizedBox(width: 48),
+              ],
+            ),
           ),
           const SizedBox(height: 60),
           // Image
@@ -569,10 +953,10 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                   ),
                 ),
                 Text(
-                  'ITOURU',
-                  style: GoogleFonts.notable(
-                    fontSize: 40,
-                    fontWeight: FontWeight.bold,
+                  'iTOURu',
+                  style: GoogleFonts.montserrat(
+                    fontSize: 52,
+                    fontWeight: FontWeight.w900,
                     color: Colors.white,
                     letterSpacing: 2,
                   ),
@@ -602,7 +986,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
               child: ElevatedButton(
                 onPressed: _nextPage,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
+                  backgroundColor: Color(0xFFFF8C00),
                   shape: const CircleBorder(),
                   padding: EdgeInsets.zero,
                   elevation: 8,
@@ -636,43 +1020,65 @@ class _NewUserPanelsState extends State<NewUserPanels> {
       controller: _scrollController,
       child: Column(
         children: [
-          // White/Gray section
           Container(
             color: Color(0xFFF5F5F5),
             child: Column(
               children: [
-                const SizedBox(height: 20),
-                // Page indicators
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Colors.orange,
-                        borderRadius: BorderRadius.circular(4),
+                const SizedBox(height: 40),
+
+                // Back button and Page indicators
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        onPressed: () {
+                          _pageController.previousPage(
+                            duration: const Duration(milliseconds: 800),
+                            curve: Curves.easeInOut,
+                          );
+                        },
+                        icon: Icon(
+                          Icons.arrow_back,
+                          color: Colors.black87,
+                          size: 28,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Colors.orange,
-                        borderRadius: BorderRadius.circular(4),
+                      // Page indicators
+                      Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: Color(0xFFFF8C00),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: Color(0xFFFF8C00),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.withValues(alpha: 0.4),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.withValues(alpha: 0.4),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ],
+                      SizedBox(width: 48),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 30),
                 // Illustration
@@ -742,7 +1148,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                           return Icon(
                             Icons.location_on,
                             size: 35,
-                            color: Colors.orange,
+                            color: Color(0xFFFF8C00),
                           );
                         },
                       ),
@@ -818,7 +1224,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                               hint: 'Enter your last name',
                             ),
                             const SizedBox(height: 16),
-                            _buildDropdown(
+                            _buildModalSelector(
                               label: 'User Type',
                               hint: 'Select',
                               value: _selectedUserType,
@@ -827,15 +1233,11 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                                   setState(() => _selectedUserType = value),
                             ),
                             const SizedBox(height: 16),
-                            _buildDropdown(
+                            _buildModalSelector(
                               label: 'College',
                               hint: 'Select your college',
                               value: _selectedCollegeAbbreviation,
-                              items: _colleges
-                                  .map(
-                                    (c) => c['college_abbreviation'] as String,
-                                  )
-                                  .toList(),
+                              items: _collegeAbbreviationToName.keys.toList(),
                               onChanged: (value) => setState(
                                 () => _selectedCollegeAbbreviation = value,
                               ),
@@ -899,7 +1301,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                                     focusedBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(8),
                                       borderSide: BorderSide(
-                                        color: Colors.orange,
+                                        color: Color(0xFFFF8C00),
                                         width: 2,
                                       ),
                                     ),
@@ -918,7 +1320,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                               ],
                             ),
                             const SizedBox(height: 16),
-                            _buildDropdown(
+                            _buildModalSelector(
                               label: 'Nationality',
                               hint: 'Select nationality',
                               value: _selectedNationality,
@@ -926,8 +1328,9 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                               onChanged: (value) =>
                                   setState(() => _selectedNationality = value),
                             ),
+
                             const SizedBox(height: 16),
-                            _buildDropdown(
+                            _buildModalSelector(
                               label: 'Sex',
                               hint: 'Select sex',
                               value: _selectedSex,
@@ -935,6 +1338,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                               onChanged: (value) =>
                                   setState(() => _selectedSex = value),
                             ),
+                            const SizedBox(height: 16),
                             const SizedBox(height: 16),
                             _buildTextField(
                               controller: _phoneController,
@@ -953,7 +1357,445 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                                 return null;
                               },
                             ),
-                            const SizedBox(height: 32),
+                            const SizedBox(height: 24),
+
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: _isPasswordValid
+                                    ? Colors.green[50]
+                                    : Colors.grey[50],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _isPasswordValid
+                                      ? Colors.green
+                                      : Colors.grey[300]!,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        _isPasswordValid
+                                            ? Icons.check_circle
+                                            : Icons.info_outline,
+                                        color: _isPasswordValid
+                                            ? Colors.green
+                                            : Colors.grey[600],
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        _isPasswordValid
+                                            ? 'All requirements met!'
+                                            : 'Password must contain:',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: _isPasswordValid
+                                              ? Colors.green
+                                              : Colors.black87,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _buildRequirementItem(
+                                    'At least 8 characters',
+                                    _hasMinLength,
+                                  ),
+                                  _buildRequirementItem(
+                                    'One uppercase letter (A-Z)',
+                                    _hasUppercase,
+                                  ),
+                                  _buildRequirementItem(
+                                    'One lowercase letter (a-z)',
+                                    _hasLowercase,
+                                  ),
+                                  _buildRequirementItem(
+                                    'One number (0-9)',
+                                    _hasDigit,
+                                  ),
+                                  _buildRequirementItem(
+                                    'One special character (!@#\$%^&*)',
+                                    _hasSpecialChar,
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // Password Field
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                RichText(
+                                  text: TextSpan(
+                                    text: 'Password',
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                    children: [
+                                      TextSpan(
+                                        text: ' *',
+                                        style: TextStyle(
+                                          color: Colors.red,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextFormField(
+                                  controller: _passwordController,
+                                  obscureText: _obscurePassword,
+                                  style: GoogleFonts.montserrat(fontSize: 13),
+                                  decoration: InputDecoration(
+                                    hintText: 'Enter your password',
+                                    hintStyle: GoogleFonts.montserrat(
+                                      fontSize: 12,
+                                      color: Colors.grey[400],
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _obscurePassword
+                                            ? Icons.visibility_off
+                                            : Icons.visibility,
+                                        color: Colors.grey[600],
+                                        size: 20,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _obscurePassword = !_obscurePassword;
+                                        });
+                                      },
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey[300]!,
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey[300]!,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(
+                                        color: Color(0xFFFF8C00),
+                                        width: 2,
+                                      ),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Please enter a password';
+                                    }
+                                    if (!_isPasswordValid) {
+                                      return 'Password does not meet requirements';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // Confirm Password Field
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                RichText(
+                                  text: TextSpan(
+                                    text: 'Confirm Password',
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                    children: [
+                                      TextSpan(
+                                        text: ' *',
+                                        style: TextStyle(
+                                          color: Colors.red,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                TextFormField(
+                                  controller: _confirmPasswordController,
+                                  obscureText: _obscureConfirmPassword,
+                                  style: GoogleFonts.montserrat(fontSize: 13),
+                                  decoration: InputDecoration(
+                                    hintText: 'Confirm your password',
+                                    hintStyle: GoogleFonts.montserrat(
+                                      fontSize: 12,
+                                      color: Colors.grey[400],
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _obscureConfirmPassword
+                                            ? Icons.visibility_off
+                                            : Icons.visibility,
+                                        color: Colors.grey[600],
+                                        size: 20,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _obscureConfirmPassword =
+                                              !_obscureConfirmPassword;
+                                        });
+                                      },
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey[300]!,
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(
+                                        color: Colors.grey[300]!,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(
+                                        color: Color(0xFFFF8C00),
+                                        width: 2,
+                                      ),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Please confirm your password';
+                                    }
+                                    if (value != _passwordController.text) {
+                                      return 'Passwords do not match';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey[200]!),
+                              ),
+                              child: Column(
+                                children: [
+                                  // Terms of Service
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      GestureDetector(
+                                        onTap: _showTerms,
+                                        child: Container(
+                                          width: 24,
+                                          height: 24,
+                                          decoration: BoxDecoration(
+                                            color: _acceptedTerms
+                                                ? Color(0xFFFF8C00)
+                                                : Colors.white,
+                                            border: Border.all(
+                                              color: _acceptedTerms
+                                                  ? Color(0xFFFF8C00)
+                                                  : Colors.grey[400]!,
+                                              width: 2,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                          child: _acceptedTerms
+                                              ? Icon(
+                                                  Icons.check,
+                                                  size: 16,
+                                                  color: Colors.white,
+                                                )
+                                              : null,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Wrap(
+                                              crossAxisAlignment:
+                                                  WrapCrossAlignment.center,
+                                              children: [
+                                                Text(
+                                                  'I accept the ',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 12,
+                                                    color: Colors.black87,
+                                                  ),
+                                                ),
+                                                GestureDetector(
+                                                  onTap: _showTerms,
+                                                  child: Text(
+                                                    'Terms of Service',
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 12,
+                                                      color: Color(0xFF2196F3),
+                                                      decoration: TextDecoration
+                                                          .underline,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            if (!_hasReadTerms)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: 4,
+                                                ),
+                                                child: Text(
+                                                  'Please read and accept in the document',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 10,
+                                                    color: Colors.orange[700],
+                                                    fontStyle: FontStyle.italic,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+
+                                  // Privacy Policy
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      GestureDetector(
+                                        onTap: _showPrivacy,
+                                        child: Container(
+                                          width: 24,
+                                          height: 24,
+                                          decoration: BoxDecoration(
+                                            color: _acceptedPrivacy
+                                                ? Color(0xFFFF8C00)
+                                                : Colors.white,
+                                            border: Border.all(
+                                              color: _acceptedPrivacy
+                                                  ? Color(0xFFFF8C00)
+                                                  : Colors.grey[400]!,
+                                              width: 2,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                          child: _acceptedPrivacy
+                                              ? Icon(
+                                                  Icons.check,
+                                                  size: 16,
+                                                  color: Colors.white,
+                                                )
+                                              : null,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Wrap(
+                                              crossAxisAlignment:
+                                                  WrapCrossAlignment.center,
+                                              children: [
+                                                Text(
+                                                  'I accept the ',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 12,
+                                                    color: Colors.black87,
+                                                  ),
+                                                ),
+                                                GestureDetector(
+                                                  onTap: _showPrivacy,
+                                                  child: Text(
+                                                    'Privacy Policy',
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 12,
+                                                      color: Color(0xFF2196F3),
+                                                      decoration: TextDecoration
+                                                          .underline,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            if (!_hasReadPrivacy)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: 4,
+                                                ),
+                                                child: Text(
+                                                  'Please read and accept in the document',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 10,
+                                                    color: Colors.orange[700],
+                                                    fontStyle: FontStyle.italic,
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+
+                            // Create Account Button
                             SizedBox(
                               width: double.infinity,
                               height: 50,
@@ -962,10 +1804,10 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                                     ? null
                                     : _submitRegistration,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.orange,
+                                  backgroundColor: Color(0xFFFF8C00),
                                   foregroundColor: Colors.white,
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(25),
+                                    borderRadius: BorderRadius.circular(15),
                                   ),
                                   elevation: 4,
                                 ),
@@ -1020,7 +1862,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: Colors.orange,
+                  color: Color(0xFFFF8C00),
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -1029,7 +1871,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: Colors.orange,
+                  color: Color(0xFFFF8C00),
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -1038,7 +1880,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: Colors.orange,
+                  color: Color(0xFFFF8C00),
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -1076,13 +1918,12 @@ class _NewUserPanelsState extends State<NewUserPanels> {
                 const SizedBox(height: 50),
                 Text(
                   'Nice!',
-                  style: GoogleFonts.notable(
-                    fontSize: 40,
-                    fontWeight: FontWeight.w500,
+                  style: GoogleFonts.montserrat(
+                    fontSize: 52,
+                    fontWeight: FontWeight.w900,
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 20),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 40),
                   child: Text(
@@ -1107,7 +1948,7 @@ class _NewUserPanelsState extends State<NewUserPanels> {
               child: ElevatedButton(
                 onPressed: _nextPage,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
+                  backgroundColor: Color(0xFFFF8C00),
                   shape: const CircleBorder(),
                   padding: EdgeInsets.zero,
                   elevation: 8,

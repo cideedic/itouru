@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "837594561644",
+    "project_id": "itouru-96827",
+    "storage_bucket": "itouru-96827.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:837594561644:android:3292d0d9edbd6c8413ac49",
+        "android_client_info": {
+          "package_name": "com.bicoluniversity.itouru"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJSt9sJmZoZBrPI-5N_D5Hm2Zt251yHKk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

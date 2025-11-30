@@ -16,7 +16,6 @@ class InfoCard extends StatelessWidget {
     final middleName = headData!['middle_name']?.toString() ?? '';
     final suffix = headData!['suffix_name']?.toString() ?? '';
 
-    // Build name: Prefix FirstName LastName MiddleInitial. Suffix
     String fullName = '';
 
     if (prefix.isNotEmpty) fullName += '$prefix ';
@@ -30,25 +29,44 @@ class InfoCard extends StatelessWidget {
     return fullName.trim();
   }
 
+  List<String> _extractEmails() {
+    if (headData == null || headData!['email'] == null) return [];
+
+    try {
+      final emailString = headData!['email'].toString();
+
+      // Split by newline, comma, or semicolon
+      final emails = emailString
+          .split(RegExp(r'[\n,;]'))
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty && e.contains('@'))
+          .toList();
+
+      return emails;
+    } catch (e) {
+      return [];
+    }
+  }
+
   Map<String, String> _extractSocials() {
     if (headData == null) return {};
 
     Map<String, String> socials = {};
 
-    if (headData!['email'] != null &&
-        headData!['email'].toString().isNotEmpty) {
-      socials['email'] = headData!['email'].toString();
-    }
-    if (headData!['facebook'] != null &&
-        headData!['facebook'].toString().isNotEmpty) {
-      socials['facebook'] = headData!['facebook'].toString();
-    }
-    if (headData!['instagram'] != null &&
-        headData!['instagram'].toString().isNotEmpty) {
-      socials['instagram'] = headData!['instagram'].toString();
-    }
-    if (headData!['x'] != null && headData!['x'].toString().isNotEmpty) {
-      socials['x'] = headData!['x'].toString();
+    try {
+      if (headData!['facebook'] != null &&
+          headData!['facebook'].toString().isNotEmpty) {
+        socials['facebook'] = headData!['facebook'].toString();
+      }
+      if (headData!['instagram'] != null &&
+          headData!['instagram'].toString().isNotEmpty) {
+        socials['instagram'] = headData!['instagram'].toString();
+      }
+      if (headData!['x'] != null && headData!['x'].toString().isNotEmpty) {
+        socials['x'] = headData!['x'].toString();
+      }
+    } catch (e) {
+      return {};
     }
 
     return socials;
@@ -60,20 +78,35 @@ class InfoCard extends StatelessWidget {
     String value,
   ) async {
     if (type == 'email') {
-      // Show email modal
-      _showEmailModal(context, value);
+      final emails = _extractEmails();
+      if (emails.isEmpty) {
+        _showErrorSnackBar(
+          context,
+          'No emails available',
+          'No contact email addresses found for this person.',
+        );
+        return;
+      }
+
+      // If only one email, show confirmation modal directly
+      if (emails.length == 1) {
+        _showEmailConfirmationModal(context, emails[0]);
+      } else {
+        // If multiple emails, show selection modal first
+        _showEmailSelectionModal(context, emails);
+      }
     } else {
-      // Show confirmation modal for external links
       _showLinkConfirmationModal(context, type, value);
     }
   }
 
-  void _showEmailModal(BuildContext context, String email) {
+  void _showEmailSelectionModal(BuildContext context, List<String> emails) {
     showDialog(
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -99,7 +132,7 @@ class InfoCard extends StatelessWidget {
 
               // Title
               Text(
-                'Send Your Concerns Here',
+                'Select Email Address',
                 style: GoogleFonts.poppins(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -107,26 +140,20 @@ class InfoCard extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
 
-              // Email
+              // Email List
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  email,
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: Colors.black,
-                    fontWeight: FontWeight.w500,
+                constraints: const BoxConstraints(maxHeight: 300),
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      for (int i = 0; i < emails.length; i++) ...[
+                        _buildEmailSelectionItem(context, emails[i], i),
+                        if (i < emails.length - 1) const SizedBox(height: 12),
+                      ],
+                    ],
                   ),
-                  textAlign: TextAlign.center,
                 ),
               ),
               const SizedBox(height: 24),
@@ -159,6 +186,268 @@ class InfoCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildEmailSelectionItem(
+    BuildContext context,
+    String email,
+    int index,
+  ) {
+    return InkWell(
+      onTap: () {
+        Navigator.pop(context); // Close selection modal
+        _showEmailConfirmationModal(context, email); // Show confirmation
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[300]!, width: 1),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_extractEmails().length > 1)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        'Email ${index + 1}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFFA9D2B),
+                        ),
+                      ),
+                    ),
+                  Text(
+                    email,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEmailConfirmationModal(BuildContext context, String email) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Color(0xFFFA9D2B).withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.email_rounded,
+                  size: 48,
+                  color: Color(0xFFFA9D2B),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Title
+              Text(
+                'Send Email',
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+
+              // Message
+              RichText(
+                textAlign: TextAlign.center,
+                text: TextSpan(
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: Colors.black54,
+                    height: 1.5,
+                  ),
+                  children: [
+                    TextSpan(text: 'You\'re about to send an email to\n'),
+                    TextSpan(
+                      text: email,
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFFA9D2B),
+                      ),
+                    ),
+                    TextSpan(text: '\n\nDo you want to continue?'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.grey[300]!),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        await _launchEmail(context, email);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFFFA9D2B),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        'Continue',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchEmail(BuildContext context, String email) async {
+    try {
+      // Create mailto URL with optional subject and body
+      final Uri emailUri = Uri(
+        scheme: 'mailto',
+        path: email,
+        query: 'subject=Inquiry&body=Hello,',
+      );
+
+      bool launched = false;
+      String? lastError;
+
+      // Try to launch the email URL with different modes
+      try {
+        launched = await launchUrl(
+          emailUri,
+          mode: LaunchMode.externalApplication,
+        );
+      } catch (e) {
+        lastError = e.toString();
+      }
+
+      if (!launched) {
+        try {
+          launched = await launchUrl(
+            emailUri,
+            mode: LaunchMode.platformDefault,
+          );
+        } catch (e) {
+          lastError = e.toString();
+        }
+      }
+
+      if (!launched) {
+        try {
+          launched = await launchUrl(
+            emailUri,
+            mode: LaunchMode.externalNonBrowserApplication,
+          );
+        } catch (e) {
+          lastError = e.toString();
+        }
+      }
+
+      // If all attempts failed, show error
+      if (!launched && context.mounted) {
+        if (lastError != null && lastError.contains('ACTIVITY_NOT_FOUND')) {
+          _showErrorSnackBar(
+            context,
+            'No email app available',
+            'Please install an email app (Gmail, Outlook, etc.) to send emails.',
+          );
+        } else if (lastError != null &&
+            lastError.contains('No Activity found')) {
+          _showErrorSnackBar(
+            context,
+            'Cannot open email',
+            'No compatible app found to handle email links.',
+          );
+        } else {
+          _showErrorSnackBar(
+            context,
+            'Cannot open email',
+            'Unable to open email app. Please try again later.',
+          );
+        }
+      }
+    } on FormatException catch (e) {
+      if (context.mounted) {
+        _showErrorSnackBar(
+          context,
+          'Invalid email',
+          'The email format is invalid: ${e.message}',
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        _showErrorSnackBar(
+          context,
+          'Unexpected error',
+          'Failed to open email app: ${e.toString()}',
+        );
+      }
+    }
   }
 
   void _showLinkConfirmationModal(
@@ -296,79 +585,170 @@ class InfoCard extends StatelessWidget {
     try {
       Uri? uri;
 
-      switch (type) {
-        case 'facebook':
-          if (value.startsWith('http')) {
-            uri = Uri.parse(value);
-          } else {
-            uri = Uri.parse('https://www.facebook.com/$value');
-          }
-          break;
-        case 'instagram':
-          if (value.startsWith('http')) {
-            uri = Uri.parse(value);
-          } else {
-            uri = Uri.parse('https://www.instagram.com/$value');
-          }
-          break;
-        case 'x':
-          if (value.startsWith('http')) {
-            uri = Uri.parse(value);
-          } else {
-            uri = Uri.parse('https://www.x.com/$value');
-          }
-          break;
+      // Parse the URL
+      try {
+        switch (type) {
+          case 'facebook':
+            if (value.startsWith('http')) {
+              uri = Uri.parse(value);
+            } else {
+              uri = Uri.parse('https://www.facebook.com/$value');
+            }
+            break;
+          case 'instagram':
+            if (value.startsWith('http')) {
+              uri = Uri.parse(value);
+            } else {
+              uri = Uri.parse('https://www.instagram.com/$value');
+            }
+            break;
+          case 'x':
+            if (value.startsWith('http')) {
+              uri = Uri.parse(value);
+            } else {
+              uri = Uri.parse('https://www.x.com/$value');
+            }
+            break;
+        }
+      } catch (e) {
+        if (context.mounted) {
+          _showErrorSnackBar(
+            context,
+            'Invalid URL format',
+            'The ${_getDisplayName(type)} link is not properly formatted.',
+          );
+        }
+        return;
       }
 
-      if (uri != null) {
-        bool launched = false;
+      if (uri == null) {
+        if (context.mounted) {
+          _showErrorSnackBar(
+            context,
+            'No URL available',
+            'Unable to generate link for ${_getDisplayName(type)}.',
+          );
+        }
+        return;
+      }
 
+      // Try to launch the URL with different modes
+      bool launched = false;
+      String? lastError;
+
+      // Try external application mode first
+      try {
+        launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (e) {
+        lastError = e.toString();
+      }
+
+      // Try platform default mode
+      if (!launched) {
         try {
-          launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+          launched = await launchUrl(uri, mode: LaunchMode.platformDefault);
         } catch (e) {
-          // External application mode failed, try next mode
+          lastError = e.toString();
         }
+      }
 
-        if (!launched) {
-          try {
-            launched = await launchUrl(uri, mode: LaunchMode.platformDefault);
-          } catch (e) {
-            // Platform default mode failed, try next mode
-          }
+      // Try external non-browser mode
+      if (!launched) {
+        try {
+          launched = await launchUrl(
+            uri,
+            mode: LaunchMode.externalNonBrowserApplication,
+          );
+        } catch (e) {
+          lastError = e.toString();
         }
+      }
 
-        if (!launched) {
-          try {
-            launched = await launchUrl(
-              uri,
-              mode: LaunchMode.externalNonBrowserApplication,
-            );
-          } catch (e) {
-            // External non-browser mode failed, show error below
-          }
-        }
-
-        if (!launched && context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Cannot open $type link. Please install a browser app.',
-              ),
-              duration: Duration(seconds: 3),
-            ),
+      // If all attempts failed, show error
+      if (!launched && context.mounted) {
+        if (lastError != null && lastError.contains('ACTIVITY_NOT_FOUND')) {
+          _showErrorSnackBar(
+            context,
+            'No app available',
+            'Please install a browser or ${_getDisplayName(type)} app to open this link.',
+          );
+        } else if (lastError != null &&
+            lastError.contains('No Activity found')) {
+          _showErrorSnackBar(
+            context,
+            'Cannot open link',
+            'No compatible app found to handle ${_getDisplayName(type)} links.',
+          );
+        } else {
+          _showErrorSnackBar(
+            context,
+            'Cannot open link',
+            'Unable to open ${_getDisplayName(type)}. Please try again later.',
           );
         }
       }
+    } on FormatException catch (e) {
+      if (context.mounted) {
+        _showErrorSnackBar(
+          context,
+          'Invalid URL',
+          'The link format is invalid: ${e.message}',
+        );
+      }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error opening link: $e'),
-            duration: Duration(seconds: 2),
-          ),
+        _showErrorSnackBar(
+          context,
+          'Unexpected error',
+          'Failed to open link: ${e.toString()}',
         );
       }
     }
+  }
+
+  void _showErrorSnackBar(BuildContext context, String title, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 28),
+              child: Text(
+                message,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: Colors.white.withValues(alpha: 0.9),
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.red[600],
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   @override
@@ -379,13 +759,14 @@ class InfoCard extends StatelessWidget {
 
     final name = _buildFullName();
     final position = headData!['position']?.toString() ?? '';
+    final emails = _extractEmails();
     final socials = _extractSocials();
 
     final iconMap = {
       'email': Icons.email_rounded,
       'facebook': Icons.facebook_rounded,
       'instagram': Icons.camera_alt_rounded,
-      'x': Icons.clear, // or use a custom X icon
+      'x': Icons.clear,
     };
 
     final colorMap = {
@@ -394,6 +775,9 @@ class InfoCard extends StatelessWidget {
       'instagram': Color(0xFFFA9D2B),
       'x': Color(0xFFFA9D2B),
     };
+
+    // Combine emails and socials for display
+    final hasEmailOrSocials = emails.isNotEmpty || socials.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -432,7 +816,7 @@ class InfoCard extends StatelessWidget {
               style: GoogleFonts.poppins(fontSize: 12, color: Colors.black54),
             ),
           ],
-          if (socials.isNotEmpty) ...[
+          if (hasEmailOrSocials) ...[
             Divider(),
             SizedBox(height: 12),
             Wrap(
@@ -440,6 +824,38 @@ class InfoCard extends StatelessWidget {
               spacing: 12,
               runSpacing: 12,
               children: [
+                // Email icon (if emails exist)
+                if (emails.isNotEmpty)
+                  InkWell(
+                    onTap: () => _handleSocialTap(context, 'email', ''),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: colorMap['email']!.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Badge(
+                        label: emails.length > 1
+                            ? Text(
+                                '${emails.length}',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              )
+                            : null,
+                        backgroundColor: Colors.red,
+                        isLabelVisible: emails.length > 1,
+                        child: Icon(
+                          iconMap['email'],
+                          color: colorMap['email'],
+                          size: 28,
+                        ),
+                      ),
+                    ),
+                  ),
+                // Other social icons
                 for (var entry in socials.entries)
                   if (iconMap.containsKey(entry.key))
                     InkWell(

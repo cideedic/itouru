@@ -32,17 +32,47 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     });
 
     try {
+      final email = _emailController.text.trim();
+
+      // Check if email exists in the database
+      final response = await supabase
+          .from('Users')
+          .select('email')
+          .eq('email', email)
+          .maybeSingle();
+
+      if (response == null) {
+        // Email not found in database
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Account not found. Please check your email or sign up.',
+                style: GoogleFonts.poppins(),
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Email exists, proceed with password reset
       await supabase.auth.resetPasswordForEmail(
-        _emailController.text.trim(),
-        redirectTo: 'itouru://reset-password', // Deep link for mobile
+        email,
+        redirectTo: 'itouru://reset-password',
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'If an account exists with ${_emailController.text.trim()}, '
-              'you will receive a password reset link shortly.',
+              'Password reset link has been sent to $email. Please check your inbox.',
               style: GoogleFonts.poppins(),
             ),
             backgroundColor: Colors.green,
@@ -80,12 +110,30 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           ),
         );
       }
+    } on PostgrestException catch (e) {
+      // Handle database query errors
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Database error: ${e.message}',
+              style: GoogleFonts.poppins(),
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'An unexpected error occurred: ${e.toString()} ',
+              'An unexpected error occurred: ${e.toString()}',
               style: GoogleFonts.poppins(),
             ),
             backgroundColor: Colors.red,
@@ -109,13 +157,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final halfHeight = constraints.maxHeight / 2;
           return Stack(
             children: [
-              // 50/50 background
               Column(
                 children: [
                   Container(
@@ -149,217 +196,225 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 child: Column(
                   children: [
                     Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                          SizedBox(height: 40),
-                          // Logo
-                          Container(
-                            width: 35,
-                            height: 35,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.1),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: ClipOval(
-                                child: Image.asset(
-                                  'assets/images/i_logo.png',
-                                  width: 40,
-                                  height: 40,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Icon(
-                                      Icons.lock_reset,
-                                      size: 30,
-                                      color: Colors.orange,
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 35),
-                          // Title
-                          Text(
-                            'Forgot\nPassword',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.montserrat(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-
-                          const SizedBox(height: 16),
-                          // Reset Password Card
-                          Container(
-                            margin: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 8,
-                            ),
-                            constraints: const BoxConstraints(maxWidth: 400),
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.1),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: Form(
-                              key: _formKey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Back Button
-                                  Container(
-                                    width: 45,
-                                    height: 45,
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: Colors.grey[300]!,
-                                        width: 1.5,
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: IconButton(
-                                      onPressed: () {
-                                        Navigator.pop(context);
-                                      },
-                                      icon: Icon(
-                                        Icons.arrow_back,
-                                        color: Colors.black87,
-                                        size: 20,
-                                      ),
-                                      padding: EdgeInsets.zero,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  // Instruction Text
-                                  Text(
-                                    'Enter your email and we\'ll send you instructions to reset your password',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 13,
-                                      color: Colors.black87,
-                                      height: 1.5,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 24),
-                                  // Email Field Label
-                                  Text(
-                                    'Email',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  // Email Input Field
-                                  TextFormField(
-                                    controller: _emailController,
-                                    keyboardType: TextInputType.emailAddress,
-                                    decoration: InputDecoration(
-                                      hintText: 'xxx@email.com',
-                                      hintStyle: GoogleFonts.poppins(
-                                        fontSize: 13,
-                                        color: Colors.grey[400],
-                                      ),
-                                      filled: true,
-                                      fillColor: Colors.grey[50],
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide.none,
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(
-                                          color: Colors.grey[200]!,
-                                        ),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: BorderSide(
-                                          color: Colors.orange,
-                                          width: 2,
-                                        ),
-                                      ),
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 14,
-                                          ),
-                                    ),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) {
-                                        return 'Please enter your email';
-                                      }
-                                      if (!value.contains('@')) {
-                                        return 'Please enter a valid email';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                  const SizedBox(height: 24),
-                                  // Reset Link Button
-                                  SizedBox(
-                                    width: double.infinity,
-                                    height: 50,
-                                    child: ElevatedButton(
-                                      onPressed: _isLoading
-                                          ? null
-                                          : _handleResetPassword,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.orange,
-                                        foregroundColor: Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        elevation: 0,
-                                      ),
-                                      child: _isLoading
-                                          ? SizedBox(
-                                              height: 20,
-                                              width: 20,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<
-                                                      Color
-                                                    >(Colors.white),
-                                              ),
-                                            )
-                                          : Text(
-                                              'Send Reset Link',
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                    ),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [
+                            SizedBox(height: 40),
+                            // Logo
+                            Container(
+                              width: 35,
+                              height: 35,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.1),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
                                   ),
                                 ],
                               ),
+                              child: Center(
+                                child: ClipOval(
+                                  child: Image.asset(
+                                    'assets/images/i_logo.png',
+                                    width: 40,
+                                    height: 40,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Icon(
+                                        Icons.lock_reset,
+                                        size: 30,
+                                        color: Color(0xFFFF8C00),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 35),
+                            // Title
+                            Text(
+                              'Forgot\nPassword',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.montserrat(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            // Reset Password Card
+                            Container(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 8,
+                              ),
+                              constraints: const BoxConstraints(maxWidth: 400),
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.1),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              child: Form(
+                                key: _formKey,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Back Button
+                                    Container(
+                                      width: 45,
+                                      height: 45,
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: Colors.grey[300]!,
+                                          width: 1.5,
+                                        ),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: IconButton(
+                                        onPressed: () {
+                                          Navigator.pop(context);
+                                        },
+                                        icon: Icon(
+                                          Icons.arrow_back,
+                                          color: Colors.black87,
+                                          size: 20,
+                                        ),
+                                        padding: EdgeInsets.zero,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    // Instruction Text
+                                    Text(
+                                      'Enter your email and we\'ll send you instructions to reset your password',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        color: Colors.black87,
+                                        height: 1.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 24),
+                                    // Email Field Label
+                                    Text(
+                                      'Email',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    // Email Input Field
+                                    TextFormField(
+                                      controller: _emailController,
+                                      keyboardType: TextInputType.emailAddress,
+                                      decoration: InputDecoration(
+                                        hintText: 'john2020@bicol-u.edu.ph',
+                                        hintStyle: GoogleFonts.poppins(
+                                          fontSize: 13,
+                                          color: Colors.grey[400],
+                                        ),
+                                        filled: true,
+                                        fillColor: Colors.grey[50],
+                                        border: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          borderSide: BorderSide.none,
+                                        ),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: Colors.grey[200]!,
+                                          ),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          borderSide: BorderSide(
+                                            color: Color(0xFFFF8C00),
+                                            width: 2,
+                                          ),
+                                        ),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 14,
+                                            ),
+                                      ),
+                                      validator: (value) {
+                                        if (value == null || value.isEmpty) {
+                                          return 'Please enter your email';
+                                        }
+                                        if (!value.contains('@')) {
+                                          return 'Please enter a valid email';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                    const SizedBox(height: 24),
+                                    // Reset Link Button
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 50,
+                                      child: ElevatedButton(
+                                        onPressed: _isLoading
+                                            ? null
+                                            : _handleResetPassword,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Color(0xFFFF8C00),
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          elevation: 0,
+                                        ),
+                                        child: _isLoading
+                                            ? SizedBox(
+                                                height: 20,
+                                                width: 20,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  valueColor:
+                                                      AlwaysStoppedAnimation<
+                                                        Color
+                                                      >(Colors.white),
+                                                ),
+                                              )
+                                            : Text(
+                                                'Send Reset Link',
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
                       ),
                     ),
-                    // Footer at bottom, always visible
+                    // Footer at bottom
                     Padding(
                       padding: const EdgeInsets.only(bottom: 20),
                       child: Text(

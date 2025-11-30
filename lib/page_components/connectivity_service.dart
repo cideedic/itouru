@@ -1,4 +1,3 @@
-// lib/page_components/connectivity_service.dart
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';

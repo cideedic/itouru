@@ -13,8 +13,8 @@ import 'programs.dart';
 import 'buildings.dart';
 
 class CollegeDetailsPage extends StatefulWidget {
-  final int collegeId; // Required - primary identifier
-  final String? collegeName; // Optional - fallback for display
+  final int collegeId;
+  final String? collegeName;
   final String title;
 
   const CollegeDetailsPage({
@@ -34,7 +34,6 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
   Set<String> expandedSections = {};
   Map<String, AnimationController> sectionControllers = {};
 
-  // Data from Supabase
   Map<String, dynamic>? collegeData;
   Map<String, dynamic>? headData;
   List<Map<String, dynamic>>? programsData;
@@ -52,7 +51,7 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
   int _currentVideoPage = 0;
   static const int _infiniteMultiplier = 10000;
 
-  // Gallery carousel controller (no longer infinite)
+  // Gallery carousel controller
   PageController? _pageController;
 
   // Scroll controller for sticky header
@@ -87,7 +86,7 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
   }
 
   void _onScroll() {
-    // Show sticky header when scrolled past 300 pixels (approximately when card is out of view)
+    // Show sticky header when scrolled past 300 pixels
     final shouldShow = _scrollController.offset > 300;
     if (shouldShow != _showStickyHeader) {
       setState(() {
@@ -148,12 +147,10 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
     super.dispose();
   }
 
-  // Updated _loadCollegeData method for college_details.dart
   Future<void> _loadCollegeData() async {
     try {
       setState(() => isLoading = true);
 
-      // Fetch College data with Head information using JOIN
       final response = await supabase
           .from('College')
           .select('*, Head(*)')
@@ -196,7 +193,7 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
         }
       }
 
-      // Determine college folder names (try both college_name and abbreviation)
+      // Determine college folder names
       final collegeFolderName = response['college_name']
           ?.toString()
           .toLowerCase()

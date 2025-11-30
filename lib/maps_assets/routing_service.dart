@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:itouru/maps_assets/location_service.dart';
-import 'package:itouru/maps_assets/map_boundary.dart'; // Import your boundary
+import 'package:itouru/maps_assets/map_boundary.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -48,6 +47,75 @@ class RoutingService {
     }
   }
 
+  static Future<LatLng?> fetchBuildingEntrance(
+    LatLng buildingCenter,
+    String buildingName,
+  ) async {
+    try {
+      final double radius = 50;
+
+      // Calculate bounding box
+      final double latOffset = radius / 111320;
+      final double lngOffset =
+          radius / (111320 * math.cos(buildingCenter.latitude * math.pi / 180));
+
+      final double minLat = buildingCenter.latitude - latOffset;
+      final double maxLat = buildingCenter.latitude + latOffset;
+      final double minLng = buildingCenter.longitude - lngOffset;
+      final double maxLng = buildingCenter.longitude + lngOffset;
+
+      // Overpass API query for entrances
+      final String query =
+          '''
+[out:json][timeout:25];
+(
+  node["entrance"]($minLat,$minLng,$maxLat,$maxLng);
+  node["door"]($minLat,$minLng,$maxLat,$maxLng);
+);
+out body;
+''';
+
+      final response = await http.post(
+        Uri.parse('https://overpass-api.de/api/interpreter'),
+        body: query,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final elements = data['elements'] as List;
+
+        if (elements.isNotEmpty) {
+          // Find the closest entrance to building center
+          LatLng? closestEntrance;
+          double minDistance = double.infinity;
+
+          for (var element in elements) {
+            final lat = element['lat'] as double;
+            final lon = element['lon'] as double;
+            final entranceLocation = LatLng(lat, lon);
+
+            final distance = calculateDistance(
+              buildingCenter,
+              entranceLocation,
+            );
+            if (distance < minDistance) {
+              minDistance = distance;
+              closestEntrance = entranceLocation;
+            }
+          }
+
+          return closestEntrance;
+        }
+      }
+
+      // No entrance found, return building center
+      return null;
+    } catch (e) {
+      debugPrint('Error fetching building entrance: $e');
+      return null;
+    }
+  }
+
   /// Get direct route between two points (both inside campus)
   static Future<RouteResult> _getDirectRoute(LatLng start, LatLng end) async {
     final String url =
@@ -64,7 +132,6 @@ class RoutingService {
         final route = data['routes'][0];
         final geometry = route['geometry'];
         final distance = route['distance'];
-        final duration = route['duration'];
 
         final List<PointLatLng> result = PolylinePoints.decodePolyline(
           geometry,
@@ -75,8 +142,8 @@ class RoutingService {
 
         return RouteResult.success(
           points: routePoints,
-          distance: _formatDistance(distance),
-          duration: _formatDuration(duration),
+          distance: formatDistance(distance),
+          duration: calculateWalkingDuration(distance),
         );
       }
     }
@@ -113,7 +180,7 @@ class RoutingService {
     }
   }
 
-  /// Get multi-segment route (e.g., start → gate → end)
+  /// Get multi-segment route
   static Future<RouteResult> _getMultiSegmentRoute(
     List<LatLng> waypoints,
   ) async {
@@ -121,7 +188,6 @@ class RoutingService {
       return RouteResult.error('Need at least 2 waypoints');
     }
 
-    // Build waypoints string for OSRM
     final waypointsStr = waypoints
         .map((point) => '${point.longitude},${point.latitude}')
         .join(';');
@@ -138,8 +204,7 @@ class RoutingService {
       if (data['routes'] != null && data['routes'].isNotEmpty) {
         final route = data['routes'][0];
         final geometry = route['geometry'];
-        final distance = route['distance'];
-        final duration = route['duration'];
+        final distance = route['distance']; // This is in meters
 
         final List<PointLatLng> result = PolylinePoints.decodePolyline(
           geometry,
@@ -150,9 +215,9 @@ class RoutingService {
 
         return RouteResult.success(
           points: routePoints,
-          distance: _formatDistance(distance),
-          duration: _formatDuration(duration),
-          viaGate: waypoints.length > 2, // Indicates route goes through gate
+          distance: formatDistance(distance),
+          duration: calculateWalkingDuration(distance),
+          viaGate: waypoints.length > 2,
         );
       }
     }
@@ -198,18 +263,15 @@ class RoutingService {
     return nearestGate ?? gates.first;
   }
 
-  /// Get campus gates - Always use predefined gates for Bicol University
+  /// Fetch campus gates from OSM via Overpass API
   static Future<List<CampusGate>> fetchCampusGates({
     required LatLng campusCenter,
     double radiusMeters = 500,
   }) async {
     // Always use predefined gates for accuracy
-    // OSM data may not have correct campus gate information
     return _createDefaultGates(campusCenter);
   }
 
-  /// Create default gates if OSM data is not available
-  /// You should customize these based on your campus's actual entrances
   static List<CampusGate> _createDefaultGates(LatLng center) {
     return [
       CampusGate(
@@ -233,19 +295,13 @@ class RoutingService {
       CampusGate(
         id: 'gate_4',
         name: 'Gate 4',
-        location: LatLng(13.14544743, 123.72402332),
+        location: LatLng(13.14564489, 123.72377642),
         tags: {'entrance': 'yes', 'access': 'secondary'},
       ),
       CampusGate(
         id: 'gate_5',
         name: 'Gate 5',
-        location: LatLng(13.14564489, 123.72377642),
-        tags: {'entrance': 'yes', 'access': 'secondary'},
-      ),
-      CampusGate(
-        id: 'gate_6',
-        name: 'Gate 6',
-        location: LatLng(13.14639730, 123.72280648),
+        location: LatLng(13.14620255, 123.72305763),
         tags: {'entrance': 'yes', 'access': 'secondary'},
       ),
       CampusGate(
@@ -291,8 +347,7 @@ class RoutingService {
     );
   }
 
-  static String _formatDistance(num distanceInMeters) {
-    // Changed from double to num
+  static String formatDistance(num distanceInMeters) {
     if (distanceInMeters >= 1000) {
       return '${(distanceInMeters / 1000).toStringAsFixed(1)} km';
     } else {
@@ -300,15 +355,23 @@ class RoutingService {
     }
   }
 
-  static String _formatDuration(num durationInSeconds) {
-    // Changed from double to num
-    final int minutes = (durationInSeconds / 60).round();
-    if (minutes >= 60) {
-      final int hours = minutes ~/ 60;
-      final int remainingMinutes = minutes % 60;
-      return '${hours}h ${remainingMinutes}m';
+  static String calculateWalkingDuration(num distanceInMeters) {
+    const double metersPerMinute = 58.3;
+
+    final double totalMinutes = distanceInMeters / metersPerMinute;
+
+    if (totalMinutes < 1) {
+      final int seconds = (totalMinutes * 60).round();
+      return '${seconds}s';
+    } else if (totalMinutes >= 60) {
+      final int hours = totalMinutes ~/ 60;
+      final int minutes = (totalMinutes % 60).round();
+      if (minutes == 0) {
+        return '${hours}h';
+      }
+      return '${hours}h ${minutes}m';
     } else {
-      return '${minutes}m';
+      return '${totalMinutes.round()}m';
     }
   }
 
@@ -367,12 +430,12 @@ class CampusGate {
   String toString() => 'CampusGate(name: $name, location: $location)';
 }
 
-// Keep your existing NavigationManager and RouteResult classes...
 class NavigationManager {
-  StreamSubscription<Position>? _positionStream;
+  Timer? _headingUpdateTimer;
+  Timer? _routeRecalculationTimer;
   LatLng? _currentLocation;
-  LatLng? _previousLocation;
   double _currentBearing = 0.0;
+  double _targetBearing = 0.0;
   bool _isNavigating = false;
   bool _isDisposed = false;
 
@@ -381,9 +444,14 @@ class NavigationManager {
   String? _routeDistance;
   String? _routeDuration;
 
+  static const double _routeRecalculationThreshold = 15.0;
+  static const Duration _routeRecalculationInterval = Duration(seconds: 1);
+  static const double _bearingSmoothingFactor = 0.3;
+
   Function(LatLng, double)? onLocationUpdate;
   Function(dynamic)? onDestinationReached;
   Function(String)? onError;
+  Function(List<LatLng>)? onRouteUpdated;
 
   bool get isNavigating => _isNavigating;
   bool get isDisposed => _isDisposed;
@@ -402,6 +470,7 @@ class NavigationManager {
     Function(LatLng, double)? onLocationUpdate,
     Function(dynamic)? onDestinationReached,
     Function(String)? onError,
+    Function(List<LatLng>)? onRouteUpdated,
   }) async {
     if (_isDisposed) return;
 
@@ -414,8 +483,10 @@ class NavigationManager {
     this.onLocationUpdate = onLocationUpdate;
     this.onDestinationReached = onDestinationReached;
     this.onError = onError;
+    this.onRouteUpdated = onRouteUpdated;
 
-    await _startLocationTracking();
+    _startHeadingUpdates();
+    _startRouteRecalculation();
   }
 
   void stopNavigation() {
@@ -427,63 +498,218 @@ class NavigationManager {
     _routeDistance = null;
     _routeDuration = null;
     _currentBearing = 0.0;
-    _previousLocation = null;
+    _targetBearing = 0.0;
 
-    _stopLocationTracking();
+    _stopHeadingUpdates();
+    _stopRouteRecalculation();
   }
 
-  Future<void> _startLocationTracking() async {
+  void updateLocation(LatLng newLocation, double heading) {
     if (_isDisposed) return;
 
-    final initialLocationResult = await LocationService.getCurrentLocation();
+    _currentLocation = newLocation;
 
-    if (!initialLocationResult.isSuccess) {
-      onError?.call(initialLocationResult.error ?? 'Location error');
-      return;
+    // Smooth bearing interpolation
+    _targetBearing = heading;
+
+    // Trigger callback
+    onLocationUpdate?.call(newLocation, _currentBearing);
+
+    // Check if reached destination
+    if (_isNavigating && _currentDestination != null) {
+      _checkDestinationReached();
     }
-
-    _currentLocation = initialLocationResult.location;
-    _previousLocation = initialLocationResult.location;
-
-    const LocationSettings locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 3,
-    );
-
-    _positionStream =
-        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
-          (Position position) {
-            if (_isDisposed) return;
-
-            final newLocation = LatLng(position.latitude, position.longitude);
-
-            if (_previousLocation != null) {
-              _currentBearing = RoutingService.calculateBearing(
-                _previousLocation!,
-                newLocation,
-              );
-            }
-
-            _currentLocation = newLocation;
-            _previousLocation = newLocation;
-
-            onLocationUpdate?.call(newLocation, _currentBearing);
-
-            if (_isNavigating && _currentDestination != null) {
-              _checkDestinationReached();
-            }
-          },
-          onError: (error) {
-            if (!_isDisposed) {
-              onError?.call('Location error: $error');
-            }
-          },
-        );
   }
 
-  void _stopLocationTracking() {
-    _positionStream?.cancel();
-    _positionStream = null;
+  void _startHeadingUpdates() {
+    _stopHeadingUpdates();
+
+    // High-frequency updates (60 FPS equivalent) for smooth rotation
+    _headingUpdateTimer = Timer.periodic(const Duration(milliseconds: 16), (
+      timer,
+    ) {
+      if (_isDisposed) {
+        timer.cancel();
+        return;
+      }
+
+      if (_currentLocation != null && _isNavigating) {
+        // Smooth bearing interpolation using lerp
+        _currentBearing = _lerpAngle(
+          _currentBearing,
+          _targetBearing,
+          _bearingSmoothingFactor,
+        );
+
+        // Get fresh compass heading
+        final compassHeading = LocationService.getCurrentHeading();
+        _targetBearing = compassHeading;
+
+        onLocationUpdate?.call(_currentLocation!, _currentBearing);
+      }
+    });
+  }
+
+  void _stopHeadingUpdates() {
+    _headingUpdateTimer?.cancel();
+    _headingUpdateTimer = null;
+  }
+
+  /// Start automatic route recalculation when navigating
+  void _startRouteRecalculation() {
+    _stopRouteRecalculation();
+
+    _routeRecalculationTimer = Timer.periodic(_routeRecalculationInterval, (
+      timer,
+    ) async {
+      if (_isDisposed || !_isNavigating) {
+        timer.cancel();
+        return;
+      }
+
+      if (_currentLocation != null && _currentDestination != null) {
+        await _recalculateRouteIfNeeded();
+      }
+    });
+  }
+
+  void _stopRouteRecalculation() {
+    _routeRecalculationTimer?.cancel();
+    _routeRecalculationTimer = null;
+  }
+
+  /// Recalculate route if user deviates from current route
+  Future<void> _recalculateRouteIfNeeded() async {
+    if (_currentLocation == null || _polylinePoints.isEmpty) return;
+
+    // Check if user is off route
+    final distanceToRoute = _calculateDistanceToRoute(
+      _currentLocation!,
+      _polylinePoints,
+    );
+
+    if (distanceToRoute > _routeRecalculationThreshold) {
+      // User is off route - recalculate
+      await _recalculateRoute();
+    } else {
+      // User is on route - trim passed waypoints for efficiency
+      _trimPassedWaypoints();
+    }
+  }
+
+  /// Calculate shortest distance from point to route
+  double _calculateDistanceToRoute(LatLng point, List<LatLng> route) {
+    if (route.length < 2) return 0.0;
+
+    double minDistance = double.infinity;
+
+    for (int i = 0; i < route.length - 1; i++) {
+      final segmentDistance = _distanceToLineSegment(
+        point,
+        route[i],
+        route[i + 1],
+      );
+      minDistance = minDistance < segmentDistance
+          ? minDistance
+          : segmentDistance;
+    }
+
+    return minDistance;
+  }
+
+  /// Calculate distance from point to line segment
+  double _distanceToLineSegment(
+    LatLng point,
+    LatLng lineStart,
+    LatLng lineEnd,
+  ) {
+    final dx = lineEnd.longitude - lineStart.longitude;
+    final dy = lineEnd.latitude - lineStart.latitude;
+
+    if (dx == 0 && dy == 0) {
+      return RoutingService.calculateDistance(point, lineStart);
+    }
+
+    final t =
+        ((point.longitude - lineStart.longitude) * dx +
+            (point.latitude - lineStart.latitude) * dy) /
+        (dx * dx + dy * dy);
+
+    if (t < 0) {
+      return RoutingService.calculateDistance(point, lineStart);
+    } else if (t > 1) {
+      return RoutingService.calculateDistance(point, lineEnd);
+    }
+
+    final projection = LatLng(
+      lineStart.latitude + t * dy,
+      lineStart.longitude + t * dx,
+    );
+
+    return RoutingService.calculateDistance(point, projection);
+  }
+
+  /// Remove waypoints that user has already passed
+  void _trimPassedWaypoints() {
+    if (_currentLocation == null || _polylinePoints.length < 2) return;
+
+    // Find closest point on route
+    int closestIndex = 0;
+    double minDistance = double.infinity;
+
+    for (int i = 0; i < _polylinePoints.length; i++) {
+      final distance = RoutingService.calculateDistance(
+        _currentLocation!,
+        _polylinePoints[i],
+      );
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestIndex = i;
+      }
+    }
+
+    // Remove points before closest (user has passed them)
+    if (closestIndex > 0) {
+      _polylinePoints = _polylinePoints.sublist(closestIndex);
+
+      // Update distance/duration for remaining route
+      final remainingDistance = RouteHelper.calculateRouteDistance(
+        _polylinePoints,
+      );
+      _routeDistance = RoutingService.formatDistance(remainingDistance);
+      _routeDuration = RoutingService.calculateWalkingDuration(
+        remainingDistance,
+      );
+
+      // Notify UI
+      onRouteUpdated?.call(_polylinePoints);
+    }
+  }
+
+  /// Recalculate entire route from current location
+  Future<void> _recalculateRoute() async {
+    if (_currentLocation == null || _currentDestination == null) return;
+
+    LatLng destinationPoint;
+    if (_currentDestination.runtimeType.toString().contains('Building')) {
+      destinationPoint = _currentDestination.getCenterPoint();
+    } else {
+      destinationPoint = _currentDestination as LatLng;
+    }
+
+    final routeResult = await RoutingService.getRoute(
+      _currentLocation!,
+      destinationPoint,
+    );
+
+    if (routeResult.isSuccess && routeResult.points != null) {
+      _polylinePoints = routeResult.points!;
+      _routeDistance = routeResult.distance;
+      _routeDuration = routeResult.duration;
+
+      // Notify UI of new route
+      onRouteUpdated?.call(_polylinePoints);
+    }
   }
 
   void _checkDestinationReached() {
@@ -501,7 +727,7 @@ class NavigationManager {
       destinationPoint,
     );
 
-    if (distance < 5) {
+    if (distance < 10) {
       _destinationReached();
     }
   }
@@ -528,7 +754,10 @@ class NavigationManager {
     _currentDestination = null;
     _isNavigating = false;
     _currentBearing = 0.0;
-    _previousLocation = null;
+    _targetBearing = 0.0;
+
+    _stopHeadingUpdates();
+    _stopRouteRecalculation();
   }
 
   Future<RouteResult> getRouteAndPrepareNavigation(
@@ -550,9 +779,19 @@ class NavigationManager {
     return routeResult;
   }
 
+  double _lerpAngle(double current, double target, double factor) {
+    double diff = target - current;
+
+    while (diff > 180) diff -= 360;
+    while (diff < -180) diff += 360;
+
+    return (current + diff * factor) % 360;
+  }
+
   void dispose() {
     _isDisposed = true;
-    _stopLocationTracking();
+    _stopHeadingUpdates();
+    _stopRouteRecalculation();
   }
 }
 

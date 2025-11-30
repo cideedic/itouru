@@ -32,18 +32,15 @@ class _BuildingsTabState extends State<BuildingsTab>
   @override
   void didUpdateWidget(BuildingsTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Reinitialize if buildings list changes
     if (oldWidget.buildings != widget.buildings) {
       _initializeControllers();
     }
   }
 
   void _initializeControllers() {
-    // Initialize expanded state, controllers, and floor filters for each building
     for (var building in widget.buildings) {
       final buildingId = building['building_id'].toString();
 
-      // Only initialize if not already present
       if (!expanded.containsKey(buildingId)) {
         expanded[buildingId] = false;
       }
@@ -347,13 +344,13 @@ class _BuildingsTabState extends State<BuildingsTab>
                 padding: EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: isClickable
-                      ? Colors.orange.withValues(alpha: 0.2)
+                      ? Color(0xFFFF8C00).withValues(alpha: 0.2)
                       : Colors.grey.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   isClickable ? Icons.apartment : Icons.home_repair_service,
-                  color: isClickable ? Colors.orange : Colors.grey[600],
+                  color: isClickable ? Color(0xFFFF8C00) : Colors.grey[600],
                   size: 24,
                 ),
               ),
@@ -667,7 +664,7 @@ class _BuildingsTabState extends State<BuildingsTab>
                   children: [
                     Row(
                       children: [
-                        // Highlight: room name (or fallback to Room <number> if number exists)
+                        // Room name (or fallback to Room <number> if number exists)
                         Expanded(
                           child: Text(
                             hasName

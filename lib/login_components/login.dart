@@ -46,11 +46,9 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (response.user != null) {
-        // If "Remember Me" is NOT checked, we'll sign out when app closes
-        // Store the preference
+        // If "Remember Me" is NOT checked, sign out when app closes
         if (!_rememberMe) {
           // Note: Session will still persist until explicitly signed out
-          // You can implement app lifecycle listener to sign out on app close
         }
 
         if (mounted) {
@@ -211,7 +209,6 @@ class _LoginPageState extends State<LoginPage> {
           final halfHeight = constraints.maxHeight / 2;
           return Stack(
             children: [
-              // Background gradient
               Column(
                 children: [
                   Container(
@@ -282,7 +279,7 @@ class _LoginPageState extends State<LoginPage> {
                                                 return Icon(
                                                   Icons.location_on,
                                                   size: 30,
-                                                  color: Colors.orange,
+                                                  color: Color(0xFFFF8C00),
                                                 );
                                               },
                                         ),
@@ -393,7 +390,7 @@ class _LoginPageState extends State<LoginPage> {
                                               12,
                                             ),
                                             borderSide: BorderSide(
-                                              color: Colors.orange,
+                                              color: Color(0xFFFF8C00),
                                               width: 2,
                                             ),
                                           ),
@@ -453,7 +450,7 @@ class _LoginPageState extends State<LoginPage> {
                                               12,
                                             ),
                                             borderSide: BorderSide(
-                                              color: Colors.orange,
+                                              color: Color(0xFFFF8C00),
                                               width: 2,
                                             ),
                                           ),
@@ -482,8 +479,8 @@ class _LoginPageState extends State<LoginPage> {
                                           if (value == null || value.isEmpty) {
                                             return 'Please enter your password';
                                           }
-                                          if (value.length < 6) {
-                                            return 'Password must be at least 6 characters';
+                                          if (value.length < 8) {
+                                            return 'Password must be at least 8 characters';
                                           }
                                           return null;
                                         },
@@ -528,7 +525,7 @@ class _LoginPageState extends State<LoginPage> {
                                                         value ?? false;
                                                   });
                                                 },
-                                                activeColor: Colors.orange,
+                                                activeColor: Color(0xFFFF8C00),
                                                 materialTapTargetSize:
                                                     MaterialTapTargetSize
                                                         .shrinkWrap,
@@ -547,7 +544,7 @@ class _LoginPageState extends State<LoginPage> {
                                               ? null
                                               : _handleLogin,
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.orange,
+                                            backgroundColor: Color(0xFFFF8C00),
                                             foregroundColor: Colors.white,
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
@@ -680,12 +677,11 @@ class _LoginPageState extends State<LoginPage> {
                   ],
                 ),
               ),
-              // Add this at the end of the Stack:
               if (_isGoogleLoading)
                 Container(
                   color: Colors.black.withValues(alpha: 0.4),
                   child: const Center(
-                    child: CircularProgressIndicator(color: Colors.orange),
+                    child: CircularProgressIndicator(color: Color(0xFFFF8C00)),
                   ),
                 ),
             ],

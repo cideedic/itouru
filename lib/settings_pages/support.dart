@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/header.dart';
 import 'package:itouru/page_components/bottom_nav_bar.dart';
+import 'package:itouru/page_components/contact_support.dart';
 
 class HelpSupportPage extends StatefulWidget {
   const HelpSupportPage({super.key});
@@ -15,6 +16,45 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
   String searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
+  // Map to store answers for each question
+  final Map<String, String> faqAnswers = {
+    'How do I create an account?':
+        'You can create an account using your existing Google BU email address. Once you sign up, if your account is new, you\'ll be prompted to set up your profile with your personal information.',
+
+    'What if I forget my password?':
+        'You can use the "Forgot Password" option on the login page. Enter your BU email address, and you\'ll receive a password reset link via email. Follow the link to create a new password securely.',
+
+    'How do I update my profile information?':
+        'Go to Settings > Privacy and Security page. Here you can update your name, gender, birthdate, and phone number. Note that your nationality and email cannot be changed once set. To change your password, a verification email will be sent to your registered email address for security purposes.',
+
+    'How do I search for tourist spots?':
+        'Use the search functionality on the Categories page to look up your desired location. Simply type the name of the building, office, or landmark you\'re looking for.',
+
+    'How do I view tour details?':
+        'Each location has detailed information including descriptions, images, and directions. For colleges, you\'ll see learning outcomes, the dean\'s information with contact details, offered programs, buildings, and rooms. Buildings show their descriptions, room listings, and a direction button. Landmarks display descriptions and directions. Offices include descriptions, the head of office, location details, and a direction button.',
+
+    'Are there guided tours available?':
+        'Yes! We offer several guided tours designed for new students and visitors who want to familiarize themselves with the campus layout. Each tour includes video guides and step-by-step routes for the buildings covered in that tour.',
+
+    'How is my data protected?':
+        'We take your privacy seriously. Your data is encrypted and stored securely on our servers. We use industry-standard security protocols to protect your personal information. Your BU email credentials are handled through Google\'s secure authentication system, and we never store your password directly.',
+
+    'What permissions does the app need?':
+        'The app requires location permissions for navigation purposes to help you find your way around campus. Camera access is needed for QR code scanning functionality. These permissions can be managed through your device settings at any time.',
+
+    'How do I report a security concern?':
+        'If you discover a security vulnerability or have concerns about your account security, please contact our support team immediately at jcml2022-2902-58530@bicol-u.edu.ph with details about the issue.',
+
+    'How do I use the app as a guest?':
+        'You can browse locations, view maps, and access basic information without creating an account. Simply select "Continue as Guest" on the login page to explore the campus.',
+
+    'How do I contact support?':
+        'You can reach our support team by tapping "Contact Support" at the bottom of the Help & Support page, or email us directly at jcml2022-2902-58530@bicol-u.edu.ph. We typically respond within 24-48 hours. You can also use the feedback feature that is on Home page.',
+
+    'Where can I report a bug?':
+        'If you encounter any issues or bugs while using the app, please email us at jcml2022-2902-58530@bicol-u.edu.ph with a detailed description of the problem, including screenshots if possible. This helps us resolve issues quickly. You can also use the feedback feature that is on Home page.',
+  };
+
   final List<HelpCategory> categories = [
     HelpCategory(
       icon: Icons.account_circle,
@@ -24,7 +64,6 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
         'How do I create an account?',
         'What if I forget my password?',
         'How do I update my profile information?',
-        'Can I delete my account?',
       ],
     ),
     HelpCategory(
@@ -33,7 +72,6 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
       title: 'Tours & Destinations',
       questions: [
         'How do I search for tourist spots?',
-        'Can I save my favorite destinations?',
         'How do I view tour details?',
         'Are there guided tours available?',
       ],
@@ -44,7 +82,6 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
       title: 'Privacy & Security',
       questions: [
         'How is my data protected?',
-        'Can I control who sees my information?',
         'What permissions does the app need?',
         'How do I report a security concern?',
       ],
@@ -55,7 +92,6 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
       title: 'General',
       questions: [
         'How do I use the app as a guest?',
-        'What features require an account?',
         'How do I contact support?',
         'Where can I report a bug?',
       ],
@@ -242,75 +278,13 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                   ),
 
                   // Contact Support Section
-                  Container(
-                    margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.orange[400]!, Colors.orange[600]!],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Color(0xFFFF8C00).withValues(alpha: 0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.support_agent,
-                          size: 48,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Still need help?',
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Our support team is here to assist you',
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            color: Colors.white.withValues(alpha: 0.9),
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () {
-                            _showContactDialog();
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Color(0xFFFF8C00),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 32,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: Text(
-                            'Contact Support',
-                            style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                    child: ContactSupportCard(
+                      title: 'Still need help?',
+                      subtitle: 'Our support team is here to assist you',
+                      iconSize: 48,
+                      padding: const EdgeInsets.all(24),
                     ),
                   ),
                 ],
@@ -451,6 +425,10 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
   }
 
   void _showQuestionDetail(String question) {
+    final answer =
+        faqAnswers[question] ??
+        'This is where the detailed answer to the question would appear. You can provide step-by-step instructions, helpful tips, and relevant information to assist users with their query.';
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -492,7 +470,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'This is where the detailed answer to the question would appear. You can provide step-by-step instructions, helpful tips, and relevant information to assist users with their query.',
+                        answer,
                         style: GoogleFonts.poppins(
                           fontSize: 13,
                           color: Colors.grey[700],
@@ -558,68 +536,6 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showContactDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.email, size: 48, color: Color(0xFFFF8C00)),
-              const SizedBox(height: 16),
-              Text(
-                'Contact Support',
-                style: GoogleFonts.montserrat(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Send us an email at:',
-                style: GoogleFonts.poppins(fontSize: 13, color: Colors.black54),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'support@itouru.com',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFFFF8C00),
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFFFF8C00),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: Text(
-                    'Close',
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
                     ),
                   ),
                 ),

@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Animated pulsing marker for virtual tour destinations
-/// Shows the stop number with a pulsing orange circle effect
 class PulsingDestinationMarker extends StatefulWidget {
   final int stopNumber;
   final Color color;
@@ -11,7 +9,7 @@ class PulsingDestinationMarker extends StatefulWidget {
   const PulsingDestinationMarker({
     super.key,
     required this.stopNumber,
-    this.color = const Color(0xFFFF8C00), // Orange
+    this.color = const Color(0xFFFF8C00),
     this.borderColor = Colors.white,
     this.size = 50.0,
   });
@@ -74,7 +72,7 @@ class _PulsingDestinationMarkerState extends State<PulsingDestinationMarker>
                 style: TextStyle(
                   color: widget.borderColor,
                   fontWeight: FontWeight.bold,
-                  fontSize: widget.size * 0.32, // Proportional font size
+                  fontSize: widget.size * 0.32,
                 ),
               ),
             ),
