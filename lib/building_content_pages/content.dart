@@ -405,11 +405,37 @@ class _BuildingDetailsPageState extends State<BuildingDetailsPage>
       }
     } catch (e) {
       setState(() => isLoading = false);
-      // Show error message
+      // User-friendly error handling
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading data: $e')));
+        String errorMsg = 'Unable to load building information.';
+
+        if (e.toString().contains('timeout') ||
+            e.toString().contains('Connection timeout')) {
+          errorMsg =
+              'Connection is taking too long. Please check your internet.';
+        } else if (e.toString().contains('SocketException') ||
+            e.toString().contains('network')) {
+          errorMsg = 'No internet connection. Please check your network.';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(child: Text(errorMsg)),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            duration: Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _loadBuildingData(),
+            ),
+          ),
+        );
       }
     }
   }

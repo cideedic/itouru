@@ -28,7 +28,6 @@ class Settings extends StatelessWidget {
       body: Column(
         children: [
           ReusableHeader(),
-
           // Main content for Settings page
           Expanded(
             child: Container(
@@ -324,7 +323,7 @@ class _AnimatedSettingItemState extends State<AnimatedSettingItem> {
                       widget.title,
                       style: GoogleFonts.montserrat(
                         fontWeight: FontWeight.w600,
-                        fontSize: 14,
+                        fontSize: 13,
                         color: Colors.black87,
                       ),
                     ),
@@ -333,7 +332,7 @@ class _AnimatedSettingItemState extends State<AnimatedSettingItem> {
                       widget.subtitle,
                       style: GoogleFonts.poppins(
                         color: Colors.grey[600],
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: FontWeight.w400,
                       ),
                     ),

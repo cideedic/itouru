@@ -248,7 +248,7 @@ class _FeedbackSectionState extends State<FeedbackSection> {
                 child: Center(
                   child: Icon(
                     Icons.feedback,
-                    size: 120,
+                    size: 90,
                     color: Colors.orange.withValues(alpha: 0.12),
                   ),
                 ),
@@ -266,7 +266,7 @@ class _FeedbackSectionState extends State<FeedbackSection> {
                       Text(
                         'Feedback',
                         style: GoogleFonts.montserrat(
-                          fontSize: 48,
+                          fontSize: 24,
                           fontWeight: FontWeight.w900,
                           color: Colors.black87,
                           letterSpacing: 1.5,
@@ -353,7 +353,7 @@ class _FeedbackSectionState extends State<FeedbackSection> {
                               child: Icon(
                                 Icons.feedback_outlined,
                                 color: Colors.white,
-                                size: 24,
+                                size: 18,
                               ),
                             ),
                             const SizedBox(width: 12),

@@ -34,8 +34,10 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
   Map<String, dynamic>? headData;
   String? buildingName;
   String? roomName;
+  int? floorLevel; // NEW: Floor level
   String? headerImageUrl;
   String? logoImageUrl;
+  String? headImageUrl;
   int? buildingId;
 
   bool isLoading = true;
@@ -82,6 +84,16 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
     }
   }
 
+  // Helper function to normalize folder names
+  String normalizeFolderName(String name) {
+    return name
+        .toLowerCase()
+        .replaceAll('.', '')
+        .replaceAll("'", '')
+        .replaceAll(' ', '-')
+        .trim();
+  }
+
   Future<void> _loadOfficeData() async {
     try {
       setState(() => isLoading = true);
@@ -96,77 +108,51 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
       // Fetch Building and Room information if available
       String? fetchedBuildingName;
       String? fetchedRoomName;
-      String? buildingFolderName;
       int? fetchedBuildingId;
+      int? fetchedFloorLevel;
 
-      // Get building from building_id in Office table
+      // Priority 1: Get building from building_id in Office table
       if (response['building_id'] != null) {
         fetchedBuildingId = response['building_id'] as int;
 
         final buildingResponse = await supabase
             .from('Building')
-            .select('building_name')
+            .select('building_name, building_nickname')
             .eq('building_id', fetchedBuildingId)
             .maybeSingle();
 
         if (buildingResponse != null) {
           fetchedBuildingName = buildingResponse['building_name'];
-
-          // Get building folder name for fetching header image
-          buildingFolderName = fetchedBuildingName
-              ?.toLowerCase()
-              .replaceAll('.', '')
-              .replaceAll(' ', '-')
-              .trim();
         }
       }
-      // try to get building through room_id if building_id is null
-      else if (response['room_id'] != null) {
+
+      // Priority 2: Get room information if room_id exists
+      if (response['room_id'] != null) {
         final roomResponse = await supabase
             .from('Room')
-            .select('room_name, room_number, building_id')
+            .select('room_name, room_number, building_id, floor_level')
             .eq('room_id', response['room_id'])
             .maybeSingle();
 
         if (roomResponse != null) {
-          // Use room_number instead of room_name
-          if (roomResponse['room_number'] != null) {
+          // Prefer room_name, fallback to room_number
+          if (roomResponse['room_name'] != null &&
+              (roomResponse['room_name'] as String).isNotEmpty) {
+            fetchedRoomName = roomResponse['room_name'] as String;
+          } else if (roomResponse['room_number'] != null) {
             fetchedRoomName = 'Room ${roomResponse['room_number']}';
           }
 
-          // Fetch building separately if building_id exists
-          if (roomResponse['building_id'] != null) {
+          // Get floor level
+          if (roomResponse['floor_level'] != null) {
+            fetchedFloorLevel = roomResponse['floor_level'] as int;
+          }
+
+          // If building_id wasn't set from Office table, get it from Room
+          if (fetchedBuildingId == null &&
+              roomResponse['building_id'] != null) {
             fetchedBuildingId = roomResponse['building_id'] as int;
 
-            final buildingResponse = await supabase
-                .from('Building')
-                .select('building_name')
-                .eq('building_id', fetchedBuildingId)
-                .maybeSingle();
-
-            if (buildingResponse != null) {
-              fetchedBuildingName = buildingResponse['building_name'];
-
-              // Get building folder name for fetching header image
-              buildingFolderName = fetchedBuildingName
-                  ?.toLowerCase()
-                  .replaceAll('.', '')
-                  .replaceAll(' ', '-')
-                  .trim();
-            }
-          }
-        }
-      }
-
-      String? fetchedHeaderUrl;
-
-      // Fetch header image from building folder (using building_name or building_nickname)
-      if (buildingFolderName != null) {
-        // Also try to fetch building data to get nickname
-        String? buildingNicknameFolderName;
-
-        if (fetchedBuildingId != null) {
-          try {
             final buildingResponse = await supabase
                 .from('Building')
                 .select('building_name, building_nickname')
@@ -174,103 +160,151 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
                 .maybeSingle();
 
             if (buildingResponse != null) {
-              // Update building name if needed
-              fetchedBuildingName ??= buildingResponse['building_name'];
-
-              // Get building nickname for folder name
-              if (buildingResponse['building_nickname'] != null) {
-                buildingNicknameFolderName =
-                    buildingResponse['building_nickname']
-                        ?.toString()
-                        .toLowerCase()
-                        .replaceAll('.', '')
-                        .replaceAll(' ', '-')
-                        .trim();
-              }
-            }
-          } catch (e) {
-            // No image found, proceed without nickname
-          }
-        }
-
-        // Create list of possible building folder names
-        List<String> possibleBuildingFolderNames = [];
-        possibleBuildingFolderNames.add(buildingFolderName);
-        if (buildingNicknameFolderName != null &&
-            buildingNicknameFolderName != buildingFolderName) {
-          possibleBuildingFolderNames.add(buildingNicknameFolderName);
-        }
-
-        // Try each possible folder name until we find images
-        if (possibleBuildingFolderNames.isNotEmpty) {
-          List<dynamic> buildingImagesResponse = [];
-
-          for (var folderName in possibleBuildingFolderNames) {
-            try {
-              final response = await supabase
-                  .from('storage_objects_snapshot')
-                  .select('name, filename')
-                  .eq('bucket_id', 'images')
-                  .eq('folder', folderName)
-                  .order('filename', ascending: true);
-
-              if (response.isNotEmpty) {
-                buildingImagesResponse = response;
-                break;
-              }
-            } catch (e) {
-              // No image found, try next folder name
+              fetchedBuildingName = buildingResponse['building_name'];
+              print('✓ Building Name from Room: $fetchedBuildingName');
             }
           }
-
-          if (buildingImagesResponse.isNotEmpty) {
-            // Find first non-placeholder, non-logo image
-            for (var imageData in buildingImagesResponse) {
-              final imagePath = imageData['name'] as String;
-              final filename = imageData['filename'] as String;
-
-              // Skip placeholder files and logo files
-              if (filename == '.emptyFolderPlaceholder' ||
-                  imagePath.endsWith('.emptyFolderPlaceholder') ||
-                  filename.contains('_logo')) {
-                continue;
-              }
-
-              fetchedHeaderUrl = supabase.storage
-                  .from('images')
-                  .getPublicUrl(imagePath);
-              break; // Use first valid image
-            }
-
-            if (fetchedHeaderUrl == null) {}
-          }
         }
-      } else {}
+      }
+
+      String? fetchedHeaderUrl;
       String? fetchedLogoUrl;
 
-      if (response['College'] != null) {
+      // Fetch header image and logo from building folder
+      if (fetchedBuildingId != null) {
+        try {
+          final buildingResponse = await supabase
+              .from('Building')
+              .select('building_name, building_nickname')
+              .eq('building_id', fetchedBuildingId)
+              .maybeSingle();
+
+          if (buildingResponse != null) {
+            final buildingName = buildingResponse['building_name']?.toString();
+            final nickname = buildingResponse['building_nickname']?.toString();
+
+            // Create list of possible folder names to check
+            List<String> possibleFolderNames = [];
+
+            if (buildingName != null) {
+              final fullName = normalizeFolderName(buildingName);
+              possibleFolderNames.add(fullName);
+
+              if (fullName.startsWith('bicol-university-')) {
+                final withoutPrefix = fullName.replaceFirst(
+                  'bicol-university-',
+                  '',
+                );
+                if (withoutPrefix.isNotEmpty &&
+                    !possibleFolderNames.contains(withoutPrefix)) {
+                  possibleFolderNames.add(withoutPrefix);
+                }
+              }
+            }
+
+            if (nickname != null) {
+              final normalizedNickname = normalizeFolderName(nickname);
+              if (!possibleFolderNames.contains(normalizedNickname)) {
+                possibleFolderNames.add(normalizedNickname);
+              }
+            }
+
+            // Try each possible folder name until we find images
+            if (possibleFolderNames.isNotEmpty) {
+              List<dynamic> imagesResponse = [];
+
+              for (var folderName in possibleFolderNames) {
+                final response = await supabase
+                    .from('storage_objects_snapshot')
+                    .select('name, filename')
+                    .eq('bucket_id', 'images')
+                    .eq('folder', folderName)
+                    .order('filename', ascending: true);
+
+                if (response.isNotEmpty) {
+                  imagesResponse = response;
+                  break;
+                }
+              }
+
+              // Find first non-placeholder, non-logo image for header
+              for (var imageData in imagesResponse) {
+                final imagePath = imageData['name'] as String;
+                final filename = imageData['filename'] as String;
+
+                if (filename == '.emptyFolderPlaceholder' ||
+                    imagePath.endsWith('.emptyFolderPlaceholder') ||
+                    filename.contains('_logo')) {
+                  continue;
+                }
+
+                final publicUrl = supabase.storage
+                    .from('images')
+                    .getPublicUrl(imagePath);
+
+                // Set the first image as header
+                fetchedHeaderUrl ??= publicUrl;
+                break;
+              }
+
+              // Try to fetch building logo
+              for (var folderName in possibleFolderNames) {
+                try {
+                  final logoResponse = await supabase
+                      .from('storage_objects_snapshot')
+                      .select('name, filename')
+                      .eq('bucket_id', 'images')
+                      .eq('folder', folderName)
+                      .like('filename', '%_logo%')
+                      .maybeSingle();
+
+                  if (logoResponse != null) {
+                    final logoPath = logoResponse['name'] as String;
+                    fetchedLogoUrl = supabase.storage
+                        .from('images')
+                        .getPublicUrl(logoPath);
+                    break;
+                  }
+                } catch (e) {
+                  // No logo found in this folder, continue to next
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // Error fetching building images
+        }
+      }
+
+      // If no building logo found, try to fetch college logo as fallback
+      if (fetchedLogoUrl == null && response['College'] != null) {
         final collegeName = response['College']['college_name'] as String?;
-        final collegeAbbreviation =
+        final collegeAbbr =
             response['College']['college_abbreviation'] as String?;
 
         // Create list of possible college folder names
         List<String> collegeFolderNames = [];
+
         if (collegeName != null) {
-          collegeFolderNames.add(
-            collegeName
-                .toLowerCase()
-                .replaceAll(' ', '-')
-                .replaceAll('college of', 'college-of')
-                .trim(),
-          );
-        }
-        if (collegeAbbreviation != null && collegeAbbreviation != collegeName) {
-          collegeFolderNames.add(
-            collegeAbbreviation.toLowerCase().replaceAll(' ', '-').trim(),
-          );
+          final nameFolderName = collegeName
+              .toLowerCase()
+              .replaceAll(' ', '-')
+              .replaceAll('college of', 'college-of')
+              .trim();
+          collegeFolderNames.add(nameFolderName);
         }
 
-        // Try each possible folder name until we find a logo
+        if (collegeAbbr != null) {
+          final abbrFolderName = collegeAbbr
+              .toLowerCase()
+              .replaceAll(' ', '-')
+              .trim();
+          if (!collegeFolderNames.contains(abbrFolderName)) {
+            collegeFolderNames.add(abbrFolderName);
+          }
+        }
+
+        // Try each possible college folder name
         for (var collegeFolderName in collegeFolderNames) {
           try {
             final collegeLogoResponse = await supabase
@@ -286,34 +320,148 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
               fetchedLogoUrl = supabase.storage
                   .from('images')
                   .getPublicUrl(collegeLogoPath);
-
               break; // Stop searching once logo is found
             }
           } catch (e) {
-            // No logo found, try next folder name
+            // No logo found in this folder, continue to next
           }
         }
+      }
 
-        if (fetchedLogoUrl == null) {}
-      } else {}
+      //Fetch head official image
+      String? fetchedHeadImageUrl;
+      if (response['Head'] != null) {
+        final headId = response['Head']['head_id'];
+        final firstName = response['Head']['first_name']
+            ?.toString()
+            .toLowerCase();
+        final lastName = response['Head']['last_name']
+            ?.toString()
+            .toLowerCase();
+
+        if (headId != null || (firstName != null && lastName != null)) {
+          try {
+            // Build list of possible naming patterns
+            final possiblePatterns = <String>[];
+
+            // Add head_id patterns
+            if (headId != null) {
+              possiblePatterns.addAll([
+                'heads/head_$headId',
+                'heads/head_${headId}_profile',
+                'heads/$headId',
+              ]);
+            }
+
+            // Add firstname-lastname patterns
+            if (firstName != null && lastName != null) {
+              // Normalize names: replace ñ with n, replace spaces with hyphens
+              final firstNormalized = firstName
+                  .replaceAll('ñ', 'n')
+                  .replaceAll(' ', '-')
+                  .trim();
+              final firstNoSpaces = firstName
+                  .replaceAll('ñ', 'n')
+                  .replaceAll(' ', '')
+                  .trim();
+              final lastNormalized = lastName
+                  .replaceAll('ñ', 'n')
+                  .replaceAll(' ', '-')
+                  .trim();
+              final lastNoSpaces = lastName
+                  .replaceAll('ñ', 'n')
+                  .replaceAll(' ', '')
+                  .trim();
+
+              possiblePatterns.addAll([
+                // With hyphens between words
+                'heads/$firstNormalized-$lastNormalized',
+                'heads/$lastNormalized-$firstNormalized',
+                // Without spaces (johncedrick-doe)
+                'heads/$firstNoSpaces-$lastNormalized',
+                'heads/$lastNormalized-$firstNoSpaces',
+                // With underscores
+                'heads/${firstNormalized}_$lastNormalized',
+                'heads/${lastNormalized}_$firstNormalized',
+                'heads/${firstNoSpaces}_$lastNormalized',
+                'heads/${lastNormalized}_$firstNoSpaces',
+                // All no spaces
+                'heads/$firstNoSpaces-$lastNoSpaces',
+                'heads/$lastNoSpaces-$firstNoSpaces',
+              ]);
+            }
+
+            for (var pattern in possiblePatterns) {
+              try {
+                final headImageResponse = await supabase
+                    .from('storage_objects_snapshot')
+                    .select('name')
+                    .eq('bucket_id', 'images')
+                    .like('name', '$pattern%')
+                    .maybeSingle();
+
+                if (headImageResponse != null) {
+                  final headImagePath = headImageResponse['name'] as String;
+                  fetchedHeadImageUrl = supabase.storage
+                      .from('images')
+                      .getPublicUrl(headImagePath);
+                  break; // Stop searching once found
+                }
+              } catch (e) {
+                // Continue to next pattern
+              }
+            }
+          } catch (e) {
+            // Error fetching head image, will use default
+          }
+        }
+      }
 
       setState(() {
         officeData = response;
         headData = response['Head'];
         buildingName = fetchedBuildingName;
         roomName = fetchedRoomName;
+        floorLevel = fetchedFloorLevel;
         headerImageUrl = fetchedHeaderUrl;
         logoImageUrl = fetchedLogoUrl;
+        headImageUrl = fetchedHeadImageUrl;
         buildingId = fetchedBuildingId;
         isLoading = false;
       });
     } catch (e) {
       setState(() => isLoading = false);
-      // Show error message
+      // User-friendly error handling
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading data: $e')));
+        String errorMsg = 'Unable to load office information.';
+
+        if (e.toString().contains('timeout') ||
+            e.toString().contains('Connection timeout')) {
+          errorMsg =
+              'Connection is taking too long. Please check your internet.';
+        } else if (e.toString().contains('SocketException') ||
+            e.toString().contains('network')) {
+          errorMsg = 'No internet connection. Please check your network.';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(child: Text(errorMsg)),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            duration: Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _loadOfficeData(),
+            ),
+          ),
+        );
       }
     }
   }
@@ -448,7 +596,9 @@ class _OfficeDetailsPageState extends State<OfficeDetailsPage>
                               officeData?['office_services']?.toString() ?? '',
                           buildingName: buildingName,
                           roomName: roomName,
+                          floorLevel: floorLevel, // NEW
                           headData: headData,
+                          headImageUrl: headImageUrl,
                           buildingId: buildingId,
                           onDirectionsPressed: handleDirections,
                         ),

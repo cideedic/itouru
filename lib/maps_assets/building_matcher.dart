@@ -17,6 +17,16 @@ class BuildingMatcher {
 
       _buildings = List<Map<String, dynamic>>.from(response as List);
 
+      // 🔍 DEBUG: Check if nicknames are loaded
+      debugPrint('=== BUILDING NICKNAMES DEBUG ===');
+      for (var building in _buildings.take(5)) {
+        // Check first 5 buildings
+        debugPrint('Building: ${building['building_name']}');
+        debugPrint('  Nickname: ${building['building_nickname']}');
+        debugPrint('  Type: ${building['building_type']}');
+      }
+      debugPrint('================================');
+
       final landmarkCount = _buildings
           .where((b) => b['building_type'] == 'Landmark')
           .length;
@@ -55,7 +65,10 @@ class BuildingMatcher {
     try {
       final response = await Supabase.instance.client
           .from('Office')
-          .select('office_id, office_name, building_id, office_abbreviation');
+          .select(
+            'office_id, office_name, building_id, office_abbreviation, room_id, Room(room_number, floor_level)',
+          )
+          .order('office_name');
 
       final rawList = List<Map<String, dynamic>>.from(response as List);
       _offices = rawList.where((office) {
@@ -109,11 +122,28 @@ class BuildingMatcher {
 
           if (officeId == null || buildingId == null) return null;
 
+          // Extract room information
+          String? roomName;
+          if (office['Room'] != null) {
+            final roomData = office['Room'];
+            final roomNumber = roomData['room_number'];
+            final floorLevel = roomData['floor_level'];
+
+            if (roomNumber != null && floorLevel != null) {
+              roomName = 'Room $roomNumber, Floor $floorLevel';
+            } else if (roomNumber != null) {
+              roomName = 'Room $roomNumber';
+            } else if (floorLevel != null) {
+              roomName = 'Floor $floorLevel';
+            }
+          }
+
           return OfficeData(
             id: officeId as int,
             name: office['office_name'] as String? ?? 'Unknown Office',
             abbreviation: office['office_abbreviation'] as String?,
             buildingId: buildingId as int,
+            roomName: roomName,
           );
         })
         .whereType<OfficeData>()
@@ -394,12 +424,14 @@ class OfficeData {
   final String name;
   final String? abbreviation;
   final int buildingId;
+  final String? roomName;
 
   OfficeData({
     required this.id,
     required this.name,
     this.abbreviation,
     required this.buildingId,
+    this.roomName,
   });
 }
 

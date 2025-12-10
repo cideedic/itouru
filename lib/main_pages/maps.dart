@@ -6,6 +6,8 @@ import 'package:geolocator/geolocator.dart';
 import 'dart:io';
 import 'dart:async';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:itouru/office_content_pages/content.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 // map_assets:
 import '../maps_assets/map_boundary.dart';
 import '../maps_assets/map_building.dart';
@@ -17,7 +19,10 @@ import '../maps_assets/routing_service.dart';
 import '../maps_assets/building_matcher.dart';
 import '../maps_assets/virtual_tour_manager.dart';
 import '../maps_assets/virtual_tour_card.dart';
-import '../maps_assets/destination_marker.dart';
+import '../maps_assets/tour_stops_number.dart';
+import '../maps_assets/nearby_image_manager.dart';
+import '../maps_assets/destination_end_marker.dart';
+import '../maps_assets/audio_guide_service.dart';
 
 class Maps extends StatefulWidget {
   final LatLng? autoNavigateTo;
@@ -28,6 +33,10 @@ class Maps extends StatefulWidget {
   final bool startVirtualTour;
   final String? tourName;
   final List<VirtualTourStop>? tourStops;
+  final int? skipToStopIndex;
+  final bool useCurrentLocationAsStart;
+  final bool audioGuideEnabled;
+  final CampusGate? selectedStartGate;
 
   const Maps({
     super.key,
@@ -38,6 +47,10 @@ class Maps extends StatefulWidget {
     this.startVirtualTour = false,
     this.tourName,
     this.tourStops,
+    this.skipToStopIndex,
+    this.useCurrentLocationAsStart = false,
+    this.audioGuideEnabled = true,
+    this.selectedStartGate,
   });
 
   @override
@@ -51,6 +64,7 @@ class _MapsState extends State<Maps> {
   final TextEditingController _searchController = TextEditingController();
   bool _showSearchResults = false;
   late NavigationManager _navigationManager;
+  late NearbyImageManager _nearbyImageManager;
   bool _autoFollowLocation = false;
   bool _isDisposed = false;
   double _currentZoom = 17.0;
@@ -66,9 +80,22 @@ class _MapsState extends State<Maps> {
   bool _showColleges = true;
   bool _showLandmarks = true;
   bool _showGates = true;
+  bool _showDestinationMarker = false;
+  bool _animateDestinationMarker = false;
+  LatLng? _navigationStartPoint;
+  int? _targetedBuildingId;
+  int? _selectedMarkerId;
+  int? _hiddenMarkerId;
+  bool _isMarkerType = false;
+  bool _isNavigatingToMarker = false;
+
+  bool _isCollegeMarker = false;
 
   late VirtualTourManager _virtualTourManager;
   bool _isVirtualTourActive = false;
+
+  MapTileType _currentTileType = MapTileType.standard;
+  static const String _tileTypePreferenceKey = 'map_tile_type_preference';
 
   @override
   void initState() {
@@ -76,6 +103,9 @@ class _MapsState extends State<Maps> {
 
     _navigationManager = NavigationManager();
     _virtualTourManager = VirtualTourManager();
+    _nearbyImageManager = NearbyImageManager();
+    _virtualTourManager.initializeAudioGuide();
+
     _setupNavigationCallbacks();
     _setupVirtualTourCallbacks();
     _startContinuousLocationTracking();
@@ -84,6 +114,7 @@ class _MapsState extends State<Maps> {
     _currentZoom = MapBoundary.getInitialZoom();
     LocationService.initializeCompass();
     _checkAndShowFirstTimeGuide();
+    _loadTileTypePreference();
 
     if (widget.startVirtualTour && widget.tourStops != null) {
       _scheduleVirtualTourStart();
@@ -99,6 +130,73 @@ class _MapsState extends State<Maps> {
       if (mounted && context.mounted) {
         await MapWidgets.showMapGuideModal(context, isFirstTime: true);
       }
+    }
+  }
+
+  /// Load saved tile type preference
+  Future<void> _loadTileTypePreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedType = prefs.getString(_tileTypePreferenceKey);
+
+      if (savedType != null && mounted) {
+        setState(() {
+          _currentTileType = savedType == 'satellite'
+              ? MapTileType.satellite
+              : MapTileType.standard;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load tile preference: $e');
+    }
+  }
+
+  /// Save tile type preference
+  Future<void> _saveTileTypePreference(MapTileType type) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _tileTypePreferenceKey,
+        type == MapTileType.satellite ? 'satellite' : 'standard',
+      );
+    } catch (e) {
+      debugPrint('Failed to save tile preference: $e');
+    }
+  }
+
+  /// Handle tile type change
+  void _onTileTypeChanged(MapTileType newType) {
+    if (_isDisposed) return;
+
+    setState(() {
+      _currentTileType = newType;
+    });
+
+    _saveTileTypePreference(newType);
+
+    // Show feedback
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(
+                newType == MapTileType.satellite
+                    ? Icons.satellite_alt
+                    : Icons.map,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Switched to ${newType == MapTileType.satellite ? 'Satellite' : 'Standard'} view',
+              ),
+            ],
+          ),
+          backgroundColor: Colors.blue,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -163,7 +261,7 @@ class _MapsState extends State<Maps> {
 
                 // Landmarks Toggle
                 _buildFilterTile(
-                  icon: Icons.place,
+                  icon: Icons.circle,
                   iconColor: Colors.red,
                   title: 'Landmarks',
                   description: 'Important campus locations',
@@ -328,6 +426,97 @@ class _MapsState extends State<Maps> {
     );
   }
 
+  bool _enhancedSearchMatch(dynamic item, String query) {
+    if (query.trim().isEmpty) return false;
+
+    final lowerQuery = query.toLowerCase().trim();
+
+    // Match by primary name
+    if (item.name.toLowerCase().contains(lowerQuery)) {
+      return true;
+    }
+
+    // Handle BicolBuildingPolygon (buildings)
+    if (item is BicolBuildingPolygon) {
+      // Match by database name
+      if (item.databaseName != null &&
+          item.databaseName!.toLowerCase().contains(lowerQuery)) {
+        return true;
+      }
+
+      // Match by nickname (with and without spaces)
+      if (item.databaseNickname != null) {
+        final lowerNickname = item.databaseNickname!.toLowerCase();
+
+        // Direct match
+        if (lowerNickname.contains(lowerQuery)) {
+          return true;
+        }
+
+        // Space-less match: "CSB1" matches "CS B1"
+        final spacelessNickname = lowerNickname.replaceAll(' ', '');
+        final spacelessQuery = lowerQuery.replaceAll(' ', '');
+
+        if (spacelessNickname.contains(spacelessQuery) ||
+            spacelessQuery.contains(spacelessNickname)) {
+          return true;
+        }
+      }
+    }
+
+    // Handle BicolMarker (colleges/landmarks)
+    if (item is BicolMarker) {
+      // Match by database name
+      if (item.databaseName != null &&
+          item.databaseName!.toLowerCase().contains(lowerQuery)) {
+        return true;
+      }
+
+      // Match by abbreviation (with and without spaces)
+      if (item.abbreviation != null) {
+        final lowerAbbreviation = item.abbreviation!.toLowerCase();
+
+        // Direct match
+        if (lowerAbbreviation.contains(lowerQuery)) {
+          return true;
+        }
+
+        // Space-less match: "CEAT" matches "CE AT" or vice versa
+        final spacelessAbbreviation = lowerAbbreviation.replaceAll(' ', '');
+        final spacelessQuery = lowerQuery.replaceAll(' ', '');
+
+        if (spacelessAbbreviation.contains(spacelessQuery) ||
+            spacelessQuery.contains(spacelessAbbreviation)) {
+          return true;
+        }
+      }
+    }
+
+    // Handle OfficeData
+    if (item is OfficeData) {
+      // Match by abbreviation (with and without spaces)
+      if (item.abbreviation != null) {
+        final lowerAbbreviation = item.abbreviation!.toLowerCase();
+
+        // Direct match
+        if (lowerAbbreviation.contains(lowerQuery)) {
+          return true;
+        }
+
+        // Space-less match
+        final spacelessAbbreviation = lowerAbbreviation.replaceAll(' ', '');
+        final spacelessQuery = lowerQuery.replaceAll(' ', '');
+
+        if (spacelessAbbreviation.contains(spacelessQuery) ||
+            spacelessQuery.contains(spacelessAbbreviation)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   void _onMapMove(MapCamera camera, bool hasGesture) {
     if (!_isDisposed && mounted) {
       setState(() {
@@ -385,7 +574,6 @@ class _MapsState extends State<Maps> {
             final match = m.name.toLowerCase().contains(
               widget.destinationName!.toLowerCase(),
             );
-
             return match;
           });
         } catch (e) {
@@ -398,7 +586,6 @@ class _MapsState extends State<Maps> {
               final match = m.name.toLowerCase().contains(
                 widget.destinationName!.toLowerCase(),
               );
-
               return match;
             });
           } catch (e) {
@@ -426,6 +613,10 @@ class _MapsState extends State<Maps> {
         return;
       }
 
+      setState(() {
+        _targetedBuildingId = targetMarker!.buildingId;
+      });
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -443,6 +634,8 @@ class _MapsState extends State<Maps> {
                 Expanded(
                   child: Text(
                     'Getting route to ${targetMarker.displayName}...',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -463,17 +656,34 @@ class _MapsState extends State<Maps> {
 
       await _getRouteToMarkerAsync(targetMarker);
 
+      // Just set navigation start point and hide marker
+      if (_currentLocation != null &&
+          MapBoundary.isWithinCampusBounds(_currentLocation!)) {
+        setState(() {
+          _navigationStartPoint = _currentLocation;
+          _showDestinationMarker = false;
+        });
+      } else {
+        setState(() {
+          _showDestinationMarker = false;
+          _animateDestinationMarker = false;
+          _navigationStartPoint = null;
+        });
+      }
+
+      // Just fit the route to view, no animation
       if (_navigationManager.polylinePoints.isNotEmpty) {
         await Future.delayed(const Duration(milliseconds: 300));
         RoutingService.fitMapToRoute(
           _mapController,
           _navigationManager.polylinePoints,
         );
-      } else {}
+      }
 
       return;
     }
 
+    // Building navigation
     BicolBuildingPolygon? targetBuilding;
 
     if (widget.buildingId != null) {
@@ -492,7 +702,6 @@ class _MapsState extends State<Maps> {
           final match = b.name.toLowerCase().contains(
             widget.destinationName!.toLowerCase(),
           );
-
           return match;
         });
       } catch (e) {
@@ -519,6 +728,10 @@ class _MapsState extends State<Maps> {
       return;
     }
 
+    setState(() {
+      _targetedBuildingId = targetBuilding!.buildingId;
+    });
+
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -534,8 +747,11 @@ class _MapsState extends State<Maps> {
               ),
               const SizedBox(width: 12),
               Expanded(
+                // ✅ WRAP IN Expanded
                 child: Text(
                   'Getting route to ${targetBuilding.displayName}...',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -556,19 +772,377 @@ class _MapsState extends State<Maps> {
 
     await _showDirectionsForBuilding(targetBuilding);
 
+    // ✅ CHANGED: Don't do Waze animation here anymore
+    // Just set navigation start point and hide marker
+    if (_currentLocation != null &&
+        MapBoundary.isWithinCampusBounds(_currentLocation!)) {
+      setState(() {
+        _navigationStartPoint = _currentLocation;
+        _showDestinationMarker = false; // Keep hidden until "Start Navigation"
+      });
+    } else {
+      setState(() {
+        _showDestinationMarker = false;
+        _animateDestinationMarker = false;
+        _navigationStartPoint = null;
+      });
+    }
+
+    // ✅ CHANGED: Just fit the route to view, no animation
     if (_navigationManager.polylinePoints.isNotEmpty) {
       await Future.delayed(const Duration(milliseconds: 300));
       RoutingService.fitMapToRoute(
         _mapController,
         _navigationManager.polylinePoints,
       );
-    } else {}
+    }
   }
+  // In _MapsState class, replace _showDirectionsForBuilding method:
 
   Future<void> _showDirectionsForBuilding(BicolBuildingPolygon building) async {
     if (_isDisposed || _currentLocation == null) return;
-    final destination = building.getCenterPoint();
-    await _getRoute(_currentLocation!, destination, building);
+
+    // ✅ NEW: Check if user is already at the building
+    final bool isAlreadyHere = RoutingService.isUserAtDestination(
+      _currentLocation!,
+      building.getCenterPoint(),
+      buildingId: building.buildingId,
+      thresholdMeters: 30.0,
+    );
+
+    if (isAlreadyHere) {
+      // User is already at the building
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: true,
+          builder: (context) => Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            elevation: 8,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.green.shade50, Colors.white],
+                ),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header with icon
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(28),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Colors.green.shade400, Colors.green.shade600],
+                      ),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(24),
+                        topRight: Radius.circular(24),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Animated check icon
+                        TweenAnimationBuilder<double>(
+                          duration: const Duration(milliseconds: 600),
+                          tween: Tween(begin: 0.0, end: 1.0),
+                          curve: Curves.elasticOut,
+                          builder: (context, value, child) {
+                            return Transform.scale(
+                              scale: value,
+                              child: Container(
+                                width: 70,
+                                height: 70,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.15,
+                                      ),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(
+                                  Icons.check_circle,
+                                  size: 45,
+                                  color: Colors.green.shade600,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'You\'re Already Here!',
+                          style: GoogleFonts.poppins(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            letterSpacing: 0.3,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Content
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        // Location badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.green.shade200,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.location_on,
+                                color: Colors.green.shade700,
+                                size: 22,
+                              ),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  building.displayName,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.green.shade900,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // Message
+                        Text(
+                          'You\'re currently at your destination.',
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            color: Colors.grey.shade700,
+                            height: 1.4,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        Text(
+                          'Would you still like to see the route?',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: Colors.grey.shade600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        // Action buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  side: BorderSide(
+                                    color: Colors.grey.shade300,
+                                    width: 1.5,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Got It',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _forceShowRoute(building);
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  backgroundColor: Colors.orange.shade500,
+                                  foregroundColor: Colors.white,
+                                  elevation: 2,
+                                  shadowColor: Colors.orange.withValues(
+                                    alpha: 0.4,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Show Route',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Normal flow - user is not at destination
+    try {
+      // Show loading indicator
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: const Text('Getting route...')),
+              ],
+            ),
+            backgroundColor: Colors.blue,
+            duration: const Duration(seconds: 30),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
+      // Try cached entrance first
+      LatLng? entrance = RoutingService.getCachedEntrance(building.buildingId);
+
+      // If not cached, fetch it with timeout
+      entrance ??=
+          await RoutingService.fetchBuildingEntrance(
+            building.getCenterPoint(),
+            building.name,
+            buildingId: building.buildingId,
+          ).timeout(
+            const Duration(seconds: 15),
+            onTimeout: () {
+              throw TimeoutException('Slow internet connection');
+            },
+          );
+
+      final destination = entrance ?? building.getCenterPoint();
+      await _getRoute(_currentLocation!, destination, building);
+
+      // Clear loading snackbar
+      if (!_isDisposed && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+      }
+    } on TimeoutException {
+      if (!_isDisposed && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Internet connection is slow'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'RETRY',
+              textColor: Colors.white,
+              onPressed: () => _showDirectionsForBuilding(building),
+            ),
+          ),
+        );
+      }
+    } on SocketException {
+      if (!_isDisposed && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('No internet connection'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'RETRY',
+              textColor: Colors.white,
+              onPressed: () => _showDirectionsForBuilding(building),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!_isDisposed && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error getting route: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'RETRY',
+              textColor: Colors.white,
+              onPressed: () => _showDirectionsForBuilding(building),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   void _setupNavigationCallbacks() {
@@ -652,6 +1226,31 @@ class _MapsState extends State<Maps> {
 
       _navigationManager.updateLocation(newLocation, compassHeading);
 
+      // ✅ UPDATED: Update nearby images during virtual tour OR regular navigation
+      if (MapBuildings.isInitialized &&
+          (_isVirtualTourActive || _navigationManager.isNavigating)) {
+        // Exclude the current destination building from showing nearby images
+        Set<int> excludedIds = {};
+
+        if (_isVirtualTourActive && _virtualTourManager.currentStop != null) {
+          excludedIds.add(_virtualTourManager.currentStop!.buildingId);
+        } else if (_navigationManager.isNavigating &&
+            _navigationManager.currentDestination != null) {
+          // Exclude regular navigation destination
+          final destination = _navigationManager.currentDestination;
+          if (destination.buildingId != null) {
+            excludedIds.add(destination.buildingId);
+          }
+        }
+
+        _nearbyImageManager.updateLocation(
+          newLocation,
+          MapBuildings.campusBuildings,
+          [...MapBuildings.colleges, ...MapBuildings.landmarks],
+          excludedBuildingIds: excludedIds,
+        );
+      }
+
       if (_autoFollowLocation && !_navigationManager.isNavigating) {
         _followUserLocation();
       }
@@ -713,11 +1312,14 @@ class _MapsState extends State<Maps> {
     });
 
     try {
-      final routeResult = await _navigationManager.getRouteAndPrepareNavigation(
-        start,
-        end,
-        building,
-      );
+      final routeResult = await _navigationManager
+          .getRouteAndPrepareNavigation(start, end, building)
+          .timeout(
+            const Duration(seconds: 20),
+            onTimeout: () {
+              throw TimeoutException('Route calculation timed out');
+            },
+          );
 
       if (!_isDisposed && mounted) {
         setState(() {
@@ -735,9 +1337,57 @@ class _MapsState extends State<Maps> {
               SnackBar(
                 content: Text(routeResult.error ?? 'Failed to get route'),
                 backgroundColor: Colors.red,
+                behavior: SnackBarBehavior.floating,
+                action: SnackBarAction(
+                  label: 'RETRY',
+                  textColor: Colors.white,
+                  onPressed: () => _getRoute(start, end, building),
+                ),
               ),
             );
           }
+        }
+      }
+    } on TimeoutException {
+      if (!_isDisposed && mounted) {
+        setState(() {
+          _isLoadingLocation = false;
+        });
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Internet connection is slow'),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'RETRY',
+                textColor: Colors.white,
+                onPressed: () => _getRoute(start, end, building),
+              ),
+            ),
+          );
+        }
+      }
+    } on SocketException {
+      if (!_isDisposed && mounted) {
+        setState(() {
+          _isLoadingLocation = false;
+        });
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('No internet connection'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'RETRY',
+                textColor: Colors.white,
+                onPressed: () => _getRoute(start, end, building),
+              ),
+            ),
+          );
         }
       }
     } catch (e) {
@@ -748,8 +1398,15 @@ class _MapsState extends State<Maps> {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error getting route: $e'),
+              content: Text('Error: ${e.toString()}'),
               backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
+              action: SnackBarAction(
+                label: 'RETRY',
+                textColor: Colors.white,
+                onPressed: () => _getRoute(start, end, building),
+              ),
             ),
           );
         }
@@ -772,6 +1429,68 @@ class _MapsState extends State<Maps> {
     }
   }
 
+  Future<void> _forceShowRoute(BicolBuildingPolygon building) async {
+    if (_isDisposed || _currentLocation == null) return;
+
+    try {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text('Getting route...'),
+              ],
+            ),
+            backgroundColor: Colors.blue,
+            duration: const Duration(seconds: 30),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
+      LatLng? entrance = RoutingService.getCachedEntrance(building.buildingId);
+
+      entrance ??=
+          await RoutingService.fetchBuildingEntrance(
+            building.getCenterPoint(),
+            building.name,
+            buildingId: building.buildingId,
+          ).timeout(
+            const Duration(seconds: 15),
+            onTimeout: () {
+              throw TimeoutException('Slow internet connection');
+            },
+          );
+
+      final destination = entrance ?? building.getCenterPoint();
+      await _getRoute(_currentLocation!, destination, building);
+
+      if (!_isDisposed && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+      }
+    } catch (e) {
+      if (!_isDisposed && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   void _startNavigation(BicolBuildingPolygon building) async {
     if (_isDisposed || !context.mounted) return;
     if (_currentLocation == null) {
@@ -784,10 +1503,127 @@ class _MapsState extends State<Maps> {
       return;
     }
 
-    setState(() {
-      _autoFollowLocation = true;
-    });
+    // Check if user is within campus for Waze animation
+    final bool isInsideCampus = MapBoundary.isWithinCampusBounds(
+      _currentLocation!,
+    );
 
+    // Store starting point if user is within campus
+    if (_navigationStartPoint == null && isInsideCampus) {
+      setState(() {
+        _navigationStartPoint = _currentLocation;
+      });
+    }
+
+    // Handle marker visibility - hide destination marker during animation
+    if (_isMarkerType && building.buildingId != null) {
+      setState(() {
+        _selectedMarkerId = null;
+        _hiddenMarkerId = building.buildingId;
+        _isNavigatingToMarker = false;
+        _showDestinationMarker = false;
+        _animateDestinationMarker = false;
+      });
+    } else {
+      setState(() {
+        _showDestinationMarker = false;
+        _animateDestinationMarker = false;
+      });
+    }
+
+    // Initialize nearby images for regular navigation
+    if (isInsideCampus && MapBuildings.isInitialized) {
+      // Exclude the destination building from showing nearby images
+      Set<int> excludedIds = {};
+      if (building.buildingId != null) {
+        excludedIds.add(building.buildingId!);
+      }
+
+      await _nearbyImageManager.updateLocation(
+        _currentLocation!,
+        MapBuildings.campusBuildings,
+        [...MapBuildings.colleges, ...MapBuildings.landmarks],
+        excludedBuildingIds: excludedIds,
+      );
+    }
+
+    // If inside campus, do Waze-style animation BEFORE starting navigation
+    if (isInsideCampus && _navigationManager.polylinePoints.isNotEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text('Preparing navigation...'),
+              ],
+            ),
+            backgroundColor: Colors.blue,
+            duration: const Duration(seconds: 10),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
+      // Clear any animated route points first
+      setState(() {
+        _animatedRoutePoints = [];
+      });
+
+      // ✅ NEW: Do Waze animation WITH nearby images
+      await MapUtils.animateAlongRouteWithCamera(
+        _mapController,
+        _navigationManager.polylinePoints,
+        onRouteUpdate: (visibleRoute) {
+          if (mounted && !_isDisposed) {
+            setState(() {
+              _animatedRoutePoints = visibleRoute;
+            });
+
+            // ✅ NEW: Update nearby images as route animates
+            _updateNearbyImagesForNavigation(building.buildingId);
+          }
+        },
+      );
+
+      // After animation completes, move camera back to user location
+      if (mounted && !_isDisposed && _currentLocation != null) {
+        await MapUtils.animateToBuildingLocation(
+          _mapController,
+          _currentLocation!,
+          zoom: 19.0,
+          duration: const Duration(milliseconds: 800),
+        );
+
+        // Clear animated route points - show full route now
+        setState(() {
+          _animatedRoutePoints = [];
+        });
+      }
+
+      if (!_isDisposed && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+      }
+    }
+
+    // NOW show the destination marker with animation
+    if (mounted && !_isDisposed) {
+      setState(() {
+        _showDestinationMarker = true;
+        _animateDestinationMarker = true;
+        _autoFollowLocation = true;
+      });
+    }
+
+    // Start actual navigation
     await _navigationManager.startNavigation(
       destination: building,
       routePoints: _navigationManager.polylinePoints,
@@ -803,19 +1639,49 @@ class _MapsState extends State<Maps> {
 
   void _clearRoute() {
     if (_isDisposed) return;
+
     _navigationManager.clearRoute();
+    _nearbyImageManager.clear();
+
     setState(() {
+      _animatedRoutePoints = [];
       _autoFollowLocation = false;
+      _showDestinationMarker = false;
+      _animateDestinationMarker = false;
+      _navigationStartPoint = null;
+      _targetedBuildingId = null;
+      _hiddenMarkerId = null;
+      _selectedMarkerId = null;
+      _isMarkerType = false;
+      _isNavigatingToMarker = false;
+      _isCollegeMarker = false;
     });
+
     _centerOnCampus();
   }
 
   void _stopNavigation() {
     if (_isDisposed) return;
+
     _navigationManager.stopNavigation();
+    _nearbyImageManager.clear();
+
     setState(() {
+      _animatedRoutePoints = [];
       _autoFollowLocation = false;
+      _showDestinationMarker = false;
+      _animateDestinationMarker = false;
+      _navigationStartPoint = null;
+      _targetedBuildingId = null;
+      _hiddenMarkerId = null;
+      _selectedMarkerId = null;
+      _isMarkerType = false;
+      _isNavigatingToMarker = false;
+      _isCollegeMarker = false;
     });
+
+    _centerOnCampus();
+
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -869,7 +1735,6 @@ class _MapsState extends State<Maps> {
       _mapDataError = null;
     });
 
-    // Calculate delay with exponential backoff for rate limiting
     int delaySeconds = 0;
     if (_retryAttempts > 0) {
       delaySeconds = (2 * (_retryAttempts)).clamp(2, 10);
@@ -878,7 +1743,6 @@ class _MapsState extends State<Maps> {
         '⏳ Waiting ${delaySeconds}s before retry (attempt ${_retryAttempts + 1})...',
       );
 
-      // Show countdown in UI
       for (int i = delaySeconds; i > 0; i--) {
         if (_isDisposed) return;
         setState(() {
@@ -892,13 +1756,12 @@ class _MapsState extends State<Maps> {
       await MapBuildings.initializeWithBoundary(
         campusBoundaryPoints: MapBoundary.getCampusBoundaryPoints(),
       ).timeout(
-        const Duration(seconds: 45), //
+        const Duration(seconds: 45),
         onTimeout: () {
           throw TimeoutException('Map loading timed out after 45 seconds');
         },
       );
 
-      // Verify data loaded
       final hasBuildings = MapBuildings.campusBuildings.isNotEmpty;
       final hasMarkers = MapBuildings.campusMarkers.isNotEmpty;
       final isInitialized = MapBuildings.isInitialized;
@@ -911,7 +1774,13 @@ class _MapsState extends State<Maps> {
         throw Exception('No map data received from server');
       }
 
-      // Success!
+      // Preload building entrances after map data loads
+      if (hasBuildings) {
+        debugPrint('🔄 Preloading building entrances...');
+        // Don't await - let it run in background
+        RoutingService.preloadBuildingEntrances(MapBuildings.campusBuildings);
+      }
+
       if (mounted && !_isDisposed) {
         setState(() {
           _isLoadingMapData = false;
@@ -987,7 +1856,7 @@ class _MapsState extends State<Maps> {
       icon = Icons.school;
       color = Colors.blue;
     } else if (marker.isLandmark) {
-      icon = Icons.place;
+      icon = Icons.circle;
       color = Colors.red;
     } else {
       icon = Icons.location_on;
@@ -1004,11 +1873,14 @@ class _MapsState extends State<Maps> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        // 🔄 CHANGED: Make landmark icons circular like DestinationEndMarker
         Container(
-          padding: const EdgeInsets.all(6),
+          width: 32,
+          height: 32,
           decoration: BoxDecoration(
             color: color,
-            shape: BoxShape.circle,
+            shape: BoxShape.circle, // ✅ Changed to circle for all markers
+            border: Border.all(color: Colors.white, width: 2),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.25),
@@ -1017,7 +1889,7 @@ class _MapsState extends State<Maps> {
               ),
             ],
           ),
-          child: Icon(icon, color: Colors.white, size: 20),
+          child: Center(child: Icon(icon, color: Colors.white, size: 18)),
         ),
         const SizedBox(width: 6),
         ConstrainedBox(
@@ -1060,6 +1932,14 @@ class _MapsState extends State<Maps> {
   void _showMarkerInfo(BicolMarker marker) {
     if (_isDisposed || !context.mounted) return;
 
+    setState(() {
+      _isCollegeMarker = marker.isCollege;
+      _isMarkerType = true;
+      _selectedMarkerId = marker.isCollege
+          ? marker.itemId
+          : marker.buildingId; // ⭐ ADD THIS
+    });
+
     final markerAsBuilding = BicolBuildingPolygon(
       points: [marker.position],
       name: marker.name,
@@ -1080,15 +1960,103 @@ class _MapsState extends State<Maps> {
   Future<void> _getRouteToMarkerAsync(BicolMarker marker) async {
     if (_isDisposed || _currentLocation == null) return;
 
-    final tempBuilding = BicolBuildingPolygon(
-      points: [marker.position],
-      name: marker.name,
-      description: marker.isCollege ? 'College' : 'Landmark',
-      buildingId: marker.buildingId,
-      databaseName: marker.databaseName,
-    );
+    try {
+      // Show loading
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text('Getting route...'),
+              ],
+            ),
+            backgroundColor: Colors.blue,
+            duration: const Duration(seconds: 30),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
 
-    await _getRoute(_currentLocation!, marker.position, tempBuilding);
+      final tempBuilding = BicolBuildingPolygon(
+        points: [marker.position],
+        name: marker.name,
+        description: marker.isCollege ? 'College' : 'Landmark',
+        buildingId: marker.buildingId,
+        databaseName: marker.databaseName,
+      );
+
+      // ⭐ ADD THIS - Mark this as a marker type navigation
+      setState(() {
+        _isMarkerType = true;
+      });
+
+      await _getRoute(_currentLocation!, marker.position, tempBuilding);
+
+      // Clear loading
+      if (!_isDisposed && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+      }
+    } on TimeoutException {
+      if (!_isDisposed && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Internet connection is slow'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'RETRY',
+              textColor: Colors.white,
+              onPressed: () => _getRouteToMarkerAsync(marker),
+            ),
+          ),
+        );
+      }
+    } on SocketException {
+      if (!_isDisposed && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('No internet connection'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'RETRY',
+              textColor: Colors.white,
+              onPressed: () => _getRouteToMarkerAsync(marker),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!_isDisposed && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'RETRY',
+              textColor: Colors.white,
+              onPressed: () => _getRouteToMarkerAsync(marker),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   void _setupVirtualTourCallbacks() {
@@ -1122,24 +2090,22 @@ class _MapsState extends State<Maps> {
       return;
     }
 
-    // Step 1: Resolve building locations (polygons AND markers)
     List<VirtualTourStop> resolvedStops = [];
 
     for (var stop in widget.tourStops!) {
-      // First, try to find as a landmark marker
+      // Try to find as marker first
       final marker = MapBuildings.landmarks.firstWhere(
         (m) => m.buildingId == stop.buildingId,
         orElse: () => MapBuildings.landmarks.first,
       );
 
       if (marker.buildingId == stop.buildingId) {
-        // Found as landmark marker
         stop.setLocation(marker.position, isMarkerType: true);
         resolvedStops.add(stop);
         continue;
       }
 
-      // If not a landmark, try to find as building polygon
+      // Find as building
       try {
         final building = MapBuildings.campusBuildings.firstWhere(
           (b) => b.buildingId == stop.buildingId,
@@ -1147,20 +2113,16 @@ class _MapsState extends State<Maps> {
 
         stop.setLocation(building.getCenterPoint(), isMarkerType: false);
 
-        // Fetch entrance from OSM
-        final entrance = await RoutingService.fetchBuildingEntrance(
-          building.getCenterPoint(),
-          building.name,
-        );
+        // Use preloaded entrance from cache
+        final entrance = RoutingService.getCachedEntrance(building.buildingId);
 
         if (entrance != null) {
           stop.setEntranceLocation(entrance);
-        } else {
-          debugPrint(' No entrance found for ${building.name}, using center');
         }
 
         resolvedStops.add(stop);
       } catch (e) {
+        debugPrint('❌ Building ${stop.buildingId} not found');
         continue;
       }
     }
@@ -1177,86 +2139,178 @@ class _MapsState extends State<Maps> {
       return;
     }
 
-    // Step 2: Determine starting point (user location OR nearest gate)
+    // Determine starting point based on user choice
     LatLng startingPoint;
+    int targetStopIndex = widget.skipToStopIndex ?? 0;
 
-    if (_currentLocation != null &&
+    // ✅ FIXED: Check for selected gate FIRST and don't override it
+    if (widget.selectedStartGate != null) {
+      // ✅ User explicitly chose this gate - use it WITHOUT recalculation
+      startingPoint = widget.selectedStartGate!.location;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.door_sliding, color: Colors.white, size: 20),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Starting tour from ${widget.selectedStartGate!.name}',
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green[700],
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } else if (widget.useCurrentLocationAsStart &&
+        _currentLocation != null &&
         MapBoundary.isWithinCampusBounds(_currentLocation!)) {
+      // ✅ Use current location as starting point
       startingPoint = _currentLocation!;
-    } else {
-      final gates = await RoutingService.fetchCampusGates(
-        campusCenter: MapBoundary.bicolUniversityCenter,
-        radiusMeters: 600,
-      );
 
-      CampusGate? nearestGate;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.my_location, color: Colors.white, size: 20),
+                SizedBox(width: 12),
+                Text('Starting tour from your current location'),
+              ],
+            ),
+            backgroundColor: Colors.blue[700],
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } else {
+      // ✅ ONLY calculate optimal gate if no gate was selected
+      final gates = await RoutingService.getAllGates();
+
+      CampusGate? optimalGate;
       if (gates.isNotEmpty) {
-        final firstBuilding = resolvedStops.first.navigationTarget;
-        double minDistance = double.infinity;
-        for (var gate in gates) {
-          final distance = RoutingService.calculateDistance(
-            firstBuilding,
-            gate.location,
-          );
-          if (distance < minDistance) {
-            minDistance = distance;
-            nearestGate = gate;
-          }
-        }
+        optimalGate = await RoutingService.findOptimalGate(
+          startPoint: _currentLocation ?? MapBoundary.bicolUniversityCenter,
+          destinationPoint: resolvedStops[targetStopIndex].navigationTarget,
+          gates: gates,
+        );
       }
 
       startingPoint =
-          nearestGate?.location ?? MapBoundary.bicolUniversityCenter;
+          optimalGate?.location ?? MapBoundary.bicolUniversityCenter;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.door_sliding, color: Colors.white, size: 20),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    optimalGate != null
+                        ? 'Starting tour from ${optimalGate.name} (optimal route)'
+                        : 'Starting tour from campus entrance',
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green[700],
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     }
 
-    // Step 3: Start the tour
+    // ✅ Start the tour with the correct starting point
     _virtualTourManager.startTour(
       tourName: widget.tourName ?? 'Campus Tour',
       stops: resolvedStops,
-      startingGate: startingPoint,
+      startingGate:
+          startingPoint, // This is now guaranteed to be the selected gate
+      startAtIndex: targetStopIndex,
     );
+
+    if (widget.audioGuideEnabled) {
+      _virtualTourManager.enableAudioGuide();
+    } else {
+      _virtualTourManager.disableAudioGuide();
+    }
 
     setState(() {
       _isVirtualTourActive = true;
       _tourStartPoint = startingPoint;
     });
 
-    // Step 4: Show welcome message
+    // Show appropriate message for skipped stops
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.tour, color: Colors.white),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Starting ${widget.tourName} - ${resolvedStops.length} stops',
+    if (targetStopIndex > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.tour, color: Colors.white),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Skipping to Stop ${targetStopIndex + 1} - ${resolvedStops[targetStopIndex].displayName}',
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
+          backgroundColor: Colors.orange[600],
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
         ),
-        backgroundColor: Colors.orange[600],
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.tour, color: Colors.white),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Starting ${widget.tourName} - ${resolvedStops.length} stops',
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.orange[600],
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
 
-    // Step 5: First show entire campus overview
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(const Duration(milliseconds: 1000));
     if (!mounted) return;
 
-    await MapUtils.animateToBuildingLocation(
-      _mapController,
-      MapBoundary.bicolUniversityCenter,
-      zoom: 16.5, // Wide view to see entire campus
-      duration: const Duration(milliseconds: 1500),
-    );
+    // Initialize nearby images with exclusion
+    Set<int> excludedIds = {};
+    if (_virtualTourManager.currentStop != null) {
+      excludedIds.add(_virtualTourManager.currentStop!.buildingId);
+    }
 
-    // Step 6: Wait a moment, then navigate to first stop
-    await Future.delayed(const Duration(milliseconds: 1500));
-    if (!mounted) return;
+    if (_currentLocation != null) {
+      await _nearbyImageManager.updateLocation(
+        _currentLocation!,
+        MapBuildings.campusBuildings,
+        [...MapBuildings.colleges, ...MapBuildings.landmarks],
+        excludedBuildingIds: excludedIds,
+      );
+    }
+
     _navigateToCurrentVirtualTourStop();
   }
 
@@ -1266,65 +2320,193 @@ class _MapsState extends State<Maps> {
     final currentStop = _virtualTourManager.currentStop;
     if (currentStop == null || currentStop.location == null) return;
 
-    _virtualTourManager.beginAnimationToStop();
+    setState(() {
+      _targetedBuildingId = currentStop.buildingId;
+    });
 
-    LatLng startPoint;
+    try {
+      _virtualTourManager.beginAnimationToStop();
+      _nearbyImageManager.clear();
 
-    if (fromLocation != null) {
-      startPoint = fromLocation;
-    } else if (_virtualTourManager.currentStopIndex == 0) {
-      startPoint = _virtualTourManager.startingGate!;
-    } else {
-      final previousStop =
-          _virtualTourManager.stops[_virtualTourManager.currentStopIndex - 1];
-      startPoint = previousStop.navigationTarget;
-    }
+      LatLng startPoint;
 
-    // Get route to entrance (or center if no entrance found)
-    final routeResult = await RoutingService.getRoute(
-      startPoint,
-      currentStop.navigationTarget, // Use navigationTarget
-    );
+      // ✅ FIXED: Determine starting point with proper priority
+      if (fromLocation != null) {
+        // Explicit fromLocation passed - use it (for next/previous navigation)
+        startPoint = fromLocation;
+        debugPrint('🔄 Using provided fromLocation: $fromLocation');
+      } else if (_tourStartPoint != null) {
+        // ✅ CRITICAL FIX: Use the tour start point (selected gate or starting location)
+        // This was set in _initializeVirtualTour and should be used for first stop
+        startPoint = _tourStartPoint!;
+        debugPrint(
+          '🎯 Using tour start point (selected gate): $_tourStartPoint',
+        );
+      } else if (_currentLocation != null &&
+          MapBoundary.isWithinCampusBounds(_currentLocation!)) {
+        // User is on campus - start from current location
+        startPoint = _currentLocation!;
+        debugPrint('📍 Using current location: $_currentLocation');
+      } else {
+        // Fallback: User is off campus and no tour start point - find nearest gate
+        final gates = await RoutingService.fetchCampusGates(
+          campusCenter: MapBoundary.bicolUniversityCenter,
+          radiusMeters: 600,
+        );
 
-    if (routeResult.isSuccess && routeResult.points != null) {
-      // Clear previous navigation
-      setState(() {
-        _navigationManager.clearRoute();
-        _animatedRoutePoints = []; // Clear animated route
-      });
+        CampusGate? nearestGate;
+        if (gates.isNotEmpty) {
+          final targetBuilding = currentStop.navigationTarget;
+          double minDistance = double.infinity;
 
-      // Animate with progressive route drawing + camera rotation
-      await MapUtils.animateAlongRouteWithCamera(
-        _mapController,
-        routeResult.points!,
-        onRouteUpdate: (visibleRoute) {
-          if (mounted && !_isDisposed) {
-            setState(() {
-              _animatedRoutePoints = visibleRoute;
-            });
+          for (var gate in gates) {
+            final distance = RoutingService.calculateDistance(
+              targetBuilding,
+              gate.location,
+            );
+            if (distance < minDistance) {
+              minDistance = distance;
+              nearestGate = gate;
+            }
           }
-        },
-      );
+        }
 
-      // Store full route after animation
-      setState(() {
-        _animatedRoutePoints = routeResult.points!;
-        _navigationManager.polylinePoints.clear();
-        _navigationManager.polylinePoints.addAll(routeResult.points!);
-      });
+        startPoint = nearestGate?.location ?? MapBoundary.bicolUniversityCenter;
+        debugPrint('🚪 Fallback to nearest gate: ${nearestGate?.name}');
+      }
 
-      // Show stop card
-      _virtualTourManager.completeAnimationToStop();
-      _showVirtualTourStopCard();
-    } else {
-      if (!mounted) return;
+      // Show loading
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Navigating to ${currentStop.buildingName}...',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.blue,
+            duration: const Duration(seconds: 30),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not find route to ${currentStop.buildingName}'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      final routeResult =
+          await RoutingService.getRoute(
+            startPoint,
+            currentStop.navigationTarget,
+          ).timeout(
+            const Duration(seconds: 20),
+            onTimeout: () {
+              throw TimeoutException('Route calculation timed out');
+            },
+          );
+
+      // Clear loading
+      if (!_isDisposed && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+      }
+
+      if (routeResult.isSuccess && routeResult.points != null) {
+        setState(() {
+          _navigationManager.clearRoute();
+          _animatedRoutePoints = [];
+        });
+
+        await MapUtils.animateAlongRouteWithCamera(
+          _mapController,
+          routeResult.points!,
+          onRouteUpdate: (visibleRoute) {
+            if (mounted && !_isDisposed) {
+              setState(() {
+                _animatedRoutePoints = visibleRoute;
+              });
+              _updateNearbyImagesForRoute();
+            }
+          },
+        );
+
+        setState(() {
+          _animatedRoutePoints = routeResult.points!;
+          _navigationManager.polylinePoints.clear();
+          _navigationManager.polylinePoints.addAll(routeResult.points!);
+        });
+
+        _updateNearbyImagesForRoute();
+        _virtualTourManager.completeAnimationToStop();
+        _showVirtualTourStopCard();
+      } else {
+        throw Exception(routeResult.error ?? 'Failed to get route');
+      }
+    } on TimeoutException {
+      if (!_isDisposed && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Internet connection is slow'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'RETRY',
+              textColor: Colors.white,
+              onPressed: () =>
+                  _navigateToCurrentVirtualTourStop(fromLocation: fromLocation),
+            ),
+          ),
+        );
+      }
+    } on SocketException {
+      if (!_isDisposed && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('No internet connection'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'RETRY',
+              textColor: Colors.white,
+              onPressed: () =>
+                  _navigateToCurrentVirtualTourStop(fromLocation: fromLocation),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!_isDisposed && mounted && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'RETRY',
+              textColor: Colors.white,
+              onPressed: () =>
+                  _navigateToCurrentVirtualTourStop(fromLocation: fromLocation),
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -1343,13 +2525,14 @@ class _MapsState extends State<Maps> {
 
     _virtualTourManager.endTour();
     _navigationManager.clearRoute();
+    _nearbyImageManager.clear();
 
     setState(() {
       _isVirtualTourActive = false;
       _animatedRoutePoints = [];
       _tourStartPoint = null;
+      _targetedBuildingId = null;
     });
-
     if (completedAll) {
       showDialog(
         context: context,
@@ -1397,7 +2580,7 @@ class _MapsState extends State<Maps> {
               ),
             ),
             children: [
-              MapUtils.getDefaultTileLayer(),
+              MapUtils.getTileLayer(_currentTileType),
 
               // Boundary polygon
               PolygonLayer(
@@ -1460,11 +2643,35 @@ class _MapsState extends State<Maps> {
                       ),
                     )
                     .map((building) {
+                      // Make sure BOTH the building has an ID AND it matches the target
+                      final bool isTargeted =
+                          building.buildingId != null &&
+                          building.buildingId == _targetedBuildingId;
+
+                      // DIFFERENT COLORS FOR TARGETED VS NORMAL BUILDINGS
+                      final polygonColor = isTargeted
+                          ? Colors.deepOrange.withValues(
+                              alpha: 0.5,
+                            ) // Darker orange-red for targeted
+                          : Colors.orange.withValues(
+                              alpha: 0.3,
+                            ); // Normal orange
+
+                      final borderColor = isTargeted
+                          ? Colors
+                                .deepOrange
+                                .shade700 // Darker border for targeted
+                          : Colors.orange; // Normal border
+
+                      final borderWidth = isTargeted
+                          ? 3.0
+                          : 2.0; // Thicker border for targeted
+
                       return Polygon(
                         points: building.points,
-                        color: Colors.orange.withValues(alpha: 0.3),
-                        borderColor: Colors.orange,
-                        borderStrokeWidth: 2,
+                        color: polygonColor,
+                        borderColor: borderColor,
+                        borderStrokeWidth: borderWidth,
                       );
                     })
                     .toList(),
@@ -1476,7 +2683,19 @@ class _MapsState extends State<Maps> {
                   polylines: [
                     Polyline(
                       points: _animatedRoutePoints,
-                      color: const Color(0xFF2196F3),
+                      color: const Color(0xFFD84315), // Dark red-orange
+                      strokeWidth: 5.0,
+                      borderColor: Colors.white,
+                      borderStrokeWidth: 2.0,
+                    ),
+                  ],
+                )
+              else if (_animatedRoutePoints.isNotEmpty && !_isVirtualTourActive)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: _animatedRoutePoints,
+                      color: const Color(0xFFD84315),
                       strokeWidth: 5.0,
                       borderColor: Colors.white,
                       borderStrokeWidth: 2.0,
@@ -1491,6 +2710,65 @@ class _MapsState extends State<Maps> {
                       _navigationManager.polylinePoints,
                     ),
                   ],
+                ),
+              // Start point marker (where navigation began)
+              if (_navigationStartPoint != null &&
+                  _navigationManager.isNavigating)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: _navigationStartPoint!,
+                      width: 40,
+                      height: 50,
+                      alignment: Alignment.bottomCenter,
+                      child: const StartPointMarker(),
+                    ),
+                  ],
+                ),
+
+              // Destination marker - handles BOTH buildings and map markers
+              if (_showDestinationMarker &&
+                  _navigationManager.currentDestination != null)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: _navigationManager.currentDestination
+                          .getCenterPoint(),
+                      width: 50,
+                      height: 60,
+                      alignment: Alignment.bottomCenter,
+                      child: DestinationEndMarker(
+                        animate: _animateDestinationMarker,
+                        // ✅ These parameters don't matter anymore since we use unified style
+                        isMapMarker: _isMarkerType,
+                        isCollege: _isCollegeMarker,
+                      ),
+                    ),
+                  ],
+                ),
+              // Nearby image popups during virtual tour OR regular navigation
+              if (_isVirtualTourActive || _navigationManager.isNavigating)
+                MarkerLayer(
+                  markers: _nearbyImageManager.nearbyImages.values.map((
+                    imageData,
+                  ) {
+                    return Marker(
+                      point: imageData.location,
+                      width: 80,
+                      height: 110,
+                      alignment: Alignment.topCenter,
+                      child: NearbyImagePopup(
+                        imageData: imageData,
+                        onTap: () {
+                          ImageFullScreenViewer.show(
+                            context,
+                            imageData.imageUrl,
+                            imageData.name,
+                          );
+                        },
+                      ),
+                    );
+                  }).toList(),
                 ),
 
               // User location marker
@@ -1563,7 +2841,9 @@ class _MapsState extends State<Maps> {
                   markers: MapBuildings.colleges
                       .where(
                         (marker) =>
-                            MapBoundary.isWithinCampusBounds(marker.position),
+                            MapBoundary.isWithinCampusBounds(marker.position) &&
+                            marker.itemId != _hiddenMarkerId &&
+                            marker.itemId != _selectedMarkerId,
                       )
                       .map((marker) {
                         return Marker(
@@ -1571,7 +2851,6 @@ class _MapsState extends State<Maps> {
                           width: 150,
                           height: 40,
                           alignment: Alignment.center,
-
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () async {
@@ -1595,14 +2874,15 @@ class _MapsState extends State<Maps> {
                       })
                       .toList(),
                 ),
-
               // Landmark markers
               if (MapUtils.shouldShowLandmarks(_currentZoom) && _showLandmarks)
                 MarkerLayer(
                   markers: MapBuildings.landmarks
                       .where(
                         (marker) =>
-                            MapBoundary.isWithinCampusBounds(marker.position),
+                            MapBoundary.isWithinCampusBounds(marker.position) &&
+                            marker.buildingId != _hiddenMarkerId &&
+                            marker.buildingId != _selectedMarkerId,
                       )
                       .map((marker) {
                         return Marker(
@@ -1632,6 +2912,41 @@ class _MapsState extends State<Maps> {
                         );
                       })
                       .toList(),
+                ),
+              if (_selectedMarkerId != null && !_isNavigatingToMarker)
+                MarkerLayer(
+                  markers: [
+                    // Find the selected marker
+                    ...MapBuildings.colleges
+                        .where((m) => m.itemId == _selectedMarkerId)
+                        .map(
+                          (marker) => Marker(
+                            point: marker.position,
+                            width: 200,
+                            height: 50,
+                            alignment: Alignment.center,
+                            child: SelectedMarkerWithLabel(
+                              // <-- Line 2331
+                              isCollege: true,
+                              markerName: marker.abbreviation ?? marker.name,
+                            ),
+                          ),
+                        ),
+                    ...MapBuildings.landmarks
+                        .where((m) => m.buildingId == _selectedMarkerId)
+                        .map(
+                          (marker) => Marker(
+                            point: marker.position,
+                            width: 200,
+                            height: 50,
+                            alignment: Alignment.center,
+                            child: SelectedMarkerWithLabel(
+                              isCollege: false,
+                              markerName: marker.name,
+                            ),
+                          ),
+                        ),
+                  ],
                 ),
             ],
           ),
@@ -1842,6 +3157,112 @@ class _MapsState extends State<Maps> {
             ),
           ),
 
+          // Zoom and location controls
+          Positioned(
+            right: 16,
+            bottom: 100,
+            child: IgnorePointer(
+              ignoring: false,
+              child: Column(
+                children: [
+                  if (_isVirtualTourActive)
+                    AudioGuideButton(
+                      isEnabled: _virtualTourManager.isAudioGuideEnabled,
+                      isSpeaking: _virtualTourManager.isAudioGuideSpeaking,
+                      onToggle: () {
+                        setState(() {
+                          _virtualTourManager.toggleAudioGuide();
+                        });
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Row(
+                              children: [
+                                Icon(
+                                  _virtualTourManager.isAudioGuideEnabled
+                                      ? Icons.volume_up
+                                      : Icons.volume_off,
+                                  color: Colors.white,
+                                ),
+                                SizedBox(width: 12),
+                                Text(
+                                  _virtualTourManager.isAudioGuideEnabled
+                                      ? 'Audio Guide Enabled'
+                                      : 'Audio Guide Disabled',
+                                ),
+                              ],
+                            ),
+                            backgroundColor:
+                                _virtualTourManager.isAudioGuideEnabled
+                                ? Colors.green
+                                : Colors.grey,
+                            behavior: SnackBarBehavior.floating,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    ),
+                  const SizedBox(height: 12),
+                  MapWidgets.buildFilterButton(
+                    onPressed: () => _showFilterModal(),
+                  ),
+                  const SizedBox(height: 12),
+                  // Map tile switcher button
+                  MapWidgets.buildMapTileButton(
+                    context: context,
+                    currentTileType: _currentTileType,
+                    onTileTypeChanged: _onTileTypeChanged,
+                  ),
+                  const SizedBox(height: 12),
+                  MapWidgets.buildInfoButton(
+                    onPressed: () {
+                      MapWidgets.showMapGuideModal(context, isFirstTime: false);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  //  Location Permission Toggle
+                  MapWidgets.buildLocationToggle(
+                    onPermissionChanged: () {
+                      // Refresh location when permission changes
+                      _startLocationTracking();
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Existing auto-follow button
+                  MapWidgets.buildFloatingActionButton(
+                    icon: _autoFollowLocation
+                        ? Icons.my_location
+                        : Icons.location_searching,
+                    onPressed: _toggleAutoFollow,
+                    backgroundColor: Colors.white,
+                    iconColor: _autoFollowLocation
+                        ? Colors.blue
+                        : Colors.grey[600],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // zoom controls
+                  MapWidgets.buildZoomControls(
+                    onZoomIn: _zoomIn,
+                    onZoomOut: _zoomOut,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 20,
+            child: Center(
+              child: MapWidgets.buildMapLegend(
+                showColleges: _showColleges,
+                showLandmarks: _showLandmarks,
+                showGates: _showGates,
+              ),
+            ),
+          ),
           // Search results
           if (_showSearchResults)
             Positioned(
@@ -1849,7 +3270,12 @@ class _MapsState extends State<Maps> {
               left: 16,
               right: 16,
               child: MapWidgets.buildSearchResults(
-                results: MapBuildings.searchAll(_searchController.text),
+                results: MapBuildings.searchAll(_searchController.text)
+                    .where(
+                      (item) =>
+                          _enhancedSearchMatch(item, _searchController.text),
+                    )
+                    .toList(),
                 onResultTap: (result) async {
                   if (_isDisposed) return;
                   _searchController.clear();
@@ -1877,6 +3303,8 @@ class _MapsState extends State<Maps> {
                               Expanded(
                                 child: Text(
                                   'Navigating to ${result.displayName}...',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
@@ -1923,6 +3351,8 @@ class _MapsState extends State<Maps> {
                               Expanded(
                                 child: Text(
                                   'Navigating to ${result.displayName}...',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
@@ -1933,7 +3363,6 @@ class _MapsState extends State<Maps> {
                         ),
                       );
                     }
-
                     await MapUtils.animateToBuildingLocation(
                       _mapController,
                       result.position,
@@ -1962,7 +3391,11 @@ class _MapsState extends State<Maps> {
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: Text('Finding ${result.name}...'),
+                                child: Text(
+                                  'Finding ${result.name}...',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ],
                           ),
@@ -1986,11 +3419,35 @@ class _MapsState extends State<Maps> {
                       );
 
                       if (mounted && context.mounted) {
-                        BottomSheets.showBuildingInfo(
+                        // Get building name
+                        final buildingName =
+                            BuildingMatcher.getBuildingNameById(
+                              result.buildingId,
+                            ) ??
+                            building.displayName;
+
+                        // Show office info bottom sheet
+                        BottomSheets.showOfficeInfo(
                           context,
-                          building,
-                          onVirtualTour: () => _startVirtualTour(building),
-                          onDirections: () => _showDirections(building),
+                          result,
+                          buildingName: buildingName,
+                          onViewDetails: () {
+                            Navigator.pop(context); // Close bottom sheet
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => OfficeDetailsPage(
+                                  officeId: result.id,
+                                  officeName: result.name,
+                                  title: result.name,
+                                ),
+                              ),
+                            );
+                          },
+                          onDirections: () {
+                            Navigator.pop(context); // Close bottom sheet
+                            _showDirections(building);
+                          },
                         );
                       }
                     } catch (e) {
@@ -2009,56 +3466,6 @@ class _MapsState extends State<Maps> {
                 },
               ),
             ),
-
-          // Zoom and location controls
-          Positioned(
-            right: 16,
-            bottom: 100,
-            child: IgnorePointer(
-              ignoring: false,
-              child: Column(
-                children: [
-                  MapWidgets.buildFilterButton(
-                    onPressed: () => _showFilterModal(),
-                  ),
-                  const SizedBox(height: 12),
-                  MapWidgets.buildInfoButton(
-                    onPressed: () {
-                      MapWidgets.showMapGuideModal(context, isFirstTime: false);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  //  Location Permission Toggle
-                  MapWidgets.buildLocationToggle(
-                    onPermissionChanged: () {
-                      // Refresh location when permission changes
-                      _startLocationTracking();
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Existing auto-follow button
-                  MapWidgets.buildFloatingActionButton(
-                    icon: _autoFollowLocation
-                        ? Icons.my_location
-                        : Icons.location_searching,
-                    onPressed: _toggleAutoFollow,
-                    backgroundColor: Colors.white,
-                    iconColor: _autoFollowLocation
-                        ? Colors.blue
-                        : Colors.grey[600],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // zoom controls
-                  MapWidgets.buildZoomControls(
-                    onZoomIn: _zoomIn,
-                    onZoomOut: _zoomOut,
-                  ),
-                ],
-              ),
-            ),
-          ),
 
           // Navigation status bar
           Positioned(
@@ -2084,64 +3491,82 @@ class _MapsState extends State<Maps> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
+                        // ✅ FIXED: Wrap entire left section in Expanded
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Row(
-                                children: [
-                                  if (_navigationManager.isNavigating) ...[
+                              // Navigation text
+                              if (_navigationManager.isNavigating)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
                                     const Icon(
                                       Icons.navigation,
                                       color: Colors.white,
                                       size: 16,
                                     ),
                                     const SizedBox(width: 4),
-                                  ],
-                                  Expanded(
-                                    child: Text(
-                                      _navigationManager.isNavigating
-                                          ? 'Navigating to ${_navigationManager.currentDestination.displayName}'
-                                          : 'Route to ${_navigationManager.currentDestination.displayName}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
+                                    Expanded(
+                                      child: Text(
+                                        'Navigating to ${_navigationManager.currentDestination.displayName}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
                                     ),
+                                  ],
+                                )
+                              else
+                                Text(
+                                  'Route to ${_navigationManager.currentDestination.displayName}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
                                   ),
-                                ],
-                              ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               if (_navigationManager.routeDistance != null &&
-                                  _navigationManager.routeDuration != null)
+                                  _navigationManager.routeDuration != null) ...[
+                                const SizedBox(height: 4),
                                 Text(
                                   '${_navigationManager.routeDistance} • ${_navigationManager.routeDuration}',
                                   style: const TextStyle(
                                     color: Colors.white70,
                                     fontSize: 12,
                                   ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
+                              ],
                             ],
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        // ✅ FIXED: Icons side with fixed width
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (_navigationManager.isNavigating) ...[
+                            if (_navigationManager.isNavigating)
                               GestureDetector(
                                 onTap: _stopNavigation,
-                                child: const Icon(
-                                  Icons.stop,
-                                  color: Colors.white,
-                                  size: 20,
+                                child: const Padding(
+                                  padding: EdgeInsets.all(4),
+                                  child: Icon(
+                                    Icons.stop,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                            ],
                             GestureDetector(
                               onTap: () {
                                 if (!_isDisposed) {
@@ -2150,10 +3575,13 @@ class _MapsState extends State<Maps> {
                                   );
                                 }
                               },
-                              child: const Icon(
-                                Icons.info_outline,
-                                color: Colors.white,
-                                size: 20,
+                              child: const Padding(
+                                padding: EdgeInsets.all(4),
+                                child: Icon(
+                                  Icons.info_outline,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                               ),
                             ),
                           ],
@@ -2164,7 +3592,6 @@ class _MapsState extends State<Maps> {
               ],
             ),
           ),
-
           if (_isVirtualTourActive &&
               _virtualTourManager.isShowingStopCard &&
               _virtualTourManager.currentStop != null)
@@ -2174,16 +3601,31 @@ class _MapsState extends State<Maps> {
               isFirstStop: _virtualTourManager.isFirstStop,
               isLastStop: _virtualTourManager.isLastStop,
               onNext: () {
+                _nearbyImageManager.clear();
+
+                // Get current stop's location BEFORE moving to next
+                final currentStopLocation =
+                    _virtualTourManager.currentStop?.navigationTarget;
+
                 _virtualTourManager.nextStop();
-                _navigateToCurrentVirtualTourStop();
+
+                // Pass current stop's location as starting point for next stop
+                _navigateToCurrentVirtualTourStop(
+                  fromLocation: currentStopLocation,
+                );
               },
               onPrevious: () {
-                // Store current location before going back
-                final currentLocation =
-                    _virtualTourManager.currentStop?.location;
+                _nearbyImageManager.clear();
+
+                // Get current stop's location BEFORE moving back
+                final currentStopLocation =
+                    _virtualTourManager.currentStop?.navigationTarget;
+
                 _virtualTourManager.previousStop();
+
+                // Pass current stop's location as starting point for previous stop
                 _navigateToCurrentVirtualTourStop(
-                  fromLocation: currentLocation,
+                  fromLocation: currentStopLocation,
                 );
               },
               onEndTour: () {
@@ -2201,6 +3643,14 @@ class _MapsState extends State<Maps> {
 
     final building = MapBuildings.findBuildingAtPoint(latLng);
     if (building != null) {
+      // Clear any selected marker when tapping a building
+      if (_selectedMarkerId != null) {
+        setState(() {
+          _selectedMarkerId = null;
+          _isMarkerType = false;
+        });
+      }
+
       await MapUtils.animateToBuildingLocation(
         _mapController,
         building.getCenterPoint(),
@@ -2214,6 +3664,14 @@ class _MapsState extends State<Maps> {
           onVirtualTour: () => _startVirtualTour(building),
           onDirections: () => _showDirections(building),
         );
+      }
+    } else {
+      // Tapped empty space - clear selected marker
+      if (_selectedMarkerId != null) {
+        setState(() {
+          _selectedMarkerId = null;
+          _isMarkerType = false;
+        });
       }
     }
   }
@@ -2239,6 +3697,64 @@ class _MapsState extends State<Maps> {
     MapUtils.zoomOut(_mapController);
   }
 
+  // Update nearby images based on current position along the animated route during tour
+  void _updateNearbyImagesForRoute() {
+    if (!_isVirtualTourActive || !MapBuildings.isInitialized) return;
+
+    // Use the last point of animated route as "current position"
+    LatLng? currentPosition;
+
+    if (_animatedRoutePoints.isNotEmpty) {
+      currentPosition = _animatedRoutePoints.last;
+    } else if (_currentLocation != null) {
+      currentPosition = _currentLocation;
+    }
+
+    if (currentPosition != null) {
+      // Exclude the current destination building from showing nearby images
+      Set<int> excludedIds = {};
+      if (_virtualTourManager.currentStop != null) {
+        excludedIds.add(_virtualTourManager.currentStop!.buildingId);
+      }
+
+      _nearbyImageManager.updateLocation(
+        currentPosition,
+        MapBuildings.campusBuildings,
+        [...MapBuildings.colleges, ...MapBuildings.landmarks],
+        excludedBuildingIds: excludedIds,
+      );
+    }
+  }
+
+  // Update nearby images during regular navigation Waze animation
+  void _updateNearbyImagesForNavigation(int? destinationBuildingId) {
+    if (!MapBuildings.isInitialized) return;
+
+    // Use the last point of animated route as "current position"
+    LatLng? currentPosition;
+
+    if (_animatedRoutePoints.isNotEmpty) {
+      currentPosition = _animatedRoutePoints.last;
+    } else if (_currentLocation != null) {
+      currentPosition = _currentLocation;
+    }
+
+    if (currentPosition != null) {
+      // Exclude the destination building from showing nearby images
+      Set<int> excludedIds = {};
+      if (destinationBuildingId != null) {
+        excludedIds.add(destinationBuildingId);
+      }
+
+      _nearbyImageManager.updateLocation(
+        currentPosition,
+        MapBuildings.campusBuildings,
+        [...MapBuildings.colleges, ...MapBuildings.landmarks],
+        excludedBuildingIds: excludedIds,
+      );
+    }
+  }
+
   void _startVirtualTour(BicolBuildingPolygon building) {
     if (_isDisposed || !context.mounted) return;
 
@@ -2251,7 +3767,7 @@ class _MapsState extends State<Maps> {
     );
   }
 
-  void _showDirections(BicolBuildingPolygon building) {
+  void _showDirections(BicolBuildingPolygon building) async {
     if (_isDisposed) return;
 
     if (_currentLocation == null) {
@@ -2266,8 +3782,90 @@ class _MapsState extends State<Maps> {
       return;
     }
 
+    // ✅ NEW: Check if user is already at the building
+    final bool isAlreadyHere = RoutingService.isUserAtDestination(
+      _currentLocation!,
+      building.getCenterPoint(),
+      buildingId: building.buildingId,
+      thresholdMeters: 30.0,
+    );
+
+    if (isAlreadyHere) {
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green, size: 28),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Already Here',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              'You are already at ${building.displayName}!\n\nWould you still like to see the route?',
+              style: TextStyle(fontSize: 15),
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _forceShowRoute(building);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text('Show Route Anyway'),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+
+    // Normal flow
+    setState(() {
+      _targetedBuildingId = building.buildingId;
+      _showDestinationMarker = false;
+      _animateDestinationMarker = false;
+    });
+
     final destination = building.getCenterPoint();
-    _getRoute(_currentLocation!, destination, building);
+    await _getRoute(_currentLocation!, destination, building);
+
+    if (!_isDisposed &&
+        mounted &&
+        _navigationManager.polylinePoints.isNotEmpty) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      RoutingService.fitMapToRoute(
+        _mapController,
+        _navigationManager.polylinePoints,
+      );
+
+      setState(() {
+        _showDestinationMarker = true;
+        _animateDestinationMarker = false;
+      });
+    }
   }
 
   void _followUserLocation() async {
@@ -2295,8 +3893,10 @@ class _MapsState extends State<Maps> {
     _isDisposed = true;
     _navigationManager.dispose();
     _virtualTourManager.dispose();
+    _nearbyImageManager.dispose();
     _searchController.dispose();
     LocationService.disposeCompass();
+    RoutingService.clearEntranceCache();
     super.dispose();
   }
 }

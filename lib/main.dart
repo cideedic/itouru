@@ -338,17 +338,69 @@ class _MyAppState extends State<MyApp> {
               .maybeSingle();
 
           if (existingUser == null) {
+            // Extract name from Google OAuth metadata
+            final isGoogleUser = user.appMetadata['provider'] == 'google';
+            String? firstName;
+            String? lastName;
+
+            if (isGoogleUser) {
+              // Get full name from Google
+              final fullName = user.userMetadata?['name'] as String?;
+
+              // ALWAYS parse from full name for consistency
+              if (fullName != null && fullName.isNotEmpty) {
+                final parts = fullName.trim().split(' ');
+
+                if (parts.length >= 2) {
+                  // Check if last word contains a hyphen (compound surname)
+                  final lastWord = parts.last;
+
+                  if (lastWord.contains('-')) {
+                    // Compound surname with hyphen (e.g., "Trebor-Tolly")
+                    lastName = lastWord;
+                    firstName = parts.sublist(0, parts.length - 1).join(' ');
+                  } else {
+                    // Simple case: last word is surname, rest is first name
+                    // "Ma. Alexa Nicole Boroc" -> first: "Ma. Alexa Nicole", last: "Boroc"
+                    // "John Cedrick Lensoco" -> first: "John Cedrick", last: "Lensoco"
+                    lastName = lastWord;
+                    firstName = parts.sublist(0, parts.length - 1).join(' ');
+                  }
+                } else {
+                  // Only one word - treat as first name
+                  firstName = parts.first;
+                  lastName = null;
+                }
+              } else {
+                // No full name available
+                final rawGivenName =
+                    user.userMetadata?['given_name'] as String?;
+                final rawFamilyName =
+                    user.userMetadata?['family_name'] as String?;
+
+                firstName = rawGivenName;
+                lastName = rawFamilyName;
+              }
+            }
+
+            // Navigate to registration with extracted names
             scheduleMicrotask(() {
               if (_navigatorKey.currentState != null) {
                 _navigatorKey.currentState!.pushAndRemoveUntil(
                   MaterialPageRoute(
-                    builder: (context) => NewUserPanels(email: user.email!),
+                    builder: (context) => NewUserPanels(
+                      email: user.email!,
+                      firstName: firstName,
+                      lastName: lastName,
+                      isGoogleUser: isGoogleUser,
+                    ),
                   ),
                   (route) => false,
                 );
               }
             });
           } else {
+            // User already registered, go to Home
             scheduleMicrotask(() {
               if (_navigatorKey.currentState != null) {
                 _navigatorKey.currentState!.pushAndRemoveUntil(
@@ -477,40 +529,8 @@ class _MyAppState extends State<MyApp> {
     // OAuth callback links
     else if (uri.host == 'login-callback' ||
         uri.fragment.contains('access_token')) {
-      if (uri.fragment.isNotEmpty) {
-        try {
-          await Future.delayed(const Duration(seconds: 10));
-          final session = Supabase.instance.client.auth.currentSession;
-
-          if (session == null) {
-            scheduleMicrotask(() {
-              if (_navigatorKey.currentContext != null) {
-                ScaffoldMessenger.of(
-                  _navigatorKey.currentContext!,
-                ).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Authentication timed out. Please try again.',
-                    ),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-              }
-            });
-          }
-        } catch (e) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_navigatorKey.currentContext != null) {
-              ScaffoldMessenger.of(_navigatorKey.currentContext!).showSnackBar(
-                const SnackBar(
-                  content: Text('Authentication failed. Please try again.'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          });
-        }
-      }
+      // Let the auth state listener handle OAuth callbacks
+      // Don't show error messages - auth is still processing
     }
   }
 

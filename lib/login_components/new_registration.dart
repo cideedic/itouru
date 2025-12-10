@@ -9,8 +9,17 @@ import 'package:itouru/login_components/login.dart';
 
 class NewUserPanels extends StatefulWidget {
   final String email;
+  final String? firstName;
+  final String? lastName;
+  final bool isGoogleUser;
 
-  const NewUserPanels({super.key, required this.email});
+  const NewUserPanels({
+    super.key,
+    required this.email,
+    this.firstName,
+    this.lastName,
+    this.isGoogleUser = false,
+  });
 
   @override
   State<NewUserPanels> createState() => _NewUserPanelsState();
@@ -29,8 +38,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
   final _middleNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _suffixController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _birthdayController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
@@ -45,9 +52,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
 
   String? _selectedUserType;
   String? _selectedCollegeAbbreviation;
-  String? _selectedNationality;
-  String? _selectedSex;
-  DateTime? _selectedBirthday;
   bool _isSubmitting = false;
   bool _isLoadingColleges = true;
   bool _acceptedTerms = false;
@@ -63,9 +67,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
   List<Map<String, dynamic>> _colleges = [];
   Map<String, String> _collegeAbbreviationToName = {};
 
-  final List<String> _nationalities = ['Filipino', 'Other'];
-  final List<String> _sexOptions = ['Male', 'Female'];
-
   @override
   void initState() {
     super.initState();
@@ -73,11 +74,18 @@ class _NewUserPanelsState extends State<NewUserPanels>
     _loadColleges();
     _passwordController.addListener(_validatePassword);
 
+    // Auto-fill names from Google data
+    if (widget.firstName != null && widget.firstName!.isNotEmpty) {
+      _firstNameController.text = widget.firstName!;
+    }
+    if (widget.lastName != null && widget.lastName!.isNotEmpty) {
+      _lastNameController.text = widget.lastName!;
+    }
+
     // Listen to auth state changes
     _authSubscription = supabase.auth.onAuthStateChange.listen((data) {
       final AuthChangeEvent event = data.event;
 
-      // If user logs out or session expires, redirect to login options
       if (event == AuthChangeEvent.signedOut || data.session == null) {
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
@@ -156,8 +164,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
     _middleNameController.dispose();
     _lastNameController.dispose();
     _suffixController.dispose();
-    _phoneController.dispose();
-    _birthdayController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _scrollController.dispose();
@@ -189,44 +195,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
     }
   }
 
-  String _getDefaultAvatar(String? sex) {
-    if (sex == 'Male') {
-      return 'avatar_1.png';
-    } else if (sex == 'Female') {
-      return 'avatar_3.png';
-    }
-    return 'avatar_1.png';
-  }
-
-  Future<void> _selectDate() async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime(2000),
-      firstDate: DateTime(1950),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: Color(0xFFFF8C00),
-              onPrimary: Colors.white,
-              onSurface: Colors.black,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      setState(() {
-        _selectedBirthday = picked;
-        _birthdayController.text =
-            '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
-      });
-    }
-  }
-
   Future<void> _submitRegistration() async {
     if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -245,40 +213,78 @@ class _NewUserPanelsState extends State<NewUserPanels>
       return;
     }
 
-    // Check password validity
-    if (!_isPasswordValid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Please meet all password requirements',
-            style: GoogleFonts.montserrat(fontSize: 12),
+    // For non-Google users, password validation is required
+    if (!widget.isGoogleUser) {
+      if (!_isPasswordValid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Please meet all password requirements',
+              style: GoogleFonts.montserrat(fontSize: 12),
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+        );
+        return;
+      }
+
+      if (_passwordController.text != _confirmPasswordController.text) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Passwords do not match',
+              style: GoogleFonts.montserrat(fontSize: 12),
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
-        ),
-      );
-      return;
+        );
+        return;
+      }
     }
 
-    // Check if passwords match
-    if (_passwordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Passwords do not match',
-            style: GoogleFonts.montserrat(fontSize: 12),
+    // For Google users, only validate password if they provided one
+    if (widget.isGoogleUser && _passwordController.text.isNotEmpty) {
+      if (!_isPasswordValid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'If setting a password, it must meet all requirements',
+              style: GoogleFonts.montserrat(fontSize: 12),
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+        );
+        return;
+      }
+
+      if (_passwordController.text != _confirmPasswordController.text) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Passwords do not match',
+              style: GoogleFonts.montserrat(fontSize: 12),
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
-        ),
-      );
-      return;
+        );
+        return;
+      }
     }
 
     // Check if terms and privacy are accepted
@@ -302,20 +308,21 @@ class _NewUserPanelsState extends State<NewUserPanels>
     setState(() => _isSubmitting = true);
 
     try {
-      // Get the current authenticated user
       final currentUser = supabase.auth.currentUser;
 
       if (currentUser == null) {
         throw Exception('No authenticated user found');
       }
 
-      // Update the password in Supabase Auth
-      final authResponse = await supabase.auth.updateUser(
-        UserAttributes(password: _passwordController.text),
-      );
+      // Update password only if user provided one
+      if (_passwordController.text.isNotEmpty) {
+        final authResponse = await supabase.auth.updateUser(
+          UserAttributes(password: _passwordController.text),
+        );
 
-      if (authResponse.user == null) {
-        throw Exception('Failed to set password');
+        if (authResponse.user == null) {
+          throw Exception('Failed to set password');
+        }
       }
 
       final response = await supabase
@@ -348,11 +355,7 @@ class _NewUserPanelsState extends State<NewUserPanels>
         'email': widget.email,
         'user_type': _selectedUserType,
         'college': collegeFullName,
-        'birthday': _selectedBirthday?.toIso8601String().split('T')[0],
-        'nationality': _selectedNationality,
-        'sex': _selectedSex,
-        'phone_number': _phoneController.text.trim(),
-        'avatar': _getDefaultAvatar(_selectedSex),
+        'avatar': 'avatar_1.png', // Default avatar
       };
 
       await supabase.from('Users').insert(insertData);
@@ -433,6 +436,7 @@ class _NewUserPanelsState extends State<NewUserPanels>
     bool required = true,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
+    bool readOnly = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -462,7 +466,11 @@ class _NewUserPanelsState extends State<NewUserPanels>
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
-          style: GoogleFonts.montserrat(fontSize: 13),
+          readOnly: readOnly,
+          style: GoogleFonts.montserrat(
+            fontSize: 13,
+            color: readOnly ? Colors.grey[600] : Colors.black87,
+          ),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: GoogleFonts.montserrat(
@@ -470,7 +478,7 @@ class _NewUserPanelsState extends State<NewUserPanels>
               color: Colors.grey[400],
             ),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: readOnly ? Colors.grey[100] : Colors.white,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: Colors.grey[300]!),
@@ -483,10 +491,17 @@ class _NewUserPanelsState extends State<NewUserPanels>
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: Color(0xFFFF8C00), width: 2),
             ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
               vertical: 14,
             ),
+            suffixIcon: readOnly
+                ? Icon(Icons.lock_outline, color: Colors.grey[400], size: 20)
+                : null,
           ),
           validator:
               validator ??
@@ -609,7 +624,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
     );
   }
 
-  // Method to show the modal with radio buttons
   Future<void> _showSelectionModal({
     required BuildContext context,
     required String title,
@@ -642,7 +656,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Handle bar
                   Container(
                     margin: const EdgeInsets.only(top: 12),
                     width: 40,
@@ -652,7 +665,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  // Title
                   Padding(
                     padding: const EdgeInsets.all(20),
                     child: Row(
@@ -676,7 +688,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
                     ),
                   ),
                   Divider(height: 1, color: Colors.grey[300]),
-                  // Options list
                   Flexible(
                     child: ListView.builder(
                       shrinkWrap: true,
@@ -703,7 +714,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
                             ),
                             child: Row(
                               children: [
-                                // Radio button
                                 Container(
                                   width: 20,
                                   height: 20,
@@ -730,7 +740,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
                                       : null,
                                 ),
                                 const SizedBox(width: 16),
-                                // Item text
                                 Expanded(
                                   child: Text(
                                     item,
@@ -752,7 +761,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
                       },
                     ),
                   ),
-                  // Confirm button
                   Padding(
                     padding: const EdgeInsets.all(20),
                     child: SizedBox(
@@ -826,7 +834,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
                   ),
                 ],
               ),
-              // Content
               SafeArea(
                 child: PageView(
                   controller: _pageController,
@@ -850,7 +857,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
     );
   }
 
-  // Panel 1: Introduction
   Widget _buildIntroPanel() {
     return Container(
       color: Colors.transparent,
@@ -862,10 +868,8 @@ class _NewUserPanelsState extends State<NewUserPanels>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Back button
                 IconButton(
                   onPressed: () async {
-                    // Sign out and go back to login
                     await supabase.auth.signOut();
                     if (mounted) {
                       Navigator.of(context).pushAndRemoveUntil(
@@ -879,7 +883,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
                   icon: Icon(Icons.arrow_back, color: Colors.black, size: 28),
                   tooltip: 'Back to Login',
                 ),
-                // Page indicators
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -916,7 +919,6 @@ class _NewUserPanelsState extends State<NewUserPanels>
             ),
           ),
           const SizedBox(height: 60),
-          // Image
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1193,6 +1195,10 @@ class _NewUserPanelsState extends State<NewUserPanels>
                               controller: _firstNameController,
                               label: 'First Name',
                               hint: 'Enter your first name',
+                              readOnly:
+                                  widget.isGoogleUser &&
+                                  widget.firstName != null &&
+                                  widget.firstName!.isNotEmpty,
                             ),
                             const SizedBox(height: 16),
                             Row(
@@ -1222,6 +1228,10 @@ class _NewUserPanelsState extends State<NewUserPanels>
                               controller: _lastNameController,
                               label: 'Last Name',
                               hint: 'Enter your last name',
+                              readOnly:
+                                  widget.isGoogleUser &&
+                                  widget.lastName != null &&
+                                  widget.lastName!.isNotEmpty,
                             ),
                             const SizedBox(height: 16),
                             _buildModalSelector(
@@ -1243,121 +1253,45 @@ class _NewUserPanelsState extends State<NewUserPanels>
                               ),
                               isLoading: _isLoadingColleges,
                             ),
-                            const SizedBox(height: 16),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                RichText(
-                                  text: TextSpan(
-                                    text: 'Birthday',
-                                    style: GoogleFonts.montserrat(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87,
+
+                            const SizedBox(height: 24),
+
+                            // Show info message for Google users
+                            if (widget.isGoogleUser) ...[
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.blue[200]!,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.info_outline,
+                                      color: Colors.blue[700],
+                                      size: 24,
                                     ),
-                                    children: [
-                                      TextSpan(
-                                        text: ' *',
-                                        style: TextStyle(
-                                          color: Colors.red,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        'You\'re using Google Sign-In. Setting a password is optional - you can always sign in with Google.',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 12,
+                                          color: Colors.blue[900],
+                                          fontWeight: FontWeight.w500,
+                                          height: 1.4,
                                         ),
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 8),
-                                TextFormField(
-                                  controller: _birthdayController,
-                                  readOnly: true,
-                                  onTap: _selectDate,
-                                  style: GoogleFonts.montserrat(fontSize: 13),
-                                  decoration: InputDecoration(
-                                    hintText: 'Select your birthday',
-                                    hintStyle: GoogleFonts.montserrat(
-                                      fontSize: 12,
-                                      color: Colors.grey[400],
-                                    ),
-                                    filled: true,
-                                    fillColor: Colors.white,
-                                    suffixIcon: Icon(
-                                      Icons.calendar_today,
-                                      size: 20,
-                                      color: Colors.grey[600],
-                                    ),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(
-                                        color: Colors.grey[300]!,
-                                      ),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(
-                                        color: Colors.grey[300]!,
-                                      ),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(
-                                        color: Color(0xFFFF8C00),
-                                        width: 2,
-                                      ),
-                                    ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 14,
-                                    ),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Please select your birthday';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            _buildModalSelector(
-                              label: 'Nationality',
-                              hint: 'Select nationality',
-                              value: _selectedNationality,
-                              items: _nationalities,
-                              onChanged: (value) =>
-                                  setState(() => _selectedNationality = value),
-                            ),
-
-                            const SizedBox(height: 16),
-                            _buildModalSelector(
-                              label: 'Sex',
-                              hint: 'Select sex',
-                              value: _selectedSex,
-                              items: _sexOptions,
-                              onChanged: (value) =>
-                                  setState(() => _selectedSex = value),
-                            ),
-                            const SizedBox(height: 16),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _phoneController,
-                              label: 'Phone Number',
-                              hint: 'e.g., 09123456789',
-                              keyboardType: TextInputType.phone,
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'This field is required';
-                                }
-                                if (!RegExp(
-                                  r'^09\d{9}$',
-                                ).hasMatch(value.trim())) {
-                                  return 'Invalid phone number format';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 24),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
 
                             Container(
                               padding: const EdgeInsets.all(16),
@@ -1388,16 +1322,22 @@ class _NewUserPanelsState extends State<NewUserPanels>
                                         size: 20,
                                       ),
                                       const SizedBox(width: 8),
-                                      Text(
-                                        _isPasswordValid
-                                            ? 'All requirements met!'
-                                            : 'Password must contain:',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: _isPasswordValid
-                                              ? Colors.green
-                                              : Colors.black87,
+                                      Expanded(
+                                        child: Text(
+                                          widget.isGoogleUser
+                                              ? (_isPasswordValid
+                                                    ? 'Password requirements met (Optional)'
+                                                    : 'Password requirements (Optional):')
+                                              : (_isPasswordValid
+                                                    ? 'All requirements met!'
+                                                    : 'Password must contain:'),
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: _isPasswordValid
+                                                ? Colors.green
+                                                : Colors.black87,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -1442,14 +1382,24 @@ class _NewUserPanelsState extends State<NewUserPanels>
                                       color: Colors.black87,
                                     ),
                                     children: [
-                                      TextSpan(
-                                        text: ' *',
-                                        style: TextStyle(
-                                          color: Colors.red,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
+                                      if (!widget.isGoogleUser)
+                                        TextSpan(
+                                          text: ' *',
+                                          style: TextStyle(
+                                            color: Colors.red,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
-                                      ),
+                                      if (widget.isGoogleUser)
+                                        TextSpan(
+                                          text: ' (Optional)',
+                                          style: GoogleFonts.montserrat(
+                                            fontSize: 11,
+                                            color: Colors.grey[600],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -1459,7 +1409,9 @@ class _NewUserPanelsState extends State<NewUserPanels>
                                   obscureText: _obscurePassword,
                                   style: GoogleFonts.montserrat(fontSize: 13),
                                   decoration: InputDecoration(
-                                    hintText: 'Enter your password',
+                                    hintText: widget.isGoogleUser
+                                        ? 'Leave blank to use Google sign-in only'
+                                        : 'Enter your password',
                                     hintStyle: GoogleFonts.montserrat(
                                       fontSize: 12,
                                       color: Colors.grey[400],
@@ -1505,6 +1457,18 @@ class _NewUserPanelsState extends State<NewUserPanels>
                                     ),
                                   ),
                                   validator: (value) {
+                                    // For Google users, password is optional
+                                    if (widget.isGoogleUser) {
+                                      // If they provided a password, it must meet requirements
+                                      if (value != null &&
+                                          value.isNotEmpty &&
+                                          !_isPasswordValid) {
+                                        return 'Password does not meet requirements';
+                                      }
+                                      return null; // Password is optional, so empty is OK
+                                    }
+
+                                    // For non-Google users, password is required
                                     if (value == null || value.isEmpty) {
                                       return 'Please enter a password';
                                     }
@@ -1532,14 +1496,24 @@ class _NewUserPanelsState extends State<NewUserPanels>
                                       color: Colors.black87,
                                     ),
                                     children: [
-                                      TextSpan(
-                                        text: ' *',
-                                        style: TextStyle(
-                                          color: Colors.red,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
+                                      if (!widget.isGoogleUser)
+                                        TextSpan(
+                                          text: ' *',
+                                          style: TextStyle(
+                                            color: Colors.red,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
-                                      ),
+                                      if (widget.isGoogleUser)
+                                        TextSpan(
+                                          text: ' (Optional)',
+                                          style: GoogleFonts.montserrat(
+                                            fontSize: 11,
+                                            color: Colors.grey[600],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -1549,7 +1523,9 @@ class _NewUserPanelsState extends State<NewUserPanels>
                                   obscureText: _obscureConfirmPassword,
                                   style: GoogleFonts.montserrat(fontSize: 13),
                                   decoration: InputDecoration(
-                                    hintText: 'Confirm your password',
+                                    hintText: widget.isGoogleUser
+                                        ? 'Leave blank if not setting password'
+                                        : 'Confirm your password',
                                     hintStyle: GoogleFonts.montserrat(
                                       fontSize: 12,
                                       color: Colors.grey[400],
@@ -1596,6 +1572,17 @@ class _NewUserPanelsState extends State<NewUserPanels>
                                     ),
                                   ),
                                   validator: (value) {
+                                    // For Google users, if they provided any password, confirm must match
+                                    if (widget.isGoogleUser) {
+                                      if (_passwordController.text.isNotEmpty) {
+                                        if (value != _passwordController.text) {
+                                          return 'Passwords do not match';
+                                        }
+                                      }
+                                      return null;
+                                    }
+
+                                    // For non-Google users, confirm is required
                                     if (value == null || value.isEmpty) {
                                       return 'Please confirm your password';
                                     }

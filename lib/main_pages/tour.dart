@@ -7,6 +7,10 @@ import 'package:itouru/main_pages/tour_loading_widget.dart';
 import 'package:itouru/maps_assets/virtual_tour_manager.dart';
 import 'package:itouru/page_components/loading_widget.dart';
 import 'package:itouru/page_components/video_layout.dart';
+import 'package:itouru/main_pages/maps.dart';
+import 'package:itouru/maps_assets/location_service.dart';
+import 'package:itouru/maps_assets/map_boundary.dart';
+import 'package:geolocator/geolocator.dart';
 
 class Tours extends StatefulWidget {
   const Tours({super.key});
@@ -21,17 +25,52 @@ class ToursState extends State<Tours> {
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String? _currentUserType; // Store current user type
 
   @override
   void initState() {
     super.initState();
-    _fetchTours();
+    _fetchCurrentUserType();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Fetch current user's type from the database
+  Future<void> _fetchCurrentUserType() async {
+    try {
+      final user = supabase.auth.currentUser;
+
+      if (user == null) {
+        // Guest user - no user type
+        setState(() {
+          _currentUserType = null;
+        });
+        _fetchTours();
+        return;
+      }
+
+      final response = await supabase
+          .from('Users')
+          .select('user_type')
+          .eq('email', user.email ?? '')
+          .maybeSingle();
+
+      setState(() {
+        _currentUserType = response?['user_type']?.toString();
+      });
+
+      _fetchTours();
+    } catch (e) {
+      // If error, treat as guest
+      setState(() {
+        _currentUserType = null;
+      });
+      _fetchTours();
+    }
   }
 
   Future<void> _fetchTours() async {
@@ -42,12 +81,49 @@ class ToursState extends State<Tours> {
 
       final response = await supabase
           .from('Tours')
-          .select('id, name, description, is_active, building_ids, total_stops')
+          .select(
+            'id, name, description, is_active, building_ids, total_stops, target_audience',
+          )
           .eq('is_active', true)
           .order('name');
 
+      // Filter tours based on target_audience and current user type
+      final filteredTours = (response as List).where((tour) {
+        final targetAudience = tour['target_audience']
+            ?.toString()
+            .toLowerCase();
+
+        // If target_audience is null or 'general', show to everyone
+        if (targetAudience == null || targetAudience == 'general') {
+          return true;
+        }
+
+        // If user is not logged in (guest), only show 'general' tours
+        if (_currentUserType == null) {
+          return false;
+        }
+
+        final userType = _currentUserType!.toLowerCase();
+
+        // Match specific audiences
+        if (targetAudience == 'student' && userType == 'student') {
+          return true;
+        }
+
+        if (targetAudience == 'accreditor' && userType == 'accreditor') {
+          return true;
+        }
+
+        if (targetAudience == 'faculty' &&
+            (userType == 'faculty' || userType == 'staff')) {
+          return true;
+        }
+
+        return false;
+      }).toList();
+
       setState(() {
-        _tours = List<Map<String, dynamic>>.from(response);
+        _tours = List<Map<String, dynamic>>.from(filteredTours);
         _isLoading = false;
       });
     } catch (e) {
@@ -118,7 +194,7 @@ class ToursState extends State<Tours> {
                               });
                             },
                             decoration: InputDecoration(
-                              hintText: 'Search tours...',
+                              hintText: 'Search tours',
                               hintStyle: GoogleFonts.poppins(
                                 fontSize: 14,
                                 color: Colors.grey[500],
@@ -196,7 +272,9 @@ class ToursState extends State<Tours> {
                                 ),
                               )
                             : RefreshIndicator(
-                                onRefresh: _fetchTours,
+                                onRefresh: () async {
+                                  await _fetchCurrentUserType();
+                                },
                                 color: Color(0xFFFF8C00),
                                 child: ListView.builder(
                                   padding: EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -218,6 +296,22 @@ class ToursState extends State<Tours> {
   }
 
   Widget _buildTourCard(Map<String, dynamic> tour) {
+    final targetAudience = tour['target_audience']?.toString() ?? 'general';
+
+    // Helper function to get badge label
+    String _getAudienceLabel(String audience) {
+      switch (audience.toLowerCase()) {
+        case 'student':
+          return 'Student';
+        case 'faculty':
+          return 'Faculty';
+        case 'accreditor':
+          return 'Accreditor';
+        default:
+          return 'General';
+      }
+    }
+
     return Container(
       margin: EdgeInsets.only(bottom: 16),
       child: Material(
@@ -262,15 +356,46 @@ class ToursState extends State<Tours> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Target Audience Badge
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Color(0xFFFF8C00).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.person,
+                                size: 11,
+                                color: Color(0xFFFF8C00),
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                _getAudienceLabel(targetAudience),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 10,
+                                  color: Color(0xFFFF8C00),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: 6),
+
                         Text(
                           tour['name'] ?? 'Unnamed Tour',
                           style: GoogleFonts.poppins(
-                            fontSize: 16,
+                            fontSize: 14,
                             color: Colors.black87,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        SizedBox(height: 4),
 
                         if (tour['description'] != null &&
                             tour['description'].toString().isNotEmpty) ...[
@@ -278,7 +403,7 @@ class ToursState extends State<Tours> {
                           Text(
                             tour['description'],
                             style: GoogleFonts.poppins(
-                              fontSize: 13,
+                              fontSize: 11,
                               color: Colors.grey[600],
                               fontWeight: FontWeight.w400,
                             ),
@@ -324,6 +449,7 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
   PageController? _videoPageController;
   int _currentVideoPage = 0;
   static const int _infiniteMultiplier = 10000;
+  bool _audioGuideEnabled = true;
 
   @override
   void initState() {
@@ -387,7 +513,6 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
 
   Future<void> _fetchBuildings() async {
     try {
-      // Get building_ids from tour
       final buildingIds = widget.tour['building_ids'] as List?;
 
       if (buildingIds == null || buildingIds.isEmpty) {
@@ -395,16 +520,13 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
         return;
       }
 
-      // Convert to List<int>
       final buildingIdList = buildingIds.map((id) => id as int).toList();
 
-      // Fetch all buildings in one query
       final response = await supabase
           .from('Building')
-          .select('building_id, building_name, building_nickname')
+          .select('building_id, building_name, building_nickname, description')
           .inFilter('building_id', buildingIdList);
 
-      // Sort buildings by the order in building_ids array
       final buildingsMap = {
         for (var building in response) building['building_id']: building,
       };
@@ -528,7 +650,7 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
                             Text(
                               widget.tour['description'],
                               style: GoogleFonts.poppins(
-                                fontSize: 14,
+                                fontSize: 11,
                                 color: Colors.grey[700],
                                 fontWeight: FontWeight.w400,
                                 height: 1.6,
@@ -547,10 +669,78 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
                       videoUrls: tourVideos,
                       pageController: _videoPageController,
                     ),
-                    SizedBox(height: 24),
+                    SizedBox(height: 20),
                   ],
+                  // Start Virtual Tour and Cancel buttons side by side
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _buildings.isNotEmpty
+                                ? _startVirtualTour
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Color(0xFFFF8C00),
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              disabledBackgroundColor: Colors.grey[300],
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.play_circle_filled,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Start Tour',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              side: BorderSide(
+                                color: Colors.grey[300]!,
+                                width: 1.5,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              'Cancel',
+                              style: GoogleFonts.poppins(
+                                fontSize: 15,
+                                color: Colors.grey[700],
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 20),
 
-                  // Buildings List Header
+                  // Tour Stops Header
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20),
                     child: Row(
@@ -593,132 +783,535 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
                   ),
                   SizedBox(height: 16),
 
-                  // Buildings List
-                  _buildings.isEmpty
-                      ? Padding(
-                          padding: EdgeInsets.all(40),
-                          child: Center(
-                            child: Column(
-                              children: [
-                                Icon(
-                                  Icons.apartment_outlined,
-                                  size: 60,
-                                  color: Colors.grey[300],
-                                ),
-                                SizedBox(height: 12),
-                                Text(
-                                  'No buildings in this tour',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
+                  // Tour Stops Card with Limited Preview
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20),
+                    child: _buildings.isEmpty
+                        ? Container(
+                            padding: EdgeInsets.all(40),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[50],
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.grey[200]!),
                             ),
-                          ),
-                        )
-                      : ListView.builder(
-                          shrinkWrap: true,
-                          physics: NeverScrollableScrollPhysics(),
-                          padding: EdgeInsets.fromLTRB(20, 0, 20, 20),
-                          itemCount: _buildings.length,
-                          itemBuilder: (context, index) {
-                            final building = _buildings[index];
-                            final displayNumber = index + 1;
-
-                            return _buildBuildingCard(building, displayNumber);
-                          },
-                        ),
-
-                  // Buttons section
-                  Container(
-                    padding: EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.06),
-                          blurRadius: 12,
-                          offset: Offset(0, -4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        // Cancel button
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.pop(context),
-                            style: OutlinedButton.styleFrom(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              side: BorderSide(
-                                color: Colors.grey[300]!,
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.apartment_outlined,
+                                    size: 60,
+                                    color: Colors.grey[300],
+                                  ),
+                                  SizedBox(height: 12),
+                                  Text(
+                                    'No buildings in this tour',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : Container(
+                            constraints: BoxConstraints(
+                              maxHeight: _buildings.length > 4
+                                  ? 345
+                                  : double.infinity,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: Colors.grey[200]!,
                                 width: 1.5,
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              'Cancel',
-                              style: GoogleFonts.poppins(
-                                fontSize: 15,
-                                color: Colors.grey[700],
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        // Start Virtual Tour button
-                        Expanded(
-                          flex: 2,
-                          child: ElevatedButton(
-                            onPressed: _buildings.isNotEmpty
-                                ? _startVirtualTour
-                                : null,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFFFF8C00),
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              disabledBackgroundColor: Colors.grey[300],
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.play_circle_filled,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Start Virtual Tour',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 15,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.06),
+                                  blurRadius: 12,
+                                  offset: Offset(0, 4),
                                 ),
                               ],
                             ),
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              padding: EdgeInsets.all(12),
+                              itemCount: _buildings.length,
+                              itemBuilder: (context, index) {
+                                final building = _buildings[index];
+                                final displayNumber = index + 1;
+                                final isLastItem =
+                                    index == _buildings.length - 1;
+
+                                return Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom: isLastItem ? 0 : 12,
+                                  ),
+                                  child: _buildBuildingCard(
+                                    building,
+                                    displayNumber,
+                                  ),
+                                );
+                              },
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
                   ),
+                  SizedBox(height: 20),
+
+                  SizedBox(height: 20),
                 ],
               ),
             ),
     );
   }
 
-  void _startVirtualTour() {
-    // Prepare tour stops from building_ids
+  Future<void> _startVirtualTour() async {
+    if (_buildings.isEmpty) return;
+
+    try {
+      // Check if user has location permission
+      final locationResult = await LocationService.getCurrentLocation();
+
+      if (!locationResult.isSuccess) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.location_off, color: Colors.white, size: 20),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    locationResult.error ??
+                        'Location permission required to start tour',
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Settings',
+              textColor: Colors.white,
+              onPressed: () async {
+                await Geolocator.openLocationSettings();
+              },
+            ),
+          ),
+        );
+        return;
+      }
+
+      // Check if user is within campus bounds
+      final isOnCampus = MapBoundary.isWithinCampusBounds(
+        locationResult.location!,
+      );
+
+      bool? startFromCurrentLocation;
+
+      if (isOnCampus) {
+        // Show modal to choose starting point (current location vs gate)
+        startFromCurrentLocation = await _showStartingPointModal();
+
+        if (startFromCurrentLocation == null) {
+          // User cancelled
+          return;
+        }
+      } else {
+        // User is off campus - gate selection will happen in loading screen
+        startFromCurrentLocation = false;
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.white, size: 20),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'You are off campus. You will select a starting gate.',
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.blue[700],
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+
+      // Proceed with tour - gate selection happens in loading screen if needed
+      _proceedWithTour(startFromCurrentLocation: startFromCurrentLocation);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error starting tour: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<bool?> _showStartingPointModal() async {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            constraints: BoxConstraints(maxWidth: 400),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header - More compact
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFFF8C00), Color(0xFFFF6B00)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.tour,
+                          size: 28,
+                          color: Color(0xFFFF8C00),
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      Text(
+                        'Choose Starting Point',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              color: Colors.white,
+                              size: 12,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'You are on campus',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Content with Audio Guide Toggle
+                Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      // Audio Guide Toggle - Compact version
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _audioGuideEnabled = !_audioGuideEnabled;
+                          });
+                        },
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _audioGuideEnabled
+                                ? Colors.orange[50]
+                                : Colors.grey[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _audioGuideEnabled
+                                  ? Colors.orange
+                                  : Colors.grey[300]!,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: _audioGuideEnabled
+                                      ? Colors.orange[100]
+                                      : Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  _audioGuideEnabled
+                                      ? Icons.volume_up
+                                      : Icons.volume_off,
+                                  color: _audioGuideEnabled
+                                      ? Colors.orange
+                                      : Colors.grey[600],
+                                  size: 20,
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Audio Guide',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                              Switch(
+                                value: _audioGuideEnabled,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _audioGuideEnabled = value;
+                                  });
+                                },
+                                activeColor: Colors.orange,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 16),
+
+                      // Starting point question
+                      Text(
+                        'Where would you like to start?',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: Colors.grey[700],
+                          height: 1.4,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+
+                      // Current Location Option
+                      _buildStartingPointOption(
+                        icon: Icons.my_location,
+                        iconColor: Colors.blue,
+                        iconBgColor: Colors.blue[50]!,
+                        title: 'Current Location',
+                        description: 'Start from where you are now',
+                        onTap: () => Navigator.pop(context, true),
+                      ),
+
+                      SizedBox(height: 10),
+
+                      // Nearest Gate Option
+                      _buildStartingPointOption(
+                        icon: Icons.door_sliding,
+                        iconColor: Colors.green,
+                        iconBgColor: Colors.green[50]!,
+                        title: 'Nearest Campus Gate',
+                        description: 'Start from the closest entrance',
+                        onTap: () => Navigator.pop(context, false),
+                      ),
+
+                      SizedBox(height: 16),
+
+                      // Info box - more compact
+                      Container(
+                        padding: EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.grey[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 16,
+                              color: Colors.grey[600],
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Your choice determines the route',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  color: Colors.grey[700],
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      SizedBox(height: 16),
+
+                      // Cancel button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context, null),
+                          style: OutlinedButton.styleFrom(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            side: BorderSide(
+                              color: Colors.grey[300]!,
+                              width: 1.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            'Cancel',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: Colors.grey[700],
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStartingPointOption({
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBgColor,
+    required String title,
+    required String description,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey[200]!, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: iconBgColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      description,
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: Colors.grey[400],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _proceedWithTour({required bool startFromCurrentLocation}) {
     List<VirtualTourStop> stops = [];
 
     for (int i = 0; i < _buildings.length; i++) {
@@ -732,18 +1325,53 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
           buildingId: buildingId,
           buildingName: building['building_name'] ?? 'Unknown Building',
           buildingNickname: building['building_nickname'] ?? '',
-
+          buildingDescription: building['description'],
           location: null,
         ),
       );
     }
 
-    // Navigate to loading screen
+    // Show loading message
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  startFromCurrentLocation
+                      ? 'Starting tour from your location...'
+                      : 'Finding nearest campus gate...',
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Color(0xFFFF8C00),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+
+    // Navigate to loading screen with starting point preference
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            TourLoadingScreen(tourName: widget.tour['name'], tourStops: stops),
+        builder: (context) => TourLoadingScreen(
+          tourName: widget.tour['name'],
+          tourStops: stops,
+          startFromCurrentLocation: startFromCurrentLocation,
+          audioGuideEnabled: _audioGuideEnabled,
+        ),
       ),
     );
   }
@@ -752,73 +1380,292 @@ class TourBuildingsPageState extends State<TourBuildingsPage> {
     final buildingName = building['building_name'] ?? 'Unknown Building';
     final buildingNickname = building['building_nickname'] ?? '';
 
-    return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[200]!, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Stop number
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Color(0xFFFF8C00),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  '$number',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
+    return GestureDetector(
+      onTap: () => _onStopTap(building, number), // Add tap handler
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!, width: 1),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Stop number
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Color(0xFFFF8C00),
+                  shape: BoxShape.circle,
                 ),
-              ),
-            ),
-            SizedBox(width: 16),
-            // Building details
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    buildingName,
+                child: Center(
+                  child: Text(
+                    '$number',
                     style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      color: Colors.black87,
+                      fontSize: 14,
+                      color: Colors.white,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  if (buildingNickname.isNotEmpty) ...[
-                    SizedBox(height: 4),
+                ),
+              ),
+              SizedBox(width: 12),
+              // Building details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      buildingNickname,
+                      buildingName,
                       style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w400,
+                        fontSize: 13,
+                        color: Colors.black87,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (buildingNickname.isNotEmpty) ...[
+                      SizedBox(height: 4),
+                      Text(
+                        buildingNickname,
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              // Add arrow indicator
+              Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Add this new method to handle stop tap
+  void _onStopTap(Map<String, dynamic> building, int stopNumber) {
+    final buildingName = building['building_name'] ?? 'Unknown Building';
+    final buildingNickname = building['building_nickname'] ?? '';
+    final displayName = buildingNickname.isNotEmpty
+        ? buildingNickname
+        : buildingName;
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Stop Number Icon
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFFFF8C00), Color(0xFFFF6B00)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFFFF8C00).withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'STOP',
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.9),
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    Text(
+                      '$stopNumber',
+                      style: GoogleFonts.poppins(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        height: 1.0,
                       ),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Title
+              Text(
+                'Navigate to This Stop?',
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+
+              // Building Name
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.apartment, size: 18, color: Color(0xFFFF8C00)),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        displayName,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Description
+              Text(
+                'Start navigation directly to this location?',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: Colors.black54,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+
+              // Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.grey[300]!),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _navigateToSpecificStop(stopNumber);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFFFF8C00),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.navigation, size: 18, color: Colors.white),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Navigate',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
-            ),
-          ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Add this method to handle navigation
+  void _navigateToSpecificStop(int stopNumber) {
+    // Prepare tour stops
+    List<VirtualTourStop> stops = [];
+
+    for (int i = 0; i < _buildings.length; i++) {
+      final building = _buildings[i];
+      final buildingId = building['building_id'] as int;
+      final currentStopNumber = i + 1;
+
+      stops.add(
+        VirtualTourStop(
+          stopNumber: currentStopNumber,
+          buildingId: buildingId,
+          buildingName: building['building_name'] ?? 'Unknown Building',
+          buildingNickname: building['building_nickname'] ?? '',
+          location: null,
+        ),
+      );
+    }
+
+    // Navigate to Maps with specific stop index
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Maps(
+          startVirtualTour: true,
+          tourName: widget.tour['name'],
+          tourStops: stops,
+          skipToStopIndex: stopNumber - 1,
+          audioGuideEnabled: _audioGuideEnabled,
         ),
       ),
     );

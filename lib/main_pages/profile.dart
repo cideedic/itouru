@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import 'package:itouru/settings_pages/privacy.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -16,10 +15,6 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   String studentName = "";
   String userType = "";
-  String birthDate = "";
-  String nationality = "";
-  String sex = "";
-  String contactNumber = "";
   String email = "";
   String? selectedAvatar;
   String college = "";
@@ -60,10 +55,6 @@ class _ProfilePageState extends State<ProfilePage> {
           suffix,
           user_type,
           college,
-          birthday,
-          nationality,
-          sex,
-          phone_number,
           email,
           avatar
         ''')
@@ -92,22 +83,6 @@ class _ProfilePageState extends State<ProfilePage> {
           studentName = fullName.isNotEmpty ? fullName : "No Name";
           userType = response['user_type']?.toString() ?? "N/A";
           college = response['college']?.toString() ?? "N/A";
-
-          if (response['birthday'] != null &&
-              response['birthday'].toString().isNotEmpty) {
-            try {
-              final date = DateTime.parse(response['birthday'].toString());
-              birthDate = DateFormat('MMMM d, y').format(date);
-            } catch (e) {
-              birthDate = response['birthday']?.toString() ?? "N/A";
-            }
-          } else {
-            birthDate = "N/A";
-          }
-
-          nationality = response['nationality']?.toString() ?? "N/A";
-          sex = response['sex']?.toString() ?? "N/A";
-          contactNumber = response['phone_number']?.toString() ?? "N/A";
           email = response['email']?.toString() ?? "N/A";
 
           selectedAvatar = response['avatar']?.toString() ?? avatarOptions[0];
@@ -625,30 +600,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 label: 'College',
                                 value: college,
                               ),
-                              _buildInfoItem(
-                                icon: Icons.calendar_today,
-                                iconColor: Colors.orange,
-                                label: 'Birth Date',
-                                value: birthDate,
-                              ),
-                              _buildInfoItem(
-                                icon: Icons.flag,
-                                iconColor: Colors.orange,
-                                label: 'Nationality',
-                                value: nationality,
-                              ),
-                              _buildInfoItem(
-                                icon: Icons.person,
-                                iconColor: Colors.orange,
-                                label: 'Sex',
-                                value: sex,
-                              ),
-                              _buildInfoItem(
-                                icon: Icons.phone,
-                                iconColor: Colors.orange,
-                                label: 'Contact Number',
-                                value: contactNumber,
-                              ),
+                              // Email
                               _buildInfoItem(
                                 icon: Icons.email,
                                 iconColor: Colors.orange,

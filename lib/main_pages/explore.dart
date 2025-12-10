@@ -43,7 +43,7 @@ class ExploreSection extends StatelessWidget {
                 child: Center(
                   child: Icon(
                     Icons.explore,
-                    size: 120,
+                    size: 90,
                     color: Colors.orange.withValues(alpha: 0.12),
                   ),
                 ),
@@ -60,7 +60,7 @@ class ExploreSection extends StatelessWidget {
                       Text(
                         'Explore',
                         style: GoogleFonts.montserrat(
-                          fontSize: 48,
+                          fontSize: 24,
                           fontWeight: FontWeight.w900,
                           color: Colors.black87,
                           letterSpacing: 1.5,
@@ -143,7 +143,7 @@ class ExploreSection extends StatelessWidget {
                         child: Icon(
                           Icons.map_outlined,
                           color: Colors.white,
-                          size: 24,
+                          size: 18,
                         ),
                       ),
                       const SizedBox(width: 12),

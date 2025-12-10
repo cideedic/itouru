@@ -53,33 +53,58 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
     super.dispose();
   }
 
+  // Helper function to normalize folder names (copied from building_details.dart)
+  String _normalizeFolderName(String name) {
+    return name
+        .toLowerCase()
+        .replaceAll('.', '')
+        .replaceAll("'", '')
+        .replaceAll(' ', '-')
+        .trim();
+  }
+
   Future<void> _loadBuildingImages() async {
     try {
-      final buildingName = widget.stop.buildingName;
-      final buildingNickname = widget.stop.buildingNickname;
+      // Fetch building data from Supabase to get the actual building_name and building_nickname
+      final buildingResponse = await _supabase
+          .from('Building')
+          .select('building_name, building_nickname')
+          .eq('building_id', widget.stop.buildingId)
+          .single();
 
+      final buildingName = buildingResponse['building_name']?.toString() ?? '';
+      final buildingNickname =
+          buildingResponse['building_nickname']?.toString() ?? '';
+
+      // Create list of possible folder names to check
       List<String> possibleFolderNames = [];
 
-      final buildingFolderName = buildingName
-          .toLowerCase()
-          .replaceAll('.', '')
-          .replaceAll(' ', '-')
-          .trim();
-      possibleFolderNames.add(buildingFolderName);
+      // Add normalized building name
+      if (buildingName.isNotEmpty) {
+        final fullName = _normalizeFolderName(buildingName);
+        possibleFolderNames.add(fullName);
 
+        // If name starts with "bicol-university-", also try without prefix
+        if (fullName.startsWith('bicol-university-')) {
+          final withoutPrefix = fullName.replaceFirst('bicol-university-', '');
+          if (withoutPrefix.isNotEmpty &&
+              !possibleFolderNames.contains(withoutPrefix)) {
+            possibleFolderNames.add(withoutPrefix);
+          }
+        }
+      }
+
+      // Add normalized nickname
       if (buildingNickname.isNotEmpty) {
-        final nicknameFolderName = buildingNickname
-            .toLowerCase()
-            .replaceAll('.', '')
-            .replaceAll(' ', '-')
-            .trim();
-        if (!possibleFolderNames.contains(nicknameFolderName)) {
-          possibleFolderNames.add(nicknameFolderName);
+        final normalizedNickname = _normalizeFolderName(buildingNickname);
+        if (!possibleFolderNames.contains(normalizedNickname)) {
+          possibleFolderNames.add(normalizedNickname);
         }
       }
 
       List<dynamic> imagesResponse = [];
 
+      // Try each possible folder name until we find images
       for (var folderName in possibleFolderNames) {
         final response = await _supabase
             .from('storage_objects_snapshot')
@@ -103,6 +128,7 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
         final imagePath = imageData['name'] as String;
         final filename = imageData['filename'] as String;
 
+        // Skip placeholder files and logos
         if (filename == '.emptyFolderPlaceholder' ||
             imagePath.endsWith('.emptyFolderPlaceholder') ||
             filename.contains('_logo')) {
@@ -115,6 +141,7 @@ class _VirtualTourStopCardState extends State<VirtualTourStopCard> {
         imageUrls.add(publicUrl);
       }
 
+      // Limit to 3 images
       if (imageUrls.length > 3) {
         imageUrls = imageUrls.sublist(0, 3);
       }

@@ -18,6 +18,10 @@ class RoutingService {
   static DateTime? _gatesCacheTime;
   static const Duration _cacheValidity = Duration(hours: 1);
 
+  // Cache for building entrances
+  static Map<int, LatLng>? _cachedEntrances;
+  static bool _isPreloadingEntrances = false;
+
   /// Gets route between two points, respecting campus boundaries and gates
   /// If start is outside campus and end is inside, route goes through nearest gate
   static Future<RouteResult> getRoute(LatLng start, LatLng end) async {
@@ -47,14 +51,83 @@ class RoutingService {
     }
   }
 
+  static Future<void> preloadBuildingEntrances(List<dynamic> buildings) async {
+    if (_isPreloadingEntrances) return;
+
+    _isPreloadingEntrances = true;
+    _cachedEntrances = {};
+
+    try {
+      // Filter out buildings with null buildingId
+      final validBuildings = buildings
+          .where((building) => building.buildingId != null)
+          .toList();
+
+      debugPrint(
+        '🔄 Preloading entrances for ${validBuildings.length} buildings...',
+      );
+
+      // Fetch entrances for all buildings in parallel (in batches)
+      final batchSize = 5; // Process 5 buildings at a time
+      for (int i = 0; i < validBuildings.length; i += batchSize) {
+        final batch = validBuildings.skip(i).take(batchSize);
+
+        await Future.wait(
+          batch.map((building) async {
+            final buildingId = building.buildingId as int; // Safe cast now
+            final center = building.getCenterPoint();
+
+            final entrance = await _fetchBuildingEntranceInternal(
+              center,
+              building.name,
+            );
+
+            if (entrance != null) {
+              _cachedEntrances![buildingId] = entrance;
+            }
+          }),
+        );
+
+        // Small delay between batches to avoid rate limiting
+        if (i + batchSize < validBuildings.length) {
+          await Future.delayed(const Duration(milliseconds: 200));
+        }
+      }
+
+      debugPrint('✅ Preloaded ${_cachedEntrances!.length} building entrances');
+    } catch (e) {
+      debugPrint('❌ Error preloading entrances: $e');
+    } finally {
+      _isPreloadingEntrances = false;
+    }
+  }
+
   static Future<LatLng?> fetchBuildingEntrance(
+    LatLng buildingCenter,
+    String buildingName, {
+    int? buildingId,
+  }) async {
+    // Check cache first
+    if (_cachedEntrances != null && buildingId != null) {
+      final cachedEntrance = _cachedEntrances![buildingId];
+      if (cachedEntrance != null) {
+        debugPrint('✅ Using cached entrance for building $buildingId');
+        return cachedEntrance;
+      }
+    }
+
+    // Fetch if not cached
+    return await _fetchBuildingEntranceInternal(buildingCenter, buildingName);
+  }
+
+  /// Internal method to fetch entrance from OSM
+  static Future<LatLng?> _fetchBuildingEntranceInternal(
     LatLng buildingCenter,
     String buildingName,
   ) async {
     try {
       final double radius = 50;
 
-      // Calculate bounding box
       final double latOffset = radius / 111320;
       final double lngOffset =
           radius / (111320 * math.cos(buildingCenter.latitude * math.pi / 180));
@@ -64,7 +137,6 @@ class RoutingService {
       final double minLng = buildingCenter.longitude - lngOffset;
       final double maxLng = buildingCenter.longitude + lngOffset;
 
-      // Overpass API query for entrances
       final String query =
           '''
 [out:json][timeout:25];
@@ -75,17 +147,18 @@ class RoutingService {
 out body;
 ''';
 
-      final response = await http.post(
-        Uri.parse('https://overpass-api.de/api/interpreter'),
-        body: query,
-      );
+      final response = await http
+          .post(
+            Uri.parse('https://overpass-api.de/api/interpreter'),
+            body: query,
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final elements = data['elements'] as List;
 
         if (elements.isNotEmpty) {
-          // Find the closest entrance to building center
           LatLng? closestEntrance;
           double minDistance = double.infinity;
 
@@ -108,7 +181,6 @@ out body;
         }
       }
 
-      // No entrance found, return building center
       return null;
     } catch (e) {
       debugPrint('Error fetching building entrance: $e');
@@ -277,31 +349,31 @@ out body;
       CampusGate(
         id: 'gate_1',
         name: 'Gate 1',
-        location: LatLng(13.14395504, 123.72590159),
+        location: LatLng(13.14394371, 123.72588429),
         tags: {'entrance': 'yes', 'access': 'main'},
       ),
       CampusGate(
         id: 'gate_2',
         name: 'Gate 2',
-        location: LatLng(13.14445260, 123.72525112),
+        location: LatLng(13.14444006, 123.72524634),
         tags: {'entrance': 'yes', 'access': 'secondary'},
       ),
       CampusGate(
         id: 'gate_3',
         name: 'Gate 3',
-        location: LatLng(13.14502437, 123.72455284),
+        location: LatLng(13.14501845, 123.72453869),
         tags: {'entrance': 'yes', 'access': 'secondary'},
       ),
       CampusGate(
         id: 'gate_4',
         name: 'Gate 4',
-        location: LatLng(13.14564489, 123.72377642),
+        location: LatLng(13.14563220, 123.72376839),
         tags: {'entrance': 'yes', 'access': 'secondary'},
       ),
       CampusGate(
         id: 'gate_5',
         name: 'Gate 5',
-        location: LatLng(13.14620255, 123.72305763),
+        location: LatLng(13.14619435, 123.72304788),
         tags: {'entrance': 'yes', 'access': 'secondary'},
       ),
       CampusGate(
@@ -311,6 +383,106 @@ out body;
         tags: {'entrance': 'yes', 'access': 'service'},
       ),
     ];
+  }
+
+  /// This considers obstacles and actual walking paths
+  static Future<CampusGate?> findOptimalGate({
+    required LatLng startPoint,
+    required LatLng destinationPoint,
+    List<CampusGate>? gates,
+  }) async {
+    // Get or fetch gates
+    gates ??= await _getCampusGates();
+
+    if (gates.isEmpty) return null;
+
+    CampusGate? optimalGate;
+    int minTotalDuration = 999999;
+
+    // Test each gate to find which gives shortest total route time
+    for (var gate in gates) {
+      try {
+        // Get route from start -> gate -> destination
+        final routeResult = await _getMultiSegmentRoute([
+          startPoint,
+          gate.location,
+          destinationPoint,
+        ]);
+
+        if (routeResult.isSuccess && routeResult.duration != null) {
+          // Parse duration string to seconds for comparison
+          final durationSeconds = _parseDurationToSeconds(
+            routeResult.duration!,
+          );
+
+          if (durationSeconds < minTotalDuration) {
+            minTotalDuration = durationSeconds;
+            optimalGate = gate;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error testing gate ${gate.name}: $e');
+        continue;
+      }
+    }
+
+    return optimalGate;
+  }
+
+  /// Parse duration string (e.g., "5m", "1h 30m", "45s") to seconds
+  static int _parseDurationToSeconds(String duration) {
+    int totalSeconds = 0;
+
+    // Parse hours
+    if (duration.contains('h')) {
+      final hoursMatch = RegExp(r'(\d+)h').firstMatch(duration);
+      if (hoursMatch != null) {
+        totalSeconds += int.parse(hoursMatch.group(1)!) * 3600;
+      }
+    }
+
+    // Parse minutes
+    if (duration.contains('m')) {
+      final minutesMatch = RegExp(r'(\d+)m').firstMatch(duration);
+      if (minutesMatch != null) {
+        totalSeconds += int.parse(minutesMatch.group(1)!) * 60;
+      }
+    }
+
+    // Parse seconds
+    if (duration.contains('s') && !duration.contains('m')) {
+      final secondsMatch = RegExp(r'(\d+)s').firstMatch(duration);
+      if (secondsMatch != null) {
+        totalSeconds += int.parse(secondsMatch.group(1)!);
+      }
+    }
+
+    return totalSeconds;
+  }
+
+  /// Get all available gates with their details
+  static Future<List<CampusGate>> getAllGates() async {
+    return await _getCampusGates();
+  }
+
+  /// Calculate route duration from user location to destination via a specific gate
+  static Future<String?> calculateRouteDurationViaGate({
+    required LatLng userLocation,
+    required LatLng destination,
+    required CampusGate gate,
+  }) async {
+    try {
+      final routeResult = await _getMultiSegmentRoute([
+        userLocation,
+        gate.location,
+        destination,
+      ]);
+
+      return routeResult.isSuccess ? routeResult.duration : null;
+    } catch (e) {
+      debugPrint('Error calculating duration via ${gate.name}: $e');
+      return null;
+    }
   }
 
   /// Calculates bounds for a list of route points
@@ -332,6 +504,38 @@ out body;
     }
 
     return LatLngBounds(LatLng(minLat, minLng), LatLng(maxLat, maxLng));
+  }
+
+  static LatLng? getCachedEntrance(int? buildingId) {
+    if (buildingId == null) return null;
+    return _cachedEntrances?[buildingId];
+  }
+
+  static void clearEntranceCache() {
+    _cachedEntrances?.clear();
+    _cachedEntrances = null;
+    _isPreloadingEntrances = false;
+  }
+
+  /// Check if user is already at/near the destination
+  static bool isUserAtDestination(
+    LatLng userLocation,
+    LatLng destination, {
+    int? buildingId,
+    double thresholdMeters = 30.0,
+  }) {
+    // Try to get entrance point if building ID provided
+    LatLng checkPoint = destination;
+
+    if (buildingId != null) {
+      final entrance = getCachedEntrance(buildingId);
+      if (entrance != null) {
+        checkPoint = entrance;
+      }
+    }
+
+    final distance = calculateDistance(userLocation, checkPoint);
+    return distance < thresholdMeters;
   }
 
   /// Fits the map to show the entire route
@@ -356,7 +560,7 @@ out body;
   }
 
   static String calculateWalkingDuration(num distanceInMeters) {
-    const double metersPerMinute = 58.3;
+    const double metersPerMinute = 80.0;
 
     final double totalMinutes = distanceInMeters / metersPerMinute;
 
@@ -716,8 +920,17 @@ class NavigationManager {
     if (_currentLocation == null || _currentDestination == null) return;
 
     LatLng destinationPoint;
+
+    // Try to get the entrance point first (more accurate)
     if (_currentDestination.runtimeType.toString().contains('Building')) {
-      destinationPoint = _currentDestination.getCenterPoint();
+      final buildingId = _currentDestination.buildingId;
+      final cachedEntrance = RoutingService.getCachedEntrance(buildingId);
+
+      if (cachedEntrance != null) {
+        destinationPoint = cachedEntrance;
+      } else {
+        destinationPoint = _currentDestination.getCenterPoint();
+      }
     } else {
       destinationPoint = _currentDestination as LatLng;
     }
@@ -727,7 +940,8 @@ class NavigationManager {
       destinationPoint,
     );
 
-    if (distance < 10) {
+    // More generous threshold - 25 meters
+    if (distance < 25) {
       _destinationReached();
     }
   }
@@ -782,8 +996,12 @@ class NavigationManager {
   double _lerpAngle(double current, double target, double factor) {
     double diff = target - current;
 
-    while (diff > 180) diff -= 360;
-    while (diff < -180) diff += 360;
+    while (diff > 180) {
+      diff -= 360;
+    }
+    while (diff < -180) {
+      diff += 360;
+    }
 
     return (current + diff * factor) % 360;
   }
@@ -836,8 +1054,10 @@ class RouteHelper {
   static Polyline createRoutePolyline(List<LatLng> points) {
     return Polyline(
       points: points,
-      color: const Color(0xFF2196F3),
-      strokeWidth: 4.0,
+      color: const Color(0xFFD84315), // Dark red-orange
+      strokeWidth: 5.0,
+      borderColor: Colors.white, // White border for visibility
+      borderStrokeWidth: 2.0,
     );
   }
 

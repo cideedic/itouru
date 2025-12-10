@@ -7,6 +7,7 @@ class AboutTab extends StatelessWidget {
   final String learningOutcomes;
   final String objectives;
   final Map<String, dynamic>? headData;
+  final String? headImageUrl;
 
   const AboutTab({
     super.key,
@@ -14,8 +15,8 @@ class AboutTab extends StatelessWidget {
     required this.learningOutcomes,
     required this.objectives,
     this.headData,
+    this.headImageUrl,
   });
-
   bool _isNotEmpty(String? text) {
     return text != null && text.trim().isNotEmpty;
   }
@@ -56,7 +57,9 @@ class AboutTab extends StatelessWidget {
         ],
 
         // Head/Dean Information Card
-        if (headData != null) ...[InfoCard(headData: headData)],
+        if (headData != null) ...[
+          InfoCard(headData: headData, headImageUrl: headImageUrl),
+        ],
       ],
     );
   }

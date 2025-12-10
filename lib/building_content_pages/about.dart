@@ -110,13 +110,15 @@ class BuildingAboutTab extends StatelessWidget {
                 child: _buildSectionCard(
                   'Floors',
                   Icons.layers,
-                  Text(
-                    numberOfFloors?.toString() ?? 'N/A',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      height: 1.6,
-                      color: Colors.black87,
-                      fontWeight: FontWeight.w600,
+                  Center(
+                    child: Text(
+                      numberOfFloors?.toString() ?? 'N/A',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        height: 1.6,
+                        color: Colors.black87,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
@@ -126,13 +128,15 @@ class BuildingAboutTab extends StatelessWidget {
                 child: _buildSectionCard(
                   'Rooms',
                   Icons.meeting_room,
-                  Text(
-                    numberOfRooms.toString(),
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      height: 1.6,
-                      color: Colors.black87,
-                      fontWeight: FontWeight.w600,
+                  Center(
+                    child: Text(
+                      numberOfRooms.toString(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        height: 1.6,
+                        color: Colors.black87,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),

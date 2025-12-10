@@ -143,9 +143,9 @@ class HistoryTimeline {
         children: [
           // Connecting line
           Positioned(
-            top: 35,
-            left: 40,
-            right: 40,
+            top: 25,
+            left: 43,
+            right: 43,
             child: Container(
               height: 3,
               decoration: BoxDecoration(
@@ -167,8 +167,8 @@ class HistoryTimeline {
                   children: [
                     // Year badge
                     Container(
-                      width: 70,
-                      height: 70,
+                      width: 50,
+                      height: 50,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
@@ -193,7 +193,7 @@ class HistoryTimeline {
                               ? year.substring(year.length - 2)
                               : year,
                           style: GoogleFonts.montserrat(
-                            fontSize: 20,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),
@@ -218,7 +218,7 @@ class HistoryTimeline {
                       child: Text(
                         previewItems[index]['title'],
                         style: GoogleFonts.poppins(
-                          fontSize: 11,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w600,
                           color: Colors.black87,
                         ),
@@ -496,7 +496,7 @@ class _AnimatedTimelineSheetState extends State<_AnimatedTimelineSheet>
                           Text(
                             'BU Timeline',
                             style: GoogleFonts.montserrat(
-                              fontSize: 24,
+                              fontSize: 20,
                               fontWeight: FontWeight.bold,
                               color: Colors.black87,
                             ),
@@ -611,8 +611,8 @@ class _AnimatedTimelineSheetState extends State<_AnimatedTimelineSheet>
                 ScaleTransition(
                   scale: dotAnimation,
                   child: Container(
-                    width: 70,
-                    height: 70,
+                    width: 60,
+                    height: 60,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
@@ -746,19 +746,19 @@ class _AnimatedTimelineSheetState extends State<_AnimatedTimelineSheet>
                         Text(
                           item['title'],
                           style: GoogleFonts.montserrat(
-                            fontSize: 18,
+                            fontSize: 13,
                             fontWeight: FontWeight.bold,
                             color: Colors.black87,
                             height: 1.3,
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 6),
 
                         // Description
                         Text(
                           item['description'],
                           style: GoogleFonts.poppins(
-                            fontSize: 13,
+                            fontSize: 11,
                             color: Colors.grey[700],
                             height: 1.6,
                           ),

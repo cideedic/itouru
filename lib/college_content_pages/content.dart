@@ -43,6 +43,7 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
   List<String> collegeImages = [];
   String? headerImageUrl;
   String? logoImageUrl;
+  String? headImageUrl;
 
   bool isLoading = true;
 
@@ -155,21 +156,33 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
           .from('College')
           .select('*, Head(*)')
           .eq('college_id', widget.collegeId)
-          .single();
+          .single()
+          .timeout(
+            Duration(seconds: 15),
+            onTimeout: () => throw Exception('Connection timeout'),
+          );
 
       // Fetch Programs data
       final programsResponse = await supabase
           .from('Program')
           .select('*')
           .eq('college_id', widget.collegeId)
-          .order('program_type', ascending: true);
+          .order('program_type', ascending: true)
+          .timeout(
+            Duration(seconds: 15),
+            onTimeout: () => throw Exception('Connection timeout'),
+          );
 
       // Fetch Buildings data
       final buildingsResponse = await supabase
           .from('Building')
           .select('*')
           .eq('college_id', widget.collegeId)
-          .order('building_name', ascending: true);
+          .order('building_name', ascending: true)
+          .timeout(
+            Duration(seconds: 15),
+            onTimeout: () => throw Exception('Connection timeout'),
+          );
 
       // Fetch Rooms data for all buildings
       Map<String, List<Map<String, dynamic>>> roomsMap = {};
@@ -182,7 +195,11 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
               buildingsResponse.map((b) => b['building_id']).toList(),
             )
             .order('floor_level', ascending: true)
-            .order('room_number', ascending: true);
+            .order('room_number', ascending: true)
+            .timeout(
+              Duration(seconds: 15),
+              onTimeout: () => throw Exception('Connection timeout'),
+            );
 
         for (var room in roomsResponse) {
           final buildingId = room['building_id'].toString();
@@ -325,8 +342,95 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
             // No logo found in this folder, continue to next
           }
         }
+      }
 
-        if (fetchedLogoUrl == null) {}
+      // Fetch head official image
+      String? fetchedHeadImageUrl;
+      if (response['Head'] != null) {
+        final headId = response['Head']['head_id'];
+        final firstName = response['Head']['first_name']
+            ?.toString()
+            .toLowerCase();
+        final lastName = response['Head']['last_name']
+            ?.toString()
+            .toLowerCase();
+
+        if (headId != null || (firstName != null && lastName != null)) {
+          try {
+            // Build list of possible naming patterns
+            final possiblePatterns = <String>[];
+
+            // Add head_id patterns
+            if (headId != null) {
+              possiblePatterns.addAll([
+                'heads/head_$headId',
+                'heads/head_${headId}_profile',
+                'heads/$headId',
+              ]);
+            }
+
+            // Add firstname-lastname patterns
+            if (firstName != null && lastName != null) {
+              // Normalize names: replace ñ with n, replace spaces with hyphens
+              final firstNormalized = firstName
+                  .replaceAll('ñ', 'n')
+                  .replaceAll(' ', '-')
+                  .trim();
+              final firstNoSpaces = firstName
+                  .replaceAll('ñ', 'n')
+                  .replaceAll(' ', '')
+                  .trim();
+              final lastNormalized = lastName
+                  .replaceAll('ñ', 'n')
+                  .replaceAll(' ', '-')
+                  .trim();
+              final lastNoSpaces = lastName
+                  .replaceAll('ñ', 'n')
+                  .replaceAll(' ', '')
+                  .trim();
+
+              possiblePatterns.addAll([
+                // With hyphens between words
+                'heads/$firstNormalized-$lastNormalized',
+                'heads/$lastNormalized-$firstNormalized',
+                // Without spaces (johncedrick-doe)
+                'heads/$firstNoSpaces-$lastNormalized',
+                'heads/$lastNormalized-$firstNoSpaces',
+                // With underscores
+                'heads/${firstNormalized}_$lastNormalized',
+                'heads/${lastNormalized}_$firstNormalized',
+                'heads/${firstNoSpaces}_$lastNormalized',
+                'heads/${lastNormalized}_$firstNoSpaces',
+                // All no spaces
+                'heads/$firstNoSpaces-$lastNoSpaces',
+                'heads/$lastNoSpaces-$firstNoSpaces',
+              ]);
+            }
+
+            for (var pattern in possiblePatterns) {
+              try {
+                final headImageResponse = await supabase
+                    .from('storage_objects_snapshot')
+                    .select('name')
+                    .eq('bucket_id', 'images')
+                    .like('name', '$pattern%')
+                    .maybeSingle();
+
+                if (headImageResponse != null) {
+                  final headImagePath = headImageResponse['name'] as String;
+                  fetchedHeadImageUrl = supabase.storage
+                      .from('images')
+                      .getPublicUrl(headImagePath);
+                  break; // Stop searching once found
+                }
+              } catch (e) {
+                // Continue to next pattern
+              }
+            }
+          } catch (e) {
+            // Error fetching head image, will use default
+          }
+        }
       }
 
       setState(() {
@@ -339,6 +443,7 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
         collegeImages = imageUrls;
         headerImageUrl = fetchedHeaderUrl;
         logoImageUrl = fetchedLogoUrl;
+        headImageUrl = fetchedHeadImageUrl;
         isLoading = false;
       });
 
@@ -351,10 +456,37 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
       }
     } catch (e) {
       setState(() => isLoading = false);
+      // User-friendly error handling
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading data: $e')));
+        String errorMsg = 'Unable to load college information.';
+
+        if (e.toString().contains('timeout') ||
+            e.toString().contains('Connection timeout')) {
+          errorMsg =
+              'Connection is taking too long. Please check your internet.';
+        } else if (e.toString().contains('SocketException') ||
+            e.toString().contains('network')) {
+          errorMsg = 'No internet connection. Please check your network.';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(child: Text(errorMsg)),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            duration: Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _loadCollegeData(),
+            ),
+          ),
+        );
       }
     }
   }
@@ -458,6 +590,7 @@ class _CollegeDetailsPageState extends State<CollegeDetailsPage>
                                       collegeData?['learning_outcome'] ?? '',
                                   objectives: collegeData?['objectives'] ?? '',
                                   headData: headData,
+                                  headImageUrl: headImageUrl,
                                 ),
                               ),
                               const SizedBox(height: 30),

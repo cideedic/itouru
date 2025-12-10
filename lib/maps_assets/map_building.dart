@@ -12,6 +12,9 @@ class MapBuildings {
   // Store database names for search
   static List<DatabaseSearchItem> _databaseSearchItems = [];
 
+  // Track processed landmarks to avoid duplicates
+  static Set<int> _processedLandmarkIds = {};
+
   static Future<void> initializeWithBoundary({
     required List<LatLng> campusBoundaryPoints,
   }) async {
@@ -54,7 +57,8 @@ class MapBuildings {
 
       _campusBuildings = [];
       _campusMarkers = [];
-      _databaseSearchItems = []; // Reset search items
+      _databaseSearchItems = [];
+      _processedLandmarkIds = {}; // Reset processed landmarks
 
       // Process buildings
       debugPrint('\n🏢 Processing ${osmBuildings.length} buildings from OSM');
@@ -77,13 +81,39 @@ class MapBuildings {
             '🏢 Building: ${building.databaseName} | Nickname: ${building.databaseNickname}',
           );
 
-          // Ad to searchable items with database name
+          // Add to searchable items with database name
           _databaseSearchItems.add(
             DatabaseSearchItem(
               name: buildingMatch.databaseName ?? osm.name,
+              nickname: buildingMatch.databaseNickname,
               type: 'building',
               reference: building,
             ),
+          );
+        } else if (buildingMatch != null && buildingMatch.isLandmark) {
+          // LANDMARK BUILDING - Create marker instead of polygon
+          final center = GeometryUtils.getCenterFromPoints(osm.points);
+          final marker = BicolMarker(
+            position: center,
+            name: osm.name,
+            type: 'landmark',
+            itemId: buildingMatch.id,
+            buildingId: buildingMatch.id,
+            databaseName: buildingMatch.databaseName,
+          );
+          _campusMarkers.add(marker);
+          _processedLandmarkIds.add(buildingMatch.id); // Track this landmark
+
+          _databaseSearchItems.add(
+            DatabaseSearchItem(
+              name: buildingMatch.databaseName ?? osm.name,
+              type: 'landmark',
+              reference: marker,
+            ),
+          );
+
+          debugPrint(
+            '🏛️ Landmark from building: ${buildingMatch.databaseName} (ID: ${buildingMatch.id})',
           );
         } else if (buildingMatch == null) {
           final building = BicolBuildingPolygon(
@@ -104,28 +134,6 @@ class MapBuildings {
               name: osm.name,
               type: 'building',
               reference: building,
-            ),
-          );
-        }
-
-        // Create landmark markers from buildings (if type is landmark)
-        if (buildingMatch != null && buildingMatch.isLandmark) {
-          final center = GeometryUtils.getCenterFromPoints(osm.points);
-          final marker = BicolMarker(
-            position: center,
-            name: osm.name,
-            type: 'landmark',
-            itemId: buildingMatch.id,
-            buildingId: buildingMatch.id,
-            databaseName: buildingMatch.databaseName,
-          );
-          _campusMarkers.add(marker);
-
-          _databaseSearchItems.add(
-            DatabaseSearchItem(
-              name: buildingMatch.databaseName ?? osm.name,
-              type: 'landmark',
-              reference: marker,
             ),
           );
         }
@@ -157,13 +165,14 @@ class MapBuildings {
           _databaseSearchItems.add(
             DatabaseSearchItem(
               name: facilityMatch.databaseName ?? facility.name,
+              nickname: facilityMatch.databaseNickname,
               type: 'facility',
               reference: building,
             ),
           );
 
           debugPrint(
-            ' Matched facility: ${facility.name} (ID: ${facilityMatch.id})',
+            '✅ Matched facility: ${facility.name} (ID: ${facilityMatch.id})',
           );
         } else {
           final building = BicolBuildingPolygon(
@@ -188,11 +197,11 @@ class MapBuildings {
             ),
           );
 
-          debugPrint('No match for facility: "${facility.name}"');
+          debugPrint('⚠️  No match for facility: "${facility.name}"');
         }
       }
 
-      // Process college ground points (existing code - no changes)
+      // Process college ground points
       debugPrint(
         '\n🎓 Processing ${osmCollegeGrounds.length} college grounds from OSM',
       );
@@ -227,14 +236,17 @@ class MapBuildings {
           );
 
           debugPrint(
-            ' Created college marker: ${collegeMatch.name} (ID: ${collegeMatch.id})',
+            '✅ Created college marker: ${collegeMatch.name} (ID: ${collegeMatch.id})',
           );
         } else {
-          debugPrint(' No match for college ground: "${collegeGround.name}"');
+          debugPrint(
+            '⚠️  No match for college ground: "${collegeGround.name}"',
+          );
         }
       }
 
-      debugPrint('\n Processing ${osmLandmarks.length} landmarks from OSM');
+      // Process landmarks
+      debugPrint('\n🏛️ Processing ${osmLandmarks.length} landmarks from OSM');
       for (var landmark in osmLandmarks) {
         debugPrint(
           '   OSM Landmark: "${landmark.name}" at ${landmark.position}',
@@ -243,14 +255,21 @@ class MapBuildings {
         // Try to match with Supabase building database
         final buildingMatch = BuildingMatcher.matchBuilding(landmark.name);
 
-        // 🔍 DEBUG: Show what we're trying to match
         debugPrint('    Trying to match: "${landmark.name}"');
         debugPrint(
           '    Match result: ${buildingMatch?.id} (isLandmark: ${buildingMatch?.isLandmark})',
         );
 
         if (buildingMatch != null && buildingMatch.isLandmark) {
-          // Matched landmark - use database ID
+          // Check if already processed from buildings
+          if (_processedLandmarkIds.contains(buildingMatch.id)) {
+            debugPrint(
+              'Skipping duplicate landmark: ${buildingMatch.databaseName} (already added from building)',
+            );
+            continue;
+          }
+
+          // Matched landmark
           final marker = BicolMarker(
             position: landmark.position,
             name: landmark.name,
@@ -260,6 +279,7 @@ class MapBuildings {
             databaseName: buildingMatch.databaseName,
           );
           _campusMarkers.add(marker);
+          _processedLandmarkIds.add(buildingMatch.id); // Track this landmark
 
           _databaseSearchItems.add(
             DatabaseSearchItem(
@@ -270,10 +290,10 @@ class MapBuildings {
           );
 
           debugPrint(
-            'Created landmark marker with ID: ${buildingMatch.id} for ${landmark.name}',
+            'W Created landmark marker with ID: ${buildingMatch.id} for ${landmark.name}',
           );
         } else {
-          // Unmatched landmark - still create marker (no building_id)
+          // Unmatched landmar
           final marker = BicolMarker(
             position: landmark.position,
             name: landmark.name,
@@ -294,7 +314,7 @@ class MapBuildings {
           );
 
           debugPrint(
-            ' Created unmatched landmark marker: "${landmark.name}" (no building_id)',
+            '⚠️  Created unmatched landmark marker: "${landmark.name}" (no building_id)',
           );
         }
       }
@@ -303,25 +323,27 @@ class MapBuildings {
 
       // Show statistics
       debugPrint('\n📊 === LOADING SUMMARY ===');
-      debugPrint(' Loaded ${_campusBuildings.length} campus polygons from OSM');
       debugPrint(
-        'Matched ${_campusBuildings.where((b) => b.buildingId != null).length} to Supabase',
+        '🏢 Loaded ${_campusBuildings.length} campus polygons from OSM',
+      );
+      debugPrint(
+        '✅ Matched ${_campusBuildings.where((b) => b.buildingId != null).length} to Supabase',
       );
       debugPrint('📍 Created ${_campusMarkers.length} markers:');
       debugPrint(
-        '    ${_campusMarkers.where((m) => m.type == 'college').length} colleges',
+        '    🎓 ${_campusMarkers.where((m) => m.type == 'college').length} colleges',
       );
       debugPrint(
-        '   ${_campusMarkers.where((m) => m.type == 'landmark').length} landmarks',
+        '    🏛️ ${_campusMarkers.where((m) => m.type == 'landmark').length} landmarks',
       );
       debugPrint(
-        ' Facilities: ${_campusBuildings.where((b) => b.isFacility).length}',
+        '⚽ Facilities: ${_campusBuildings.where((b) => b.isFacility).length}',
       );
       debugPrint(
-        '    Pools: ${_campusBuildings.where((b) => b.isPool).length}',
+        '    🏊 Pools: ${_campusBuildings.where((b) => b.isPool).length}',
       );
       debugPrint(
-        '    Fields: ${_campusBuildings.where((b) => b.isField).length}',
+        '    🏟️ Fields: ${_campusBuildings.where((b) => b.isField).length}',
       );
       debugPrint('🔍 Searchable items: ${_databaseSearchItems.length}');
       debugPrint('📊 === END SUMMARY ===\n');
@@ -330,7 +352,9 @@ class MapBuildings {
       _campusBuildings = [];
       _campusMarkers = [];
       _databaseSearchItems = [];
+      _processedLandmarkIds = {};
     }
+
     final allOffices = BuildingMatcher.getAllOffices();
     for (var office in allOffices) {
       final buildingName = BuildingMatcher.getBuildingNameById(
@@ -347,9 +371,9 @@ class MapBuildings {
           ),
         );
       }
-
-      _isLoading = false;
     }
+
+    _isLoading = false;
   }
 
   // Getters
@@ -406,27 +430,56 @@ class MapBuildings {
     return null;
   }
 
-  // enhanced search with offices
+  // Search function
   static List<dynamic> searchAll(String query) {
     if (query.isEmpty) return [];
 
     final normalizedQuery = query.toLowerCase().trim();
+    final spacelessQuery = normalizedQuery.replaceAll(' ', '');
+
     List<dynamic> results = [];
     Set<dynamic> addedReferences = {};
 
-    // Search through database items
+    // Search through database items with  matching
     final matchedItems = _databaseSearchItems.where((item) {
       final nameMatch = item.name.toLowerCase().contains(normalizedQuery);
+
       final abbreviationMatch =
           item.abbreviation != null &&
           item.abbreviation!.toLowerCase().contains(normalizedQuery);
+
+      final spacelessAbbreviationMatch =
+          item.abbreviation != null &&
+          item.abbreviation!
+              .toLowerCase()
+              .replaceAll(' ', '')
+              .contains(spacelessQuery);
+
+      final nicknameMatch =
+          item.nickname != null &&
+          item.nickname!.toLowerCase().contains(normalizedQuery);
+
+      final spacelessNicknameMatch =
+          item.nickname != null &&
+          item.nickname!
+              .toLowerCase()
+              .replaceAll(' ', '')
+              .contains(spacelessQuery);
+
+      // Subtitle match
       final subtitleMatch =
           item.subtitle != null &&
           item.subtitle!.toLowerCase().contains(normalizedQuery);
 
-      return nameMatch || abbreviationMatch || subtitleMatch;
+      return nameMatch ||
+          abbreviationMatch ||
+          spacelessAbbreviationMatch ||
+          nicknameMatch ||
+          spacelessNicknameMatch ||
+          subtitleMatch;
     }).toList();
 
+    // Categorize results
     final colleges = matchedItems.where((i) => i.type == 'college').toList();
     final landmarks = matchedItems.where((i) => i.type == 'landmark').toList();
     final buildings = matchedItems.where((i) => i.type == 'building').toList();
@@ -455,13 +508,15 @@ class MapBuildings {
 class DatabaseSearchItem {
   final String name;
   final String? abbreviation;
-  final String? subtitle; //  For showing building type or building name
+  final String? nickname;
+  final String? subtitle;
   final String type;
   final dynamic reference;
 
   DatabaseSearchItem({
     required this.name,
     this.abbreviation,
+    this.nickname,
     this.subtitle,
     required this.type,
     required this.reference,
@@ -530,8 +585,6 @@ class BicolMarker {
   // Display name prioritizes database name
   String get displayName => databaseName ?? name;
 }
-
-// Note: FacilityType enum is imported from building_fetcher.dart
 
 class GeometryUtils {
   static bool isPointInPolygon(LatLng point, List<LatLng> polygon) {

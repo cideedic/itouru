@@ -5,6 +5,7 @@ import 'package:itouru/college_content_pages/content.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/image_layout.dart';
+import 'package:itouru/maps_assets/building_matcher.dart';
 
 const kPrimaryOrange = Color(0xFFFF8C00);
 const kPrimaryBlue = Color(0xFF2196F3);
@@ -34,6 +35,26 @@ class BottomSheets {
         isLoadingRoute: isLoadingRoute,
         isCollege: isCollege,
         isLandmark: isLandmark,
+      ),
+    );
+  }
+
+  static void showOfficeInfo(
+    BuildContext context,
+    OfficeData office, {
+    required String buildingName,
+    VoidCallback? onViewDetails,
+    VoidCallback? onDirections,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => _OfficeInfoContent(
+        office: office,
+        buildingName: buildingName,
+        onViewDetails: onViewDetails,
+        onDirections: onDirections,
       ),
     );
   }
@@ -172,15 +193,14 @@ class BottomSheets {
                           distance,
                           style: GoogleFonts.poppins(
                             fontWeight: FontWeight.bold,
-                            fontSize: 18,
+                            fontSize: 16, // Changed from 18
                             color: Colors.black87,
                           ),
                         ),
-                        const SizedBox(height: 2),
                         Text(
                           'Distance',
                           style: GoogleFonts.poppins(
-                            fontSize: 12,
+                            fontSize: 11, // Changed from 12
                             color: Colors.grey[600],
                             fontWeight: FontWeight.w500,
                           ),
@@ -220,15 +240,14 @@ class BottomSheets {
                           duration,
                           style: GoogleFonts.poppins(
                             fontWeight: FontWeight.bold,
-                            fontSize: 18,
+                            fontSize: 16,
                             color: Colors.black87,
                           ),
                         ),
-                        const SizedBox(height: 2),
                         Text(
-                          'Duration',
+                          'Est. Duration',
                           style: GoogleFonts.poppins(
-                            fontSize: 12,
+                            fontSize: 11,
                             color: Colors.grey[600],
                             fontWeight: FontWeight.w500,
                           ),
@@ -248,21 +267,21 @@ class BottomSheets {
                       Navigator.pop(context);
                       onStartNavigation?.call();
                     },
-                    icon: const Icon(Icons.navigation, size: 20),
+                    icon: const Icon(Icons.navigation, size: 18),
                     label: Text(
                       'Start Navigation',
                       style: GoogleFonts.poppins(
                         fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                        fontSize: 12,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: kPrimaryOrange,
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
@@ -274,20 +293,20 @@ class BottomSheets {
                       Navigator.pop(context);
                       onClearRoute?.call();
                     },
-                    icon: const Icon(Icons.clear, size: 20),
+                    icon: const Icon(Icons.clear, size: 18),
                     label: Text(
                       'Clear Route',
                       style: GoogleFonts.poppins(
                         fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                        fontSize: 12,
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.grey[700],
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       side: BorderSide(color: Colors.grey[300]!, width: 1.5),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
@@ -743,8 +762,8 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
               children: [
                 if (widget.isLoadingRoute)
                   Container(
-                    padding: const EdgeInsets.all(16),
-                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
@@ -752,7 +771,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                           kPrimaryBlue.withValues(alpha: 0.05),
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: kPrimaryBlue.withValues(alpha: 0.2),
                         width: 1.5,
@@ -761,8 +780,8 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                     child: Row(
                       children: [
                         SizedBox(
-                          width: 20,
-                          height: 20,
+                          width: 16,
+                          height: 16,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: const AlwaysStoppedAnimation<Color>(
@@ -770,19 +789,18 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Text(
                           'Getting directions...',
                           style: GoogleFonts.poppins(
                             color: kPrimaryBlue,
                             fontWeight: FontWeight.w600,
-                            fontSize: 14,
+                            fontSize: 12,
                           ),
                         ),
                       ],
                     ),
                   ),
-
                 _buildActionButtons(),
               ],
             ),
@@ -798,7 +816,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -806,7 +824,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                   kPrimaryBlue.withValues(alpha: 0.05),
                 ],
               ),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color: kPrimaryBlue.withValues(alpha: 0.3),
                 width: 1.5,
@@ -815,12 +833,16 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.school, size: 14, color: kPrimaryBlue),
+                const Icon(
+                  Icons.school,
+                  size: 12,
+                  color: kPrimaryBlue,
+                ), // Changed from 14
                 const SizedBox(width: 4),
                 Text(
                   'College',
                   style: GoogleFonts.poppins(
-                    fontSize: 12,
+                    fontSize: 10, // Changed from 12
                     fontWeight: FontWeight.w600,
                     color: kPrimaryBlue,
                   ),
@@ -894,7 +916,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
           Text(
             _buildingName ?? widget.building.name,
             style: GoogleFonts.montserrat(
-              fontSize: 20,
+              fontSize: 16,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
               height: 1.2,
@@ -906,7 +928,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
             Text(
               _buildingNickname!,
               style: GoogleFonts.poppins(
-                fontSize: 14,
+                fontSize: 12,
                 color: Colors.grey[600],
                 fontWeight: FontWeight.w500,
               ),
@@ -925,8 +947,8 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                 if (_buildingType != null && _buildingType!.isNotEmpty) ...[
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+                      horizontal: 10,
+                      vertical: 4,
                     ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -935,7 +957,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                           kPrimaryBlue.withValues(alpha: 0.05),
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(6),
                       border: Border.all(
                         color: kPrimaryBlue.withValues(alpha: 0.3),
                         width: 1.5,
@@ -944,7 +966,7 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                     child: Text(
                       _buildingType!,
                       style: GoogleFonts.poppins(
-                        fontSize: 12,
+                        fontSize: 10, // Changed from 12
                         fontWeight: FontWeight.w600,
                         color: kPrimaryBlue,
                       ),
@@ -1008,21 +1030,21 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                           ),
                         );
                       },
-                icon: const Icon(Icons.info_outline, size: 20),
+                icon: const Icon(Icons.info_outline, size: 18),
                 label: Text(
                   'Info',
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w600,
-                    fontSize: 15,
+                    fontSize: 13,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kPrimaryOrange,
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
               ),
@@ -1040,28 +1062,28 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
                     },
               icon: widget.isLoadingRoute
                   ? const SizedBox(
-                      width: 18,
-                      height: 18,
+                      width: 16,
+                      height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                  : const Icon(Icons.directions, size: 20),
+                  : const Icon(Icons.directions, size: 18),
               label: Text(
                 widget.isLoadingRoute ? 'Loading...' : 'Directions',
                 style: GoogleFonts.poppins(
                   fontWeight: FontWeight.w600,
-                  fontSize: 15,
+                  fontSize: 13,
                 ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: kPrimaryBlue,
                 foregroundColor: Colors.white,
                 elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
@@ -1303,6 +1325,268 @@ class _BuildingInfoContentState extends State<_BuildingInfoContent> {
         ),
         const SizedBox(height: 8),
       ],
+    );
+  }
+}
+
+class _OfficeInfoContent extends StatelessWidget {
+  final OfficeData office;
+  final String buildingName;
+  final VoidCallback? onViewDetails;
+  final VoidCallback? onDirections;
+
+  const _OfficeInfoContent({
+    required this.office,
+    required this.buildingName,
+    this.onViewDetails,
+    this.onDirections,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.7,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          BottomSheets._buildBottomSheetHandle(),
+          const SizedBox(height: 16),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Office Type Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.green.withValues(alpha: 0.1),
+                        Colors.green.withValues(alpha: 0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: Colors.green.withValues(alpha: 0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.work_outline,
+                        size: 12,
+                        color: Colors.green,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Office',
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Office Name
+                Text(
+                  office.name,
+                  style: GoogleFonts.montserrat(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                    height: 1.2,
+                  ),
+                ),
+
+                // Office Abbreviation
+                Text(
+                  office.abbreviation!,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12, // Changed from 14
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Location Info Card
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        kPrimaryOrange.withValues(alpha: 0.08),
+                        kPrimaryOrange.withValues(alpha: 0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: kPrimaryOrange.withValues(alpha: 0.2),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            size: 20,
+                            color: kPrimaryOrange,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Location',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Building Name
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.apartment,
+                            size: 18,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              buildingName,
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                color: Colors.black87,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // Room and Floor Info
+                      if (office.roomName != null &&
+                          office.roomName!.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.meeting_room,
+                              size: 18,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                office.roomName!,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Action Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: onViewDetails,
+                        icon: const Icon(Icons.info_outline, size: 20),
+                        label: Text(
+                          'View Details',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kPrimaryOrange,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: onDirections,
+                        icon: const Icon(Icons.directions, size: 20),
+                        label: Text(
+                          'Directions',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kPrimaryBlue,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

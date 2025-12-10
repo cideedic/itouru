@@ -1,19 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import '../maps_assets/map_building.dart';
 import '../maps_assets/map_boundary.dart';
 import '../maps_assets/virtual_tour_manager.dart';
 import '../main_pages/maps.dart';
 import '../page_components/loading_widget.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../maps_assets/routing_service.dart';
+import '../maps_assets/location_service.dart';
+import '../maps_assets/gate_selection_modal.dart';
 
 class TourLoadingScreen extends StatefulWidget {
   final String tourName;
   final List<VirtualTourStop> tourStops;
+  final bool? startFromCurrentLocation;
+  final bool audioGuideEnabled;
 
   const TourLoadingScreen({
     super.key,
     required this.tourName,
     required this.tourStops,
+    this.startFromCurrentLocation,
+    this.audioGuideEnabled = true,
   });
 
   @override
@@ -39,19 +47,69 @@ class _TourLoadingScreenState extends State<TourLoadingScreen> {
 
       if (!mounted) return;
 
-      await Future.delayed(const Duration(milliseconds: 500));
+      // Check if user is off-campus and needs gate selection
+      final userLocation = await LocationService.getCurrentLocation();
+      final bool isOffCampus =
+          userLocation.isSuccess &&
+          userLocation.location != null &&
+          !MapBoundary.isWithinCampusBounds(userLocation.location!);
 
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => Maps(
-              startVirtualTour: true,
-              tourName: widget.tourName,
-              tourStops: widget.tourStops,
-            ),
-          ),
+      // Determine if we should show gate selection
+      bool shouldSelectGate =
+          isOffCampus &&
+          (widget.startFromCurrentLocation == null ||
+              widget.startFromCurrentLocation == false);
+
+      if (shouldSelectGate && mounted) {
+        // Show gate selection modal
+        final selectedGate = await _showGateSelectionModal(
+          userLocation: userLocation.location!,
+          firstStopLocation: widget.tourStops.first.location!,
         );
+
+        if (selectedGate == null) {
+          // User cancelled - go back
+          if (mounted) Navigator.pop(context);
+          return;
+        }
+
+        // Navigate with selected gate
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => Maps(
+                startVirtualTour: true,
+                tourName: widget.tourName,
+                tourStops: widget.tourStops,
+                useCurrentLocationAsStart: false,
+                audioGuideEnabled: widget.audioGuideEnabled,
+                selectedStartGate: selectedGate, // Pass selected gate
+              ),
+            ),
+          );
+        }
+      } else {
+        // Normal flow - no gate selection needed
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => Maps(
+                startVirtualTour: true,
+                tourName: widget.tourName,
+                tourStops: widget.tourStops,
+                useCurrentLocationAsStart:
+                    widget.startFromCurrentLocation ?? false,
+                audioGuideEnabled: widget.audioGuideEnabled,
+              ),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -60,6 +118,43 @@ class _TourLoadingScreenState extends State<TourLoadingScreen> {
         _errorMessage = e.toString();
       });
     }
+  }
+
+  // Add this new method to show gate selection modal
+  Future<CampusGate?> _showGateSelectionModal({
+    required LatLng userLocation,
+    required LatLng firstStopLocation,
+  }) async {
+    // Show loading while calculating optimal gate
+    setState(() {
+      _currentStatus = 'Finding optimal gate...';
+    });
+
+    final gates = await RoutingService.getAllGates();
+
+    // Calculate optimal gate (based on route duration)
+    final optimalGate = await RoutingService.findOptimalGate(
+      startPoint: userLocation,
+      destinationPoint: firstStopLocation,
+      gates: gates,
+    );
+
+    if (!mounted) return null;
+
+    setState(() {
+      _currentStatus = 'Select starting gate';
+    });
+
+    return showDialog<CampusGate>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => GateSelectionDialog(
+        gates: gates,
+        userLocation: userLocation,
+        destinationLocation: firstStopLocation,
+        recommendedGate: optimalGate,
+      ),
+    );
   }
 
   Future<void> _waitForMapData() async {

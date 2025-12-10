@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:itouru/page_components/header.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:intl/intl.dart';
 import 'package:itouru/page_components/bottom_nav_bar.dart';
 import 'terms_of_service.dart';
 import 'privacy_policy.dart';
@@ -27,21 +26,13 @@ class _PrivacyPageState extends State<PrivacyPage> {
   final TextEditingController _middleNameController = TextEditingController();
   final TextEditingController _lastNameController = TextEditingController();
   final TextEditingController _suffixController = TextEditingController();
-  final TextEditingController _birthDateController = TextEditingController();
-  final TextEditingController _contactController = TextEditingController();
 
   // Controllers for read-only fields
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _nationalityController = TextEditingController();
 
-  String? selectedSex;
-  DateTime? selectedDate;
   String userEmail = "";
   String college = "";
   bool _showEmail = false;
-
-  // Sex options
-  static const List<String> sexs = ['Male', 'Female'];
 
   @override
   void initState() {
@@ -59,10 +50,8 @@ class _PrivacyPageState extends State<PrivacyPage> {
     _middleNameController.dispose();
     _lastNameController.dispose();
     _suffixController.dispose();
-    _birthDateController.dispose();
-    _contactController.dispose();
+
     _emailController.dispose();
-    _nationalityController.dispose();
     super.dispose();
   }
 
@@ -90,17 +79,13 @@ class _PrivacyPageState extends State<PrivacyPage> {
       final response = await Supabase.instance.client
           .from('Users')
           .select('''
-            first_name,
-            middle_name,
-            last_name,
-            suffix,
-            birthday,
-            nationality,
-            sex,
-            phone_number,
-            email,
-            college
-          ''')
+              first_name,
+              middle_name,
+              last_name,
+              suffix,
+              email,
+              college
+            ''')
           .eq('email', userEmail)
           .maybeSingle();
 
@@ -112,27 +97,9 @@ class _PrivacyPageState extends State<PrivacyPage> {
               response['middle_name']?.toString() ?? "";
           _lastNameController.text = response['last_name']?.toString() ?? "";
           _suffixController.text = response['suffix']?.toString() ?? "";
-          _contactController.text = response['phone_number']?.toString() ?? "";
-
-          // Birth date
-          if (response['birthday'] != null) {
-            try {
-              selectedDate = DateTime.parse(response['birthday'].toString());
-              _birthDateController.text = DateFormat(
-                'MMMM d, y',
-              ).format(selectedDate!);
-            } catch (e) {
-              // Invalid date format
-            }
-          }
-
-          // Sex
-          selectedSex = response['sex']?.toString();
 
           // Read-only fields
           _emailController.text = response['email']?.toString() ?? "";
-          _nationalityController.text =
-              response['nationality']?.toString() ?? "";
           college = response['college']?.toString() ?? "N/A";
 
           isLoading = false;
@@ -162,9 +129,6 @@ class _PrivacyPageState extends State<PrivacyPage> {
         'middle_name': _middleNameController.text.trim(),
         'last_name': _lastNameController.text.trim(),
         'suffix': _suffixController.text.trim(),
-        'birthday': selectedDate?.toIso8601String(),
-        'sex': selectedSex,
-        'phone_number': _contactController.text.trim(),
       };
 
       await Supabase.instance.client
@@ -199,34 +163,6 @@ class _PrivacyPageState extends State<PrivacyPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
-  }
-
-  Future<void> _selectDate() async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: selectedDate ?? DateTime(2000),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFFFF8C00),
-              onPrimary: Colors.white,
-              onSurface: Colors.black,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      setState(() {
-        selectedDate = picked;
-        _birthDateController.text = DateFormat('MMMM d, y').format(picked);
-      });
-    }
   }
 
   void _showChangePasswordDialog() {
@@ -740,6 +676,16 @@ class _PrivacyPageState extends State<PrivacyPage> {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter first name';
                               }
+                              // Check for numbers in name
+                              if (RegExp(r'\d').hasMatch(value)) {
+                                return 'Name cannot contain numbers';
+                              }
+                              // Check for special characters (allow spaces, periods, hyphens, and apostrophes)
+                              if (!RegExp(
+                                r"^[a-zA-Z\s.\-']+$",
+                              ).hasMatch(value)) {
+                                return 'Name contains invalid characters';
+                              }
                               return null;
                             },
                           ),
@@ -755,8 +701,25 @@ class _PrivacyPageState extends State<PrivacyPage> {
                                   controller: _middleNameController,
                                   icon: Icons.person_outline,
                                   enabled: isEditing,
+                                  validator: (value) {
+                                    // Middle name is optional, so only validate if not empty
+                                    if (value != null && value.isNotEmpty) {
+                                      // Check for numbers
+                                      if (RegExp(r'\d').hasMatch(value)) {
+                                        return 'Name cannot contain numbers';
+                                      }
+                                      // Check for special characters
+                                      if (!RegExp(
+                                        r"^[a-zA-Z\s.\-']+$",
+                                      ).hasMatch(value)) {
+                                        return 'Name contains invalid characters';
+                                      }
+                                    }
+                                    return null;
+                                  },
                                 ),
                               ),
+
                               const SizedBox(width: 12),
                               Expanded(
                                 flex: 3,
@@ -765,6 +728,19 @@ class _PrivacyPageState extends State<PrivacyPage> {
                                   controller: _suffixController,
                                   icon: Icons.text_fields,
                                   enabled: isEditing,
+                                  validator: (value) {
+                                    // Suffix is optional, so only validate if not empty
+                                    if (value != null && value.isNotEmpty) {
+                                      // Allow only common suffixes: Jr., Sr., I, II, III, IV, V
+                                      if (!RegExp(
+                                        r'^(Jr\.?|Sr\.?|I{1,3}|IV|V)$',
+                                        caseSensitive: false,
+                                      ).hasMatch(value.trim())) {
+                                        return 'Invalid suffix';
+                                      }
+                                    }
+                                    return null;
+                                  },
                                 ),
                               ),
                             ],
@@ -781,52 +757,20 @@ class _PrivacyPageState extends State<PrivacyPage> {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter last name';
                               }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Birth Date
-                          _buildDateField(),
-                          const SizedBox(height: 16),
-
-                          // Sex
-                          _buildDropdownField(
-                            label: 'Sex',
-                            value: selectedSex,
-                            items: sexs,
-                            icon: Icons.wc,
-                            enabled: isEditing,
-                            onChanged: (value) {
-                              setState(() {
-                                selectedSex = value;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 16),
-
-                          // Contact Number
-                          _buildTextField(
-                            label: 'Contact Number',
-                            controller: _contactController,
-                            icon: Icons.phone,
-                            enabled: isEditing,
-                            keyboardType: TextInputType.phone,
-                            maxLength: 11,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter contact number';
+                              // Check for numbers
+                              if (RegExp(r'\d').hasMatch(value)) {
+                                return 'Name cannot contain numbers';
                               }
-                              if (value.length != 11) {
-                                return 'Contact number must be 11 digits';
+                              // Check for special characters (allow hyphens for compound surnames)
+                              if (!RegExp(
+                                r"^[a-zA-Z\s.\-']+$",
+                              ).hasMatch(value)) {
+                                return 'Name contains invalid characters';
                               }
                               return null;
                             },
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 16),
 
                           // Read-only Info Card
                           Container(
@@ -845,7 +789,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
                                   color: Colors.blue,
                                   size: 20,
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 14),
                                 Expanded(
                                   child: Text(
                                     'The information below cannot be edited. Contact an administrator for verification and changes.',
@@ -859,22 +803,15 @@ class _PrivacyPageState extends State<PrivacyPage> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 16),
                           _buildTextField(
                             label: 'College',
                             controller: TextEditingController(text: college),
                             icon: Icons.school,
                             enabled: false,
                           ),
-                          const SizedBox(height: 24),
-                          // Nationality
-                          _buildTextField(
-                            label: 'Nationality',
-                            controller: _nationalityController,
-                            icon: Icons.flag,
-                            enabled: false,
-                          ),
                           const SizedBox(height: 16),
+
                           // Email
                           _buildMaskedEmailField(),
                           const SizedBox(height: 16),
@@ -1104,154 +1041,6 @@ class _PrivacyPageState extends State<PrivacyPage> {
     );
   }
 
-  Widget _buildDateField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Birth Date',
-          style: GoogleFonts.poppins(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[700],
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: _birthDateController,
-          readOnly: true,
-          onTap: isEditing ? _selectDate : null,
-          style: GoogleFonts.poppins(
-            fontSize: 14,
-            color: isEditing ? Colors.black87 : Colors.grey[600],
-          ),
-          decoration: InputDecoration(
-            prefixIcon: Icon(
-              Icons.calendar_today,
-              color: isEditing ? Color(0xFFFF8C00) : Colors.grey[400],
-              size: 20,
-            ),
-            filled: true,
-            fillColor: isEditing ? Colors.white : Colors.grey[100],
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFFF8C00), width: 2),
-            ),
-            disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[200]!),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
-            ),
-          ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please select birth date';
-            }
-            return null;
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDropdownField({
-    required String label,
-    required String? value,
-    required List<String> items,
-    required IconData icon,
-    required bool enabled,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[700],
-          ),
-        ),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          value: value,
-          isExpanded: true,
-          menuMaxHeight: 200,
-
-          decoration: InputDecoration(
-            prefixIcon: Icon(
-              icon,
-              color: enabled ? Color(0xFFFF8C00) : Colors.grey[400],
-              size: 20,
-            ),
-            filled: true,
-            fillColor: enabled ? Colors.white : Colors.grey[100],
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!, width: 1.5),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!, width: 1.5),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFFF8C00), width: 2),
-            ),
-            disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[300]!, width: 1.5),
-            ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
-            ),
-          ),
-
-          dropdownColor: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          elevation: 8,
-
-          icon: Icon(
-            Icons.keyboard_arrow_down,
-            color: enabled ? Color(0xFFFF8C00) : Colors.grey[400],
-          ),
-
-          items: items.map((String item) {
-            return DropdownMenuItem<String>(
-              value: item,
-              child: Text(
-                item,
-                style: GoogleFonts.poppins(fontSize: 14, color: Colors.black87),
-              ),
-            );
-          }).toList(),
-
-          onChanged: enabled ? onChanged : null,
-
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please select $label';
-            }
-            return null;
-          },
-        ),
-      ],
-    );
-  }
-
   Widget _buildMaskedEmailField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1322,6 +1111,7 @@ class _PrivacyPageState extends State<PrivacyPage> {
     int? maxLength,
     List<TextInputFormatter>? inputFormatters,
     String? Function(String?)? validator,
+    String? prefixText, // NEW parameter for +63
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1350,6 +1140,13 @@ class _PrivacyPageState extends State<PrivacyPage> {
               icon,
               color: enabled ? Color(0xFFFF8C00) : Colors.grey[400],
               size: 20,
+            ),
+            // NEW: Add prefix text support
+            prefixText: prefixText,
+            prefixStyle: GoogleFonts.poppins(
+              fontSize: 14,
+              color: Colors.black87,
+              fontWeight: FontWeight.w600,
             ),
             suffixIcon: suffixIcon,
             filled: true,

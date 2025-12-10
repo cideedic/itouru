@@ -12,7 +12,10 @@ import 'package:itouru/settings_pages/about.dart';
 import 'package:itouru/main_pages/history.dart';
 import 'package:itouru/main_pages/explore.dart';
 import 'package:itouru/main_pages/feedback.dart';
-import 'package:itouru/page_components/image_layout.dart';
+import 'package:itouru/page_components/grid_image_gallery.dart';
+import 'package:itouru/main_pages/university_officials_section.dart';
+import 'package:itouru/main_pages/vmq_section.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PolygonBackgroundPainter extends CustomPainter {
   final double animationValue;
@@ -88,6 +91,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
 
   late AnimationController _mapController;
+  AnimationController? _officialsController;
   AnimationController? _visionController;
   AnimationController? _missionController;
   AnimationController? _qualityController;
@@ -98,24 +102,25 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   AnimationController? _exploreController;
 
   late Animation<double> _mapZoomAnimation;
+  Animation<Offset>? _officialsSlideAnimation;
   Animation<Offset>? _visionSlideAnimation;
-  Animation<Offset>? _missionSlideAnimation;
-  Animation<Offset>? _qualitySlideAnimation;
+
   Animation<Offset>? _historySlideAnimation;
   Animation<Offset>? _featuredSlideAnimation;
   Animation<Offset>? _aboutSlideAnimation;
   Animation<Offset>? _feedbackSlideAnimation;
   Animation<Offset>? _exploreSlideAnimation;
 
+  Animation<double>? _officialsFadeAnimation;
   Animation<double>? _visionFadeAnimation;
-  Animation<double>? _missionFadeAnimation;
-  Animation<double>? _qualityFadeAnimation;
+
   Animation<double>? _historyFadeAnimation;
   Animation<double>? _featuredFadeAnimation;
   Animation<double>? _aboutFadeAnimation;
   Animation<double>? _feedbackFadeAnimation;
   Animation<double>? _exploreFadeAnimation;
 
+  bool _officialsVisible = false;
   bool _visionVisible = false;
   bool _missionVisible = false;
   bool _qualityVisible = false;
@@ -141,6 +146,18 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     _loadTimelineData();
     _loadHistoryImages();
 
+    // Officials slide and fade animation
+    _officialsController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _officialsSlideAnimation =
+        Tween<Offset>(begin: const Offset(-1.0, 0.0), end: Offset.zero).animate(
+          CurvedAnimation(parent: _officialsController!, curve: Curves.easeOut),
+        );
+    _officialsFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _officialsController!, curve: Curves.easeIn),
+    );
     // Vision slide and fade animation
     _visionController = AnimationController(
       vsync: this,
@@ -159,25 +176,11 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    _missionSlideAnimation =
-        Tween<Offset>(begin: const Offset(-1.0, 0.0), end: Offset.zero).animate(
-          CurvedAnimation(parent: _missionController!, curve: Curves.easeOut),
-        );
-    _missionFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _missionController!, curve: Curves.easeIn),
-    );
 
     // Quality Policy slide and fade animation
     _qualityController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
-    );
-    _qualitySlideAnimation =
-        Tween<Offset>(begin: const Offset(-1.0, 0.0), end: Offset.zero).animate(
-          CurvedAnimation(parent: _qualityController!, curve: Curves.easeOut),
-        );
-    _qualityFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _qualityController!, curve: Curves.easeIn),
     );
 
     // History slide and fade animation
@@ -270,6 +273,11 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
     final scrollPosition = _scrollController.position.pixels;
     final screenHeight = MediaQuery.of(context).size.height;
 
+    // Trigger officials animation (BEFORE vision section)
+    if (scrollPosition > screenHeight * 0.4 && !_officialsVisible) {
+      setState(() => _officialsVisible = true);
+      _officialsController?.forward();
+    }
     // Trigger vision animation
     if (scrollPosition > screenHeight * 0.8 && !_visionVisible) {
       setState(() => _visionVisible = true);
@@ -439,6 +447,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
   @override
   void dispose() {
     _mapController.dispose();
+    _officialsController?.dispose();
     _visionController?.dispose();
     _missionController?.dispose();
     _qualityController?.dispose();
@@ -565,7 +574,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                 child: Center(
                   child: Icon(
                     backgroundIcon,
-                    size: 120,
+                    size: 90,
                     color: Colors.orange.withValues(alpha: 0.12),
                   ),
                 ),
@@ -582,7 +591,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                       Text(
                         title,
                         style: GoogleFonts.montserrat(
-                          fontSize: 48,
+                          fontSize: 24,
                           fontWeight: FontWeight.w900,
                           color: Colors.black87,
                           letterSpacing: 1.5,
@@ -609,8 +618,6 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
               ),
             ],
           ),
-
-          const SizedBox(height: 40),
 
           // Enhanced content card
           FadeTransition(
@@ -662,7 +669,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                             ),
                           ],
                         ),
-                        child: Icon(icon, color: Colors.white, size: 24),
+                        child: Icon(icon, color: Colors.white, size: 18),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -672,7 +679,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                             Text(
                               subtitle,
                               style: GoogleFonts.montserrat(
-                                fontSize: 16,
+                                fontSize: 14,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.black87,
                               ),
@@ -735,7 +742,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                     Text(
                       content,
                       style: GoogleFonts.poppins(
-                        fontSize: 13,
+                        fontSize: 11,
                         color: Colors.grey[700],
                         height: 1.7,
                       ),
@@ -1072,7 +1079,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                         ),
                       ),
 
-                      SizedBox(height: 40),
+                      SizedBox(height: 20),
 
                       // Open space with BU logo background
                       SizedBox(
@@ -1101,50 +1108,18 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                           ],
                         ),
                       ),
-
-                      // VISION SECTION
-                      _buildEnhancedSection(
-                        title: 'Vision',
-                        subtitle: 'Our Future Aspiration',
-                        content:
-                            'A University for Humanity characterized by productive scholarship, transformative leadership, collaborative service, and distinctive character for sustainable societies.',
-                        icon: Icons.lightbulb_outline,
-                        backgroundIcon: Icons.visibility,
+                      VMQSection(
                         slideAnimation: _visionSlideAnimation,
                         fadeAnimation: _visionFadeAnimation,
                       ),
 
-                      const SizedBox(height: 40),
-
-                      // MISSION SECTION
-                      _buildEnhancedSection(
-                        title: 'Mission',
-                        subtitle: 'Our Core Purpose',
-                        content:
-                            'The Bicol University shall give professional and technical training, and provide advanced and specialized instruction in literature, philosophy, the sciences and arts, besides providing for the promotion of scientific and technological researches (RA 5521, Sec. 3.0).',
-                        icon: Icons.flag_outlined,
-                        backgroundIcon: Icons.flag,
-                        slideAnimation: _missionSlideAnimation,
-                        fadeAnimation: _missionFadeAnimation,
+                      // University Officials Section
+                      UniversityOfficialsSection(
+                        slideAnimation: _officialsSlideAnimation,
+                        fadeAnimation: _officialsFadeAnimation,
                       ),
 
-                      const SizedBox(height: 40),
-
-                      // QUALITY POLICY SECTION
-                      _buildEnhancedSection(
-                        title: 'Quality Policy',
-                        subtitle: 'Our Commitment to Excellence',
-                        content:
-                            'Bicol University commits to continually strive for excellence in instruction, research, and extension by meeting the highest level of clientele satisfaction and adhering to quality standards and applicable statutory and regulatory requirements.',
-                        icon: Icons.verified_outlined,
-                        backgroundIcon: Icons.workspace_premium,
-                        slideAnimation: _qualitySlideAnimation,
-                        fadeAnimation: _qualityFadeAnimation,
-                      ),
-
-                      const SizedBox(height: 40),
-
-                      SizedBox(height: 40),
+                      SizedBox(height: 20),
 
                       // History Section
                       Container(
@@ -1176,7 +1151,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                                   child: Center(
                                     child: Icon(
                                       Icons.history_edu,
-                                      size: 120,
+                                      size: 90,
                                       color: Colors.orange.withValues(
                                         alpha: 0.12,
                                       ),
@@ -1198,7 +1173,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                                         Text(
                                           'History',
                                           style: GoogleFonts.montserrat(
-                                            fontSize: 48,
+                                            fontSize: 24,
                                             fontWeight: FontWeight.w900,
                                             color: Colors.black87,
                                             letterSpacing: 1.5,
@@ -1227,8 +1202,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                               ],
                             ),
 
-                            const SizedBox(height: 40),
-
+                            const SizedBox(height: 20),
                             // content card
                             FadeTransition(
                               opacity:
@@ -1292,7 +1266,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                                           child: const Icon(
                                             Icons.timeline,
                                             color: Colors.white,
-                                            size: 24,
+                                            size: 18,
                                           ),
                                         ),
                                         const SizedBox(width: 12),
@@ -1304,7 +1278,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                                               Text(
                                                 'Journey Through Time',
                                                 style: GoogleFonts.montserrat(
-                                                  fontSize: 16,
+                                                  fontSize: 14,
                                                   fontWeight: FontWeight.bold,
                                                   color: Colors.black87,
                                                 ),
@@ -1476,26 +1450,12 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                                         ),
                                       ),
                                     ),
-
-                                    // Info text
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      '${_timelineData.length} milestone${_timelineData.length != 1 ? 's' : ''} in BU history',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 11,
-                                        color: Colors.grey[600],
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-
-                                    // ✨ History Images Section
                                     if (historyImages.isNotEmpty) ...[
-                                      const SizedBox(height: 30),
-                                      ImageLayout(
+                                      const SizedBox(height: 12),
+                                      GridImageGallery(
                                         imageUrls: historyImages,
-                                        pageController: _historyPageController,
+                                        accentColor: Colors.orange.shade600,
                                         showGalleryText: false,
-                                        buttonColor: Colors.orange.shade600,
                                       ),
                                     ],
                                   ],
@@ -1506,7 +1466,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                         ),
                       ),
 
-                      SizedBox(height: 40),
+                      SizedBox(height: 20),
 
                       // Featured Locations Section
                       Container(
@@ -1538,7 +1498,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                                   child: Center(
                                     child: Icon(
                                       Icons.location_city,
-                                      size: 120,
+                                      size: 90,
                                       color: Colors.orange.withValues(
                                         alpha: 0.12,
                                       ),
@@ -1560,7 +1520,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                                         Text(
                                           'Featured Locations',
                                           style: GoogleFonts.montserrat(
-                                            fontSize: 48,
+                                            fontSize: 24,
                                             fontWeight: FontWeight.w900,
                                             color: Colors.black87,
                                             letterSpacing: 1.5,
@@ -1589,7 +1549,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 40),
+                            const SizedBox(height: 20),
                             FadeTransition(
                               opacity:
                                   _featuredFadeAnimation ??
@@ -1633,7 +1593,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                         ),
                       ),
 
-                      SizedBox(height: 60),
+                      SizedBox(height: 20),
 
                       // About iTOURu Section
                       _buildEnhancedSection(
@@ -1656,7 +1616,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                         },
                       ),
 
-                      SizedBox(height: 60),
+                      SizedBox(height: 20),
 
                       // Feedback Section
                       FeedbackSection(
@@ -1664,7 +1624,7 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                         fadeAnimation: _feedbackFadeAnimation,
                       ),
 
-                      SizedBox(height: 60),
+                      SizedBox(height: 20),
 
                       ExploreSection(
                         slideAnimation: _exploreSlideAnimation,
@@ -1673,6 +1633,220 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
                         onMapTap: _onMapTap,
                       ),
 
+                      SizedBox(height: 20),
+
+                      // Official BU Website Section
+                      Container(
+                        width: double.infinity,
+                        margin: EdgeInsets.symmetric(horizontal: 20),
+                        child: GestureDetector(
+                          onTap: () async {
+                            final shouldVisit = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => Dialog(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.all(24),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // Icon
+                                      Container(
+                                        padding: const EdgeInsets.all(16),
+                                        decoration: BoxDecoration(
+                                          color: Colors.orange.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          Icons.language,
+                                          size: 48,
+                                          color: Colors.orange.shade600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 20),
+
+                                      // Title
+                                      Text(
+                                        'Visit Official Website',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 12),
+
+                                      // Message
+                                      Text(
+                                        'You will be redirected to the official Bicol University website at bicol-u.edu.ph',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 14,
+                                          color: Colors.black54,
+                                          height: 1.5,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 24),
+
+                                      // Buttons
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: OutlinedButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, false),
+                                              style: OutlinedButton.styleFrom(
+                                                side: BorderSide(
+                                                  color: Colors.grey[300]!,
+                                                ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 12,
+                                                    ),
+                                              ),
+                                              child: Text(
+                                                'Cancel',
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.black54,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: ElevatedButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context, true),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    Colors.orange.shade600,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 12,
+                                                    ),
+                                                elevation: 0,
+                                              ),
+                                              child: Text(
+                                                'Visit',
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+
+                            if (shouldVisit == true) {
+                              final Uri url = Uri.parse(
+                                'https://bicol-u.edu.ph/',
+                              );
+                              if (await canLaunchUrl(url)) {
+                                await launchUrl(
+                                  url,
+                                  mode: LaunchMode.externalApplication,
+                                );
+                              }
+                            }
+                          },
+                          child: Container(
+                            padding: EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Colors.orange.shade400,
+                                  Colors.orange.shade600,
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.orange.withValues(alpha: 0.3),
+                                  blurRadius: 20,
+                                  offset: Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.language,
+                                    size: 32,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Visit Official Website',
+                                        style: GoogleFonts.montserrat(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        'For more information about Bicol University',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 12,
+                                          color: Colors.white.withValues(
+                                            alpha: 0.9,
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.arrow_forward_ios,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                       SizedBox(height: 40),
                     ],
                   ),

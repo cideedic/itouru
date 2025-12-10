@@ -323,7 +323,7 @@ class _BuildingRoomsTabState extends State<BuildingRoomsTab> {
                                       ? 'Room $roomNumberRaw'
                                       : 'Room'),
                             style: GoogleFonts.poppins(
-                              fontSize: 16,
+                              fontSize: 14,
                               fontWeight: FontWeight.w600,
                               color: Colors.black87,
                             ),
@@ -343,7 +343,7 @@ class _BuildingRoomsTabState extends State<BuildingRoomsTab> {
                           child: Text(
                             'Floor ${room['floor_level']?.toString() ?? '?'}',
                             style: GoogleFonts.poppins(
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w600,
                               color: Colors.orange[900],
                             ),
@@ -358,7 +358,7 @@ class _BuildingRoomsTabState extends State<BuildingRoomsTab> {
                       Text(
                         'Room $roomNumberRaw',
                         style: GoogleFonts.poppins(
-                          fontSize: 12,
+                          fontSize: 10,
                           color: Colors.grey[600],
                         ),
                       ),

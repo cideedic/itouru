@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:itouru/college_content_pages/content.dart';
 import 'package:itouru/building_content_pages/content.dart';
 import 'package:itouru/page_components/loading_widget.dart';
+import 'package:itouru/main_pages/maps.dart';
 
 class FeaturedLocationsCache {
   static final FeaturedLocationsCache _instance =
@@ -644,7 +645,7 @@ class _FeaturedLocationsSectionState extends State<FeaturedLocationsSection> {
                       child: ElevatedButton(
                         onPressed: () {
                           Navigator.pop(context);
-                          _onLocationExplore();
+                          _navigateToMap(location);
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orange[400],
@@ -671,6 +672,25 @@ class _FeaturedLocationsSectionState extends State<FeaturedLocationsSection> {
           ),
         );
       },
+    );
+  }
+
+  // Add this new method to navigate to the map with proper parameters
+  void _navigateToMap(Map<String, dynamic> location) {
+    final locationId = location['id'] as int;
+    final locationName = location['name'] as String;
+    final itemType = location['itemType'] as String;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Maps(
+          buildingId: locationId,
+          destinationName: locationName,
+          itemType:
+              itemType, // This tells the map if it's a 'marker' or 'building'
+        ),
+      ),
     );
   }
 

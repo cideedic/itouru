@@ -4,8 +4,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 class InfoCard extends StatelessWidget {
   final Map<String, dynamic>? headData;
+  final String? headImageUrl;
 
-  const InfoCard({super.key, required this.headData});
+  const InfoCard({super.key, required this.headData, this.headImageUrl});
 
   String _buildFullName() {
     if (headData == null) return 'No information available';
@@ -20,10 +21,10 @@ class InfoCard extends StatelessWidget {
 
     if (prefix.isNotEmpty) fullName += '$prefix ';
     if (firstName.isNotEmpty) fullName += '$firstName ';
-    if (lastName.isNotEmpty) fullName += '$lastName ';
     if (middleName.isNotEmpty) {
       fullName += '${middleName[0]}. ';
     }
+    if (lastName.isNotEmpty) fullName += '$lastName ';
     if (suffix.isNotEmpty) fullName += suffix;
 
     return fullName.trim();
@@ -799,6 +800,55 @@ class InfoCard extends StatelessWidget {
       ),
       child: Column(
         children: [
+          // Head Image (if available)
+          if (headImageUrl != null) ...[
+            Container(
+              width: 130,
+              height: 130,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: Image.network(
+                  headImageUrl!,
+                  fit: BoxFit.contain,
+                  alignment: Alignment.center,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      color: Colors.grey[200],
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Color(0xFFFA9D2B),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      color: Colors.grey[200],
+                      child: Icon(
+                        Icons.person,
+                        size: 60,
+                        color: Colors.grey[400],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            SizedBox(height: 16),
+          ],
           Text(
             name,
             textAlign: TextAlign.center,

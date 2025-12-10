@@ -4,11 +4,199 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'map_building.dart';
 import 'building_matcher.dart';
+import 'map_utils.dart';
 
 class MapWidgets {
   static const Color _textColor = Color.fromARGB(136, 55, 107, 132);
   static const Color _iconColor = Color(0xFF1976D2);
   static const String _hasSeenGuideKey = 'has_seen_map_guide';
+
+  /// Build map tile switcher button
+  static Widget buildMapTileButton({
+    required BuildContext context,
+    required MapTileType currentTileType,
+    required Function(MapTileType) onTileTypeChanged,
+  }) {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: IconButton(
+        icon: Icon(
+          currentTileType == MapTileType.satellite
+              ? Icons.map
+              : Icons.satellite_alt,
+          color: _iconColor,
+        ),
+        onPressed: () => _showTileTypeModal(
+          context: context,
+          onTileTypeChanged: onTileTypeChanged,
+          currentTileType: currentTileType,
+        ),
+        tooltip: 'Change Map Style',
+      ),
+    );
+  }
+
+  /// Show map tile type selection modal
+  static void _showTileTypeModal({
+    required BuildContext context,
+    required Function(MapTileType) onTileTypeChanged,
+    required MapTileType currentTileType,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (modalContext) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                Icon(Icons.layers, color: Colors.blue[700]),
+                SizedBox(width: 12),
+                Text(
+                  'Map Style',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                Spacer(),
+                IconButton(
+                  icon: Icon(Icons.close, color: Colors.grey[600]),
+                  onPressed: () => Navigator.pop(modalContext),
+                ),
+              ],
+            ),
+            Text(
+              'Choose your preferred map view',
+              style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[600]),
+            ),
+            SizedBox(height: 20),
+
+            // Standard Map Option
+            _buildTileOption(
+              context: modalContext,
+              icon: Icons.map,
+              iconColor: Colors.green,
+              title: 'Standard Map',
+              description: 'Default OpenStreetMap view with labels',
+              isSelected: currentTileType == MapTileType.standard,
+              onTap: () {
+                onTileTypeChanged(MapTileType.standard);
+                Navigator.pop(modalContext);
+              },
+            ),
+            SizedBox(height: 12),
+
+            // Satellite Map Option
+            _buildTileOption(
+              context: modalContext,
+              icon: Icons.satellite_alt,
+              iconColor: Colors.blue,
+              title: 'Satellite View',
+              description: 'High-resolution satellite imagery',
+              isSelected: currentTileType == MapTileType.satellite,
+              onTap: () {
+                onTileTypeChanged(MapTileType.satellite);
+                Navigator.pop(modalContext);
+              },
+            ),
+
+            SizedBox(height: 24 + MediaQuery.of(modalContext).padding.bottom),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build tile type option
+  static Widget _buildTileOption({
+    required BuildContext context,
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String description,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.orange.withValues(alpha: 0.1)
+              : Colors.grey[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? Colors.orange : Colors.grey[300]!,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+                border: Border.all(color: iconColor, width: 2),
+              ),
+              child: Icon(icon, color: iconColor, size: 24),
+            ),
+            SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  Text(
+                    description,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle, color: Colors.orange, size: 24),
+          ],
+        ),
+      ),
+    );
+  }
 
   // Build legend item
   static Widget buildLegendItem(Color color, String label) {
@@ -147,7 +335,7 @@ class MapWidgets {
                       // Map Legend
                       _buildSectionTitle('Map Legend'),
                       _buildLegendItem(
-                        icon: Icons.place,
+                        icon: Icons.circle,
                         iconColor: Colors.red,
                         title: 'Landmarks',
                         description: 'Important campus locations',
@@ -322,6 +510,148 @@ class MapWidgets {
           ),
         ],
       ),
+    );
+  }
+
+  // Build map legend
+  static Widget buildMapLegend({
+    bool showColleges = true,
+    bool showLandmarks = true,
+    bool showGates = true,
+  }) {
+    // Filter legend items based on visibility
+    final List<Widget> legendItems = [];
+
+    if (showColleges) {
+      legendItems.add(
+        _buildCompactLegendItem(
+          icon: Icons.school,
+          iconColor: Colors.blue,
+          label: 'Colleges',
+        ),
+      );
+    }
+
+    if (showLandmarks) {
+      legendItems.add(
+        _buildCompactLegendItem(
+          icon: Icons.circle,
+          iconColor: Colors.red,
+          label: 'Landmarks',
+        ),
+      );
+    }
+
+    if (showGates) {
+      legendItems.add(
+        _buildCompactLegendItemWithBorder(
+          icon: Icons.door_sliding,
+          iconColor: Colors.green.shade700,
+          label: 'Gates',
+        ),
+      );
+    }
+
+    // If all filters are off, show nothing
+    if (legendItems.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: legendItems.map((item) {
+          final isLast = item == legendItems.last;
+          return Padding(
+            padding: EdgeInsets.only(right: isLast ? 0 : 16),
+            child: item,
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // Helper: Build compact legend item with circular background
+  static Widget _buildCompactLegendItem({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+            border: Border.all(color: iconColor, width: 1.5),
+          ),
+          child: Icon(icon, color: iconColor, size: 12),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper: Build compact legend item with border (for gates)
+  static Widget _buildCompactLegendItemWithBorder({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(color: iconColor, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 2,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Icon(icon, color: iconColor, size: 12),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: Colors.black87,
+          ),
+        ),
+      ],
     );
   }
 
@@ -607,7 +937,7 @@ class MapWidgets {
                     iconColor = Colors.blue;
                   } else {
                     subtitle = 'Landmark';
-                    icon = Icons.place;
+                    icon = Icons.circle;
                     iconColor = Colors.red;
                   }
                 } else if (result is OfficeData) {
@@ -771,7 +1101,7 @@ class MapWidgets {
   }
 }
 
-// location toggle with permission modal
+// Location toggle with permission modal
 class _LocationToggleButton extends StatefulWidget {
   final VoidCallback? onPermissionChanged;
 
@@ -784,19 +1114,20 @@ class _LocationToggleButton extends StatefulWidget {
 class _LocationToggleButtonState extends State<_LocationToggleButton> {
   bool _isLocationEnabled = false;
   bool _isChecking = false;
+  bool _isDisposed = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
+      if (mounted && !_isDisposed) {
         _checkLocationStatus();
       }
     });
   }
 
   Future<void> _checkLocationStatus() async {
-    if (!mounted) return;
+    if (!mounted || _isDisposed) return;
 
     setState(() => _isChecking = true);
 
@@ -804,7 +1135,7 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
 
       if (!serviceEnabled) {
-        if (mounted) {
+        if (mounted && !_isDisposed) {
           setState(() {
             _isLocationEnabled = false;
             _isChecking = false;
@@ -815,7 +1146,7 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
 
       final permission = await Geolocator.checkPermission();
 
-      if (mounted) {
+      if (mounted && !_isDisposed) {
         setState(() {
           _isLocationEnabled =
               permission == LocationPermission.whileInUse ||
@@ -825,7 +1156,7 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
       }
     } catch (e) {
       debugPrint('Location check error: $e');
-      if (mounted) {
+      if (mounted && !_isDisposed) {
         setState(() {
           _isLocationEnabled = false;
           _isChecking = false;
@@ -835,23 +1166,25 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
   }
 
   Future<void> _toggleLocation() async {
+    if (_isDisposed) return;
+
     if (_isLocationEnabled) {
       _showDisableDialog();
     } else {
-      // Show location access modal before requesting permission
       final shouldRequest = await _showLocationAccessModal();
-      if (shouldRequest == true) {
+      if (shouldRequest == true && !_isDisposed) {
         await _requestPermission();
       }
     }
   }
 
-  // Location Access Modal
   Future<bool?> _showLocationAccessModal() async {
+    if (_isDisposed || !mounted) return null;
+
     return showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Dialog(
+      builder: (dialogContext) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
           constraints: const BoxConstraints(maxWidth: 400),
@@ -859,7 +1192,6 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Icon
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -873,8 +1205,6 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Title
               Text(
                 'Enable Location Access',
                 textAlign: TextAlign.center,
@@ -885,8 +1215,6 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
                 ),
               ),
               const SizedBox(height: 12),
-
-              // Description
               Text(
                 'iTOURu needs access to your location to provide accurate navigation and show your position on the campus map.',
                 textAlign: TextAlign.center,
@@ -897,8 +1225,6 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Benefits list
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -923,13 +1249,11 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
                 ),
               ),
               const SizedBox(height: 24),
-
-              // Buttons
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context, false),
+                      onPressed: () => Navigator.pop(dialogContext, false),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         side: BorderSide(color: Colors.grey[300]!),
@@ -950,7 +1274,7 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
+                      onPressed: () => Navigator.pop(dialogContext, true),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Color(0xFFFF8C00),
                         foregroundColor: Colors.white,
@@ -972,8 +1296,6 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
                 ],
               ),
               const SizedBox(height: 12),
-
-              // Privacy note
               Text(
                 'Your location data is only used for navigation and is not stored.',
                 textAlign: TextAlign.center,
@@ -1013,56 +1335,109 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
   }
 
   Future<void> _requestPermission() async {
-    setState(() => _isChecking = true);
+    if (_isDisposed || !mounted) return;
+
+    // ✅ Show checking state immediately
+    if (mounted && !_isDisposed) {
+      setState(() => _isChecking = true);
+    }
 
     try {
+      // Check if location service is enabled
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
       if (!serviceEnabled) {
-        setState(() => _isChecking = false);
-        _showServiceDisabledDialog();
+        if (!_isDisposed && mounted) {
+          setState(() => _isChecking = false);
+          _showServiceDisabledDialog();
+        }
         return;
       }
 
+      // Check current permission status
       LocationPermission permission = await Geolocator.checkPermission();
 
       if (permission == LocationPermission.deniedForever) {
-        setState(() => _isChecking = false);
-        _showPermanentlyDeniedDialog();
+        if (!_isDisposed && mounted) {
+          setState(() => _isChecking = false);
+          _showPermanentlyDeniedDialog();
+        }
         return;
       }
 
+      // ✅ Request permission if denied
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
 
-      await _checkLocationStatus();
+      // ✅ Check the result and update UI
+      if (!_isDisposed && mounted) {
+        // Update location status after permission request
+        await _checkLocationStatus();
 
-      if (permission == LocationPermission.whileInUse ||
-          permission == LocationPermission.always) {
-        widget.onPermissionChanged?.call();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text('Location enabled successfully'),
-                ],
+        // Show success message if permission was granted
+        if (permission == LocationPermission.whileInUse ||
+            permission == LocationPermission.always) {
+          // Call the callback to refresh location in parent
+          widget.onPermissionChanged?.call();
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text('Location enabled successfully'),
+                  ],
+                ),
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 2),
               ),
-              backgroundColor: Colors.green,
+            );
+          }
+        } else {
+          // Permission was denied
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text('Location permission denied'),
+                  ],
+                ),
+                backgroundColor: Colors.orange,
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error requesting permission: $e');
+      if (!_isDisposed && mounted) {
+        setState(() => _isChecking = false);
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: Colors.red,
               behavior: SnackBarBehavior.floating,
-              duration: Duration(seconds: 2),
             ),
           );
         }
       }
-    } catch (e) {
-      setState(() => _isChecking = false);
     }
   }
 
   void _showServiceDisabledDialog() {
+    if (_isDisposed || !mounted) return;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1094,7 +1469,9 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
               Navigator.pop(context);
               await Geolocator.openLocationSettings();
               await Future.delayed(const Duration(seconds: 1));
-              _checkLocationStatus();
+              if (!_isDisposed) {
+                _checkLocationStatus();
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Color(0xFFFF8C00),
@@ -1113,6 +1490,8 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
   }
 
   void _showPermanentlyDeniedDialog() {
+    if (_isDisposed || !mounted) return;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1144,7 +1523,9 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
               Navigator.pop(context);
               await Geolocator.openAppSettings();
               await Future.delayed(const Duration(seconds: 1));
-              _checkLocationStatus();
+              if (!_isDisposed) {
+                _checkLocationStatus();
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Color(0xFFFF8C00),
@@ -1163,6 +1544,8 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
   }
 
   void _showDisableDialog() {
+    if (_isDisposed || !mounted) return;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1191,7 +1574,9 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
               Navigator.pop(context);
               await Geolocator.openAppSettings();
               await Future.delayed(const Duration(seconds: 1));
-              _checkLocationStatus();
+              if (!_isDisposed) {
+                _checkLocationStatus();
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Color(0xFFFF8C00),
@@ -1250,5 +1635,11 @@ class _LocationToggleButtonState extends State<_LocationToggleButton> {
                   : 'Enable Location',
             ),
     );
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    super.dispose();
   }
 }

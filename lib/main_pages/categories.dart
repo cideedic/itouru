@@ -75,6 +75,7 @@ class CategoriesBodyState extends State<CategoriesBody> {
   List<BuildingItem> buildings = [];
   List<BuildingItem> landmarks = [];
   List<OfficeItem> offices = [];
+  List<RoomItem> rooms = [];
 
   String searchQuery = '';
   String selectedCategory = 'All';
@@ -86,7 +87,7 @@ class CategoriesBodyState extends State<CategoriesBody> {
   final supabase = Supabase.instance.client;
 
   final Map<String, GlobalKey> _categoryKeys = {
-    'College': GlobalKey(),
+    'Colleges': GlobalKey(),
     'Buildings': GlobalKey(),
     'Landmarks': GlobalKey(),
     'Offices': GlobalKey(),
@@ -115,13 +116,12 @@ class CategoriesBodyState extends State<CategoriesBody> {
         Future.delayed(const Duration(milliseconds: 1200), () {
           if (mounted) {
             _scrollToCategory(widget.initialCategory!);
-          } else {}
+          }
         });
       });
     }
   }
 
-  // Method to scroll to a specific category card
   void _scrollToCategory(String category) {
     final key = _categoryKeys[category];
 
@@ -147,7 +147,6 @@ class CategoriesBodyState extends State<CategoriesBody> {
     _performScroll(context, key);
   }
 
-  // Helper method to perform the actual scrolling
   void _performScroll(BuildContext scrollContext, GlobalKey key) {
     if (!scrollContext.mounted) return;
 
@@ -163,12 +162,9 @@ class CategoriesBodyState extends State<CategoriesBody> {
             _triggerBumpAnimation(key);
           }
         })
-        .catchError((error) {
-          // Handle any errors during scrolling
-        });
+        .catchError((error) {});
   }
 
-  // Bump animation for the category card
   void _triggerBumpAnimation(GlobalKey key) {
     final context = key.currentContext;
 
@@ -176,15 +172,14 @@ class CategoriesBodyState extends State<CategoriesBody> {
       final renderBox = context.findRenderObject() as RenderBox?;
 
       if (renderBox != null) {
-        // Find the CategoryCard state and trigger animation
         final categoryCardState = context
             .findAncestorStateOfType<_CategoryCardState>();
 
         if (categoryCardState != null) {
           categoryCardState.triggerBumpAnimation();
-        } else {}
-      } else {}
-    } else {}
+        }
+      }
+    }
   }
 
   Future<void> _loadDataFromSupabase() async {
@@ -194,29 +189,52 @@ class CategoriesBodyState extends State<CategoriesBody> {
         errorMessage = null;
       });
 
-      // Fetch colleges with abbreviation
+      // Fetch colleges
       final collegesResponse = await supabase
           .from('College')
           .select(
             'college_id, college_name, college_about, college_abbreviation',
+          )
+          .timeout(
+            Duration(seconds: 15),
+            onTimeout: () => throw Exception('Connection timeout'),
           );
 
-      // Fetch buildings with nickname and building_type
+      // Fetch buildings
       final buildingsResponse = await supabase
           .from('Building')
           .select(
             'building_id, building_name, description, building_nickname, building_type',
+          )
+          .timeout(
+            Duration(seconds: 15),
+            onTimeout: () => throw Exception('Connection timeout'),
           );
 
-      // Fetch offices with abbreviation
+      // Fetch offices
       final officesResponse = await supabase
           .from('Office')
           .select(
             'office_id, office_name, office_services, building_id, office_abbreviation',
+          )
+          .timeout(
+            Duration(seconds: 15),
+            onTimeout: () => throw Exception('Connection timeout'),
+          );
+
+      // Fetch rooms
+      final roomsResponse = await supabase
+          .from('Room')
+          .select(
+            'room_id, room_name, building_id, floor_level, Building(building_name)',
+          )
+          .timeout(
+            Duration(seconds: 15),
+            onTimeout: () => throw Exception('Connection timeout'),
           );
 
       setState(() {
-        // Map colleges data
+        // Map colleges
         colleges = (collegesResponse as List).map((item) {
           return CollegeItem(
             collegeId: item['college_id'] ?? 0,
@@ -230,7 +248,7 @@ class CategoriesBodyState extends State<CategoriesBody> {
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
         );
 
-        // Map buildings data - separate buildings and landmarks
+        // Map buildings and landmarks
         final allBuildings = (buildingsResponse as List)
             .where((item) {
               return item['building_id'] != null;
@@ -261,7 +279,7 @@ class CategoriesBodyState extends State<CategoriesBody> {
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
         );
 
-        // Map offices data
+        // Map offices
         offices = (officesResponse as List)
             .where((item) {
               return item['office_id'] != null;
@@ -281,12 +299,43 @@ class CategoriesBodyState extends State<CategoriesBody> {
           (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
         );
 
+        // Map rooms
+        rooms = (roomsResponse as List)
+            .where(
+              (item) => item['room_id'] != null && item['building_id'] != null,
+            )
+            .map((item) {
+              return RoomItem(
+                roomId: item['room_id'] as int,
+                roomName: item['room_name'] ?? '',
+                buildingId: item['building_id'] as int,
+                buildingName:
+                    item['Building']?['building_name'] ?? 'Unknown Building',
+                floorNumber: item['floor_level'] as int?,
+              );
+            })
+            .toList();
+        rooms.sort(
+          (a, b) =>
+              a.roomName.toLowerCase().compareTo(b.roomName.toLowerCase()),
+        );
+
         isLoading = false;
       });
     } catch (e) {
       setState(() {
         isLoading = false;
-        errorMessage = 'Error loading data: $e';
+        if (e.toString().contains('timeout') ||
+            e.toString().contains('Connection timeout')) {
+          errorMessage =
+              'Connection is taking too long. Please check your internet and try again.';
+        } else if (e.toString().contains('SocketException') ||
+            e.toString().contains('network')) {
+          errorMessage =
+              'No internet connection. Please check your network and try again.';
+        } else {
+          errorMessage = 'Unable to load categories. Please try again.';
+        }
       });
     }
   }
@@ -317,7 +366,7 @@ class CategoriesBodyState extends State<CategoriesBody> {
       bool hasLandmarkMatch = landmarks.any((item) => _matchesSearch(item));
       bool hasOfficeMatch = offices.any((item) => _matchesSearch(item));
 
-      if (hasCollegeMatch) visibleCategories.add('College');
+      if (hasCollegeMatch) visibleCategories.add('Colleges');
       if (hasBuildingMatch) visibleCategories.add('Buildings');
       if (hasLandmarkMatch) visibleCategories.add('Landmarks');
       if (hasOfficeMatch) visibleCategories.add('Offices');
@@ -325,22 +374,28 @@ class CategoriesBodyState extends State<CategoriesBody> {
   }
 
   bool _matchesSearch(dynamic item) {
-    final query = searchQuery.toLowerCase();
+    final query = searchQuery.toLowerCase().replaceAll(' ', '');
 
-    if (item.name.toLowerCase().contains(query)) {
+    if (item.name.toLowerCase().replaceAll(' ', '').contains(query)) {
       return true;
     }
 
     if (item is CollegeItem && item.abbreviation != null) {
-      if (item.abbreviation!.toLowerCase().contains(query)) {
+      if (item.abbreviation!
+          .toLowerCase()
+          .replaceAll(' ', '')
+          .contains(query)) {
         return true;
       }
     } else if (item is BuildingItem && item.nickname != null) {
-      if (item.nickname!.toLowerCase().contains(query)) {
+      if (item.nickname!.toLowerCase().replaceAll(' ', '').contains(query)) {
         return true;
       }
     } else if (item is OfficeItem && item.abbreviation != null) {
-      if (item.abbreviation!.toLowerCase().contains(query)) {
+      if (item.abbreviation!
+          .toLowerCase()
+          .replaceAll(' ', '')
+          .contains(query)) {
         return true;
       }
     }
@@ -355,6 +410,16 @@ class CategoriesBodyState extends State<CategoriesBody> {
     return items.where((item) => _matchesSearch(item)).toList();
   }
 
+  // New method to get matching rooms for search
+  List<RoomItem> _getMatchingRooms() {
+    if (searchQuery.isEmpty) return [];
+
+    final query = searchQuery.toLowerCase().replaceAll(' ', '');
+    return rooms.where((room) {
+      return room.roomName.toLowerCase().replaceAll(' ', '').contains(query);
+    }).toList();
+  }
+
   bool _shouldShowCategory(String category) {
     if (selectedCategory != 'All') {
       if (category != selectedCategory) return false;
@@ -366,7 +431,7 @@ class CategoriesBodyState extends State<CategoriesBody> {
 
   bool _hasItemsInCategory(String category) {
     switch (category) {
-      case 'College':
+      case 'Colleges':
         return colleges.isNotEmpty;
       case 'Buildings':
         return buildings.isNotEmpty;
@@ -390,25 +455,58 @@ class CategoriesBodyState extends State<CategoriesBody> {
 
     if (errorMessage != null) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
-            SizedBox(height: 16),
-            Text(
-              errorMessage!,
-              style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey[600]),
-              textAlign: TextAlign.center,
-            ),
-            SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadDataFromSupabase,
-              child: Text('Retry'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.cloud_off_outlined, size: 80, color: Colors.grey[400]),
+              SizedBox(height: 24),
+              Text(
+                'Oops!',
+                style: GoogleFonts.poppins(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey[800],
+                ),
+              ),
+              SizedBox(height: 12),
+              Text(
+                errorMessage!,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: _loadDataFromSupabase,
+                icon: Icon(Icons.refresh, size: 20),
+                label: Text(
+                  'Retry',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFFFF8C00),
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
+
+    final matchingRooms = _getMatchingRooms();
 
     return SingleChildScrollView(
       controller: _mainScrollController,
@@ -424,10 +522,10 @@ class CategoriesBodyState extends State<CategoriesBody> {
             onChanged: _filterItems,
             style: GoogleFonts.poppins(fontSize: 14),
             decoration: InputDecoration(
-              hintText: 'Search by name or abbreviation',
+              hintText: 'Search',
               hintStyle: GoogleFonts.poppins(
                 color: Colors.grey[500],
-                fontSize: 14,
+                fontSize: 12,
               ),
               prefixIcon: Icon(Icons.search, color: Colors.grey[500]),
               suffixIcon: searchQuery.isNotEmpty
@@ -466,7 +564,7 @@ class CategoriesBodyState extends State<CategoriesBody> {
             child: Row(
               children: [
                 _buildCategoryChip('All'),
-                _buildCategoryChip('College'),
+                _buildCategoryChip('Colleges'),
                 _buildCategoryChip('Buildings'),
                 _buildCategoryChip('Landmarks'),
                 _buildCategoryChip('Offices'),
@@ -474,8 +572,11 @@ class CategoriesBodyState extends State<CategoriesBody> {
             ),
           ),
           SizedBox(height: 20),
+
           // Content Area
-          if (searchQuery.isNotEmpty && visibleCategories.isEmpty)
+          if (searchQuery.isNotEmpty &&
+              visibleCategories.isEmpty &&
+              matchingRooms.isEmpty)
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(32.0),
@@ -493,7 +594,7 @@ class CategoriesBodyState extends State<CategoriesBody> {
                     ),
                     SizedBox(height: 8),
                     Text(
-                      'Try searching by name or shortcut',
+                      'Try searching by name, shortcut, or room',
                       style: GoogleFonts.poppins(
                         fontSize: 13,
                         color: Colors.grey[500],
@@ -533,15 +634,15 @@ class CategoriesBodyState extends State<CategoriesBody> {
             Column(
               children: [
                 // College Category Card
-                if (_shouldShowCategory('College') && colleges.isNotEmpty)
+                if (_shouldShowCategory('Colleges') && colleges.isNotEmpty)
                   CategoryCard(
-                    key: _categoryKeys['College'],
+                    key: _categoryKeys['Colleges'],
                     title: 'Colleges',
                     icon: Icons.school,
                     color: Color(0xFFFF8C00),
                     items: _getFilteredItems(colleges),
                   ),
-                if (_shouldShowCategory('College') && colleges.isNotEmpty)
+                if (_shouldShowCategory('Colleges') && colleges.isNotEmpty)
                   SizedBox(height: 16),
 
                 // Buildings Category Card
@@ -577,6 +678,12 @@ class CategoriesBodyState extends State<CategoriesBody> {
                     color: Color(0xFFFF8C00),
                     items: _getFilteredItems(offices),
                   ),
+                if (_shouldShowCategory('Offices') && offices.isNotEmpty)
+                  SizedBox(height: 16),
+
+                // Room Search Results at the bottom
+                if (searchQuery.isNotEmpty && matchingRooms.isNotEmpty)
+                  RoomSearchResults(rooms: matchingRooms),
               ],
             ),
         ],
@@ -598,7 +705,7 @@ class CategoriesBodyState extends State<CategoriesBody> {
           });
         },
         labelStyle: GoogleFonts.poppins(
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
           color: isSelected ? Colors.white : Colors.black87,
         ),
@@ -617,12 +724,438 @@ class CategoriesBodyState extends State<CategoriesBody> {
   }
 }
 
-// Category Card Widget with Bump Animation
+// Room Search Results - appears only when searching
+class RoomSearchResults extends StatelessWidget {
+  final List<RoomItem> rooms;
+
+  const RoomSearchResults({super.key, required this.rooms});
+
+  void _showRoomActionModal(BuildContext context, RoomItem room) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: EdgeInsets.only(top: 12, bottom: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    room.roomName,
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.business, size: 14, color: Colors.grey[600]),
+                      SizedBox(width: 4),
+                      Text(
+                        room.buildingName,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      if (room.floorNumber != null) ...[
+                        SizedBox(width: 8),
+                        Text(
+                          '• ${room.floorNumber}${_getFloorSuffix(room.floorNumber!)} Floor',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  SizedBox(height: 24),
+                  Text(
+                    'What would you like to do?',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  // View Building Info Button
+                  InkWell(
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              building_content.BuildingDetailsPage(
+                                buildingId: room.buildingId,
+                                title: room.buildingName,
+                              ),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.blue.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.blue,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.info_outline,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'View Building Info',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'See details about ${room.buildingName}',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.chevron_right, color: Colors.blue),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  // Get Directions Button
+                  InkWell(
+                    onTap: () {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Text('Opening map...'),
+                            ],
+                          ),
+                          backgroundColor: Colors.blue,
+                          duration: Duration(milliseconds: 1000),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => Maps(
+                            buildingId: room.buildingId,
+                            destinationName: room.buildingName,
+                            itemType: 'building',
+                          ),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Color(0xFFFF8C00).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Color(0xFFFF8C00).withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Color(0xFFFF8C00),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.directions,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Get Directions',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFFFF8C00),
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Navigate to this building',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.chevron_right, color: Color(0xFFFF8C00)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getFloorSuffix(int floor) {
+    if (floor == 1) return 'st';
+    if (floor == 2) return 'nd';
+    if (floor == 3) return 'rd';
+    return 'th';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 3,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header
+          Container(
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Color(0xFFFF8C00).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Color(0xFFFF8C00),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.meeting_room,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Rooms',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFFF8C00),
+                  ),
+                ),
+                Spacer(),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Color(0xFFFF8C00).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${rooms.length} found',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFFFF8C00),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Fixed Height Room List with Scrolling
+          SizedBox(
+            height: 300, // Fixed height - adjust as needed
+            child: ListView.separated(
+              padding: EdgeInsets.zero,
+              itemCount: rooms.length,
+              separatorBuilder: (context, index) => Divider(
+                height: 1,
+                color: Colors.grey[200],
+                indent: 20,
+                endIndent: 20,
+              ),
+              itemBuilder: (context, index) {
+                final room = rooms[index];
+                return InkWell(
+                  onTap: () => _showRoomActionModal(context, room),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Color(0xFFFF8C00).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.door_front_door,
+                            color: Color(0xFFFF8C00),
+                            size: 20,
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                room.roomName,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.business,
+                                    size: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                  SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      '${room.buildingName}${room.floorNumber != null ? ' • ${room.floorNumber}${_getFloorSuffix(room.floorNumber!)} Floor' : ''}',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
+                          color: Colors.grey[400],
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Helper class for room display
+class RoomDisplayItem {
+  final String name;
+  final String description;
+  final RoomItem roomData;
+
+  RoomDisplayItem({
+    required this.name,
+    required this.description,
+    required this.roomData,
+  });
+}
+
 class CategoryCard extends StatefulWidget {
   final String title;
   final IconData icon;
   final Color color;
   final List<dynamic> items;
+  final bool isRoomCategory;
+  final Function(BuildContext, RoomItem)? onRoomTap;
 
   const CategoryCard({
     super.key,
@@ -630,6 +1163,8 @@ class CategoryCard extends StatefulWidget {
     required this.icon,
     required this.color,
     required this.items,
+    this.isRoomCategory = false,
+    this.onRoomTap,
   });
 
   @override
@@ -645,7 +1180,6 @@ class _CategoryCardState extends State<CategoryCard>
   @override
   void initState() {
     super.initState();
-    // Setup bump animation
     _bumpController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -675,7 +1209,6 @@ class _CategoryCardState extends State<CategoryCard>
     super.dispose();
   }
 
-  // Method to trigger bump animation
   void triggerBumpAnimation() {
     _bumpController.forward(from: 0.0).then((_) {});
   }
@@ -748,19 +1281,27 @@ class _CategoryCardState extends State<CategoryCard>
                   itemBuilder: (context, index) {
                     final item = widget.items[index];
                     String shortcut = '';
-                    if (item is CollegeItem && item.abbreviation != null) {
-                      shortcut = item.abbreviation!;
-                    } else if (item is BuildingItem && item.nickname != null) {
-                      shortcut = item.nickname!;
-                    } else if (item is OfficeItem &&
-                        item.abbreviation != null) {
-                      shortcut = item.abbreviation!;
+
+                    if (!widget.isRoomCategory) {
+                      if (item is CollegeItem && item.abbreviation != null) {
+                        shortcut = item.abbreviation!;
+                      } else if (item is BuildingItem &&
+                          item.nickname != null) {
+                        shortcut = item.nickname!;
+                      } else if (item is OfficeItem &&
+                          item.abbreviation != null) {
+                        shortcut = item.abbreviation!;
+                      }
                     }
 
                     return InkWell(
                       onTap: () {
                         Navigator.pop(context);
-                        _scrollToItem(index);
+                        if (widget.isRoomCategory && item is RoomDisplayItem) {
+                          widget.onRoomTap?.call(context, item.roomData);
+                        } else {
+                          _scrollToItem(index);
+                        }
                       },
                       child: Container(
                         padding: EdgeInsets.symmetric(
@@ -784,7 +1325,7 @@ class _CategoryCardState extends State<CategoryCard>
                                   Text(
                                     item.name,
                                     style: GoogleFonts.poppins(
-                                      fontSize: 14,
+                                      fontSize: 13,
                                       fontWeight: FontWeight.w600,
                                       color: Colors.black87,
                                     ),
@@ -794,9 +1335,20 @@ class _CategoryCardState extends State<CategoryCard>
                                     Text(
                                       shortcut,
                                       style: GoogleFonts.poppins(
-                                        fontSize: 12,
+                                        fontSize: 11,
                                         color: widget.color,
                                         fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                  if (widget.isRoomCategory &&
+                                      item is RoomDisplayItem) ...[
+                                    SizedBox(height: 4),
+                                    Text(
+                                      item.description,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 11,
+                                        color: Colors.grey[600],
                                       ),
                                     ),
                                   ],
@@ -883,11 +1435,13 @@ class _CategoryCardState extends State<CategoryCard>
               ),
             ),
             SizedBox(
-              height: 280,
+              height: 280, // Fixed height - prevents excessive scrolling
               child: ListView.builder(
                 controller: _scrollController,
                 padding: EdgeInsets.all(16),
                 scrollDirection: Axis.horizontal,
+                physics:
+                    ClampingScrollPhysics(), // Add this line to limit bounce
                 itemCount: widget.items.length,
                 itemBuilder: (context, index) {
                   return ItemCard(
@@ -1079,7 +1633,7 @@ class ItemCard extends StatelessWidget {
                 child: Text(
                   item.description,
                   style: GoogleFonts.poppins(
-                    fontSize: 12,
+                    fontSize: 10,
                     color: Colors.grey.shade600,
                     height: 1.5,
                   ),
@@ -1125,6 +1679,105 @@ class ItemCard extends StatelessWidget {
                 ],
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Room Item Card
+class RoomItemCard extends StatelessWidget {
+  final RoomDisplayItem item;
+  final Color color;
+  final VoidCallback onTap;
+
+  const RoomItemCard({
+    super.key,
+    required this.item,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 260,
+      margin: EdgeInsets.only(right: 12),
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.door_front_door,
+                        color: color,
+                        size: 20,
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        item.name,
+                        style: GoogleFonts.montserrat(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Expanded(
+                  child: Text(
+                    item.description,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                      height: 1.5,
+                    ),
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'View Options',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1182,5 +1835,21 @@ class OfficeItem {
     this.abbreviation,
     this.hasVideo = false,
     this.buildingId,
+  });
+}
+
+class RoomItem {
+  final int roomId;
+  final String roomName;
+  final int buildingId;
+  final String buildingName;
+  final int? floorNumber;
+
+  RoomItem({
+    required this.roomId,
+    required this.roomName,
+    required this.buildingId,
+    required this.buildingName,
+    this.floorNumber,
   });
 }

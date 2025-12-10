@@ -6,10 +6,12 @@ import 'map_boundary.dart';
 import 'routing_service.dart';
 import 'cone_marker_widget.dart';
 
+enum MapTileType { standard, satellite }
+
 class MapUtils {
   // Zoom level thresholds for marker visibility
   static const double zoomShowColleges = 17.5;
-  static const double zoomShowLandmarks = 18.0;
+  static const double zoomShowLandmarks = 18.5;
   static const double zoomShowAllDetails = 19.0;
 
   // Fade transition zone (how many zoom levels for smooth fade)
@@ -134,6 +136,40 @@ class MapUtils {
       duration: animationDuration,
       curve: Curves.easeInOut,
       child: markerWidget,
+    );
+  }
+
+  /// Get tile layer based on type
+  static TileLayer getTileLayer(MapTileType type) {
+    switch (type) {
+      case MapTileType.standard:
+        return _getStandardTileLayer();
+      case MapTileType.satellite:
+        return _getSatelliteTileLayer();
+    }
+  }
+
+  /// Standard OSM tile layer
+  static TileLayer _getStandardTileLayer() {
+    return TileLayer(
+      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      userAgentPackageName: 'com.example.bicol_university_app',
+      maxZoom: 23,
+      minZoom: 17,
+      subdomains: const ['a', 'b', 'c'],
+      retinaMode: true,
+    );
+  }
+
+  /// Google maps tilelayer - Satellite view
+  static TileLayer _getSatelliteTileLayer() {
+    return TileLayer(
+      urlTemplate: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+      userAgentPackageName: 'com.example.bicol_university_app',
+      maxZoom: 23,
+      minZoom: 17,
+      retinaMode: true,
+      subdomains: const ['mt0', 'mt1', 'mt2', 'mt3'],
     );
   }
 

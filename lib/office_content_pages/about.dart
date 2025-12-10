@@ -6,7 +6,9 @@ class OfficeAboutTab extends StatelessWidget {
   final String officeServices;
   final String? buildingName;
   final String? roomName;
+  final int? floorLevel; // NEW
   final Map<String, dynamic>? headData;
+  final String? headImageUrl;
   final int? buildingId;
   final VoidCallback onDirectionsPressed;
 
@@ -15,10 +17,85 @@ class OfficeAboutTab extends StatelessWidget {
     required this.officeServices,
     this.buildingName,
     this.roomName,
+    this.floorLevel, // NEW
     this.headData,
+    this.headImageUrl,
     this.buildingId,
     required this.onDirectionsPressed,
   });
+
+  // Helper function to parse and format text with bold VMGO keywords
+  List<InlineSpan> _parseTextWithBoldKeywords(String text) {
+    final keywords = [
+      'VISION',
+      'MISSION',
+      'GOALS',
+      'GOAL',
+      'OBJECTIVES',
+      'OBJECTIVE',
+    ];
+
+    List<InlineSpan> spans = [];
+    String remainingText = text;
+
+    for (var keyword in keywords) {
+      List<InlineSpan> newSpans = [];
+
+      for (var span
+          in (spans.isEmpty ? [TextSpan(text: remainingText)] : spans)) {
+        if (span is TextSpan && span.text != null) {
+          String spanText = span.text!;
+          List<String> parts = spanText.split(keyword);
+
+          for (int i = 0; i < parts.length; i++) {
+            if (parts[i].isNotEmpty) {
+              newSpans.add(
+                TextSpan(
+                  text: parts[i],
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    height: 1.6,
+                    color: Colors.black87,
+                  ),
+                ),
+              );
+            }
+
+            if (i < parts.length - 1) {
+              newSpans.add(
+                TextSpan(
+                  text: keyword,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    height: 1.6,
+                    color: Colors.black87,
+                  ),
+                ),
+              );
+            }
+          }
+        } else {
+          newSpans.add(span);
+        }
+      }
+
+      spans = newSpans;
+    }
+
+    return spans.isEmpty
+        ? [
+            TextSpan(
+              text: text,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                height: 1.6,
+                color: Colors.black87,
+              ),
+            ),
+          ]
+        : spans;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,13 +146,18 @@ class OfficeAboutTab extends StatelessWidget {
             ),
           ),
 
-        // Head Information Card
+        // Head Information Card with Image
         if (headData != null && headData!.isNotEmpty) ...[
           SizedBox(height: 16),
-          InfoCard(headData: headData!),
+          _buildHeadSection(),
         ],
       ],
     );
+  }
+
+  //  Build head section with image and info card
+  Widget _buildHeadSection() {
+    return InfoCard(headData: headData!, headImageUrl: headImageUrl);
   }
 
   Widget _buildSectionCard(String title, IconData icon, Widget content) {
@@ -125,6 +207,7 @@ class OfficeAboutTab extends StatelessWidget {
   }
 
   Widget _buildLocationContent() {
+    // Case 1: No building and no room - no location available
     if (buildingName == null && roomName == null) {
       return Text(
         'Location information not available',
@@ -137,6 +220,27 @@ class OfficeAboutTab extends StatelessWidget {
       );
     }
 
+    // Case 2: Has building but no room - show only building
+    if (buildingName != null && roomName == null) {
+      return Row(
+        children: [
+          Icon(Icons.apartment, size: 18, color: Colors.grey[600]),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              buildingName!,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: Colors.black87,
+                height: 1.6,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Case 3: Has both building and room - show building, floor, and room
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -158,8 +262,28 @@ class OfficeAboutTab extends StatelessWidget {
             ],
           ),
         ],
-        if (buildingName != null && roomName != null) SizedBox(height: 8),
+        // Floor Level - only show if room exists
+        if (floorLevel != null && roomName != null) ...[
+          SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.layers, size: 18, color: Colors.grey[600]),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Floor $floorLevel',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: Colors.black87,
+                    height: 1.6,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
         if (roomName != null) ...[
+          SizedBox(height: 8),
           Row(
             children: [
               Icon(Icons.meeting_room, size: 18, color: Colors.grey[600]),
@@ -185,6 +309,23 @@ class OfficeAboutTab extends StatelessWidget {
     // Check if content has numbered items
     if (content.contains(RegExp(r'^\d+\.', multiLine: true))) {
       return _buildNumberedList(content);
+    }
+
+    // Check if content contains VMGO keywords
+    final keywords = [
+      'VISION',
+      'MISSION',
+      'GOALS',
+      'GOAL',
+      'OBJECTIVES',
+      'OBJECTIVE',
+    ];
+    final hasKeywords = keywords.any((keyword) => content.contains(keyword));
+
+    if (hasKeywords) {
+      return RichText(
+        text: TextSpan(children: _parseTextWithBoldKeywords(content)),
+      );
     }
 
     // Otherwise, display as regular text
@@ -215,23 +356,71 @@ class OfficeAboutTab extends StatelessWidget {
           final text = match.group(2);
           return _buildNumberedItem(int.parse(number!), text!);
         }
-        // If no number, just display as text
+
+        // Check if this is a standalone keyword (VISION, MISSION, etc.)
+        final keywords = [
+          'VISION',
+          'MISSION',
+          'GOALS',
+          'GOAL',
+          'OBJECTIVES',
+          'OBJECTIVE',
+        ];
+        final trimmedItem = item.trim();
+        if (keywords.contains(trimmedItem)) {
+          return Padding(
+            padding: EdgeInsets.only(bottom: 8, top: 8),
+            child: Text(
+              trimmedItem,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                height: 1.5,
+                color: Colors.black87,
+              ),
+            ),
+          );
+        }
+
+        // Check if line contains keywords
+        final hasKeywords = keywords.any(
+          (keyword) => trimmedItem.contains(keyword),
+        );
+
+        // If no number, display as text (with bold keywords if present)
         return Padding(
           padding: EdgeInsets.only(bottom: 8),
-          child: Text(
-            item,
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              height: 1.5,
-              color: Colors.black87,
-            ),
-          ),
+          child: hasKeywords
+              ? RichText(
+                  text: TextSpan(
+                    children: _parseTextWithBoldKeywords(trimmedItem),
+                  ),
+                )
+              : Text(
+                  trimmedItem,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: Colors.black87,
+                  ),
+                ),
         );
       }).toList(),
     );
   }
 
   Widget _buildNumberedItem(int number, String text) {
+    // Check if text contains VMGO keywords
+    final keywords = [
+      'VISION',
+      'MISSION',
+      'GOALS',
+      'GOAL',
+      'OBJECTIVES',
+      'OBJECTIVE',
+    ];
+    final hasKeywords = keywords.any((keyword) => text.contains(keyword));
+
     return Padding(
       padding: EdgeInsets.only(bottom: 12),
       child: Row(
@@ -246,14 +435,18 @@ class OfficeAboutTab extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(
-              text,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                height: 1.5,
-                color: Colors.black87,
-              ),
-            ),
+            child: hasKeywords
+                ? RichText(
+                    text: TextSpan(children: _parseTextWithBoldKeywords(text)),
+                  )
+                : Text(
+                    text,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: Colors.black87,
+                    ),
+                  ),
           ),
         ],
       ),

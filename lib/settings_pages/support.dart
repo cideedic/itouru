@@ -15,6 +15,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
   String selectedCategory = 'All';
   String searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+  String? expandedQuestion;
 
   // Map to store answers for each question
   final Map<String, String> faqAnswers = {
@@ -27,7 +28,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     'How do I update my profile information?':
         'Go to Settings > Privacy and Security page. Here you can update your name, gender, birthdate, and phone number. Note that your nationality and email cannot be changed once set. To change your password, a verification email will be sent to your registered email address for security purposes.',
 
-    'How do I search for tourist spots?':
+    'How do I search for locations?':
         'Use the search functionality on the Categories page to look up your desired location. Simply type the name of the building, office, or landmark you\'re looking for.',
 
     'How do I view tour details?':
@@ -71,7 +72,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
       iconColor: Colors.green,
       title: 'Tours & Destinations',
       questions: [
-        'How do I search for tourist spots?',
+        'How do I search for locations?',
         'How do I view tour details?',
         'Are there guided tours available?',
       ],
@@ -375,41 +376,17 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
             ),
           ),
           Divider(height: 1, color: Colors.grey[200]),
-          // Questions
+          // Questions with Accordion
           ...category.questions.asMap().entries.map((entry) {
             final index = entry.key;
             final question = entry.value;
             final isLast = index == category.questions.length - 1;
+            final isExpanded = expandedQuestion == question;
 
             return Column(
               children: [
-                InkWell(
-                  onTap: () {
-                    _showQuestionDetail(question);
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            question,
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          size: 14,
-                          color: Colors.grey[400],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                if (!isLast)
+                _buildAccordionItem(question, isExpanded),
+                if (!isLast && !isExpanded)
                   Divider(
                     height: 1,
                     color: Colors.grey[200],
@@ -424,125 +401,132 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     );
   }
 
-  void _showQuestionDetail(String question) {
+  Widget _buildAccordionItem(String question, bool isExpanded) {
     final answer =
         faqAnswers[question] ??
-        'This is where the detailed answer to the question would appear. You can provide step-by-step instructions, helpful tips, and relevant information to assist users with their query.';
+        'This is where the detailed answer to the question would appear.';
 
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          constraints: BoxConstraints(maxWidth: 400, maxHeight: 600),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Scrollable Content
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title
-                      Center(
-                        child: Text(
-                          question,
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.montserrat(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () {
+              setState(() {
+                expandedQuestion = isExpanded ? null : question;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      question,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: isExpanded
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                  AnimatedRotation(
+                    duration: const Duration(milliseconds: 300),
+                    turns: isExpanded ? 0.25 : 0,
+                    child: Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: isExpanded ? Color(0xFFFF8C00) : Colors.grey[400],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            child: isExpanded
+                ? Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[200]!),
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Answer Section
-                      Text(
-                        'Answer',
-                        style: GoogleFonts.montserrat(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        answer,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          color: Colors.grey[700],
-                          height: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Additional Info
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Color(0xFFFF8C00).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Color(0xFFFF8C00).withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              Icons.info_outline,
-                              color: Color(0xFFFF8C00),
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'For more assistance, you can contact our support team through the Contact Support button below.',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  color: Color(0xFFFF8C00),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Answer',
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
                                 ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 8),
+                              Text(
+                                answer,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: Colors.grey[700],
+                                  height: 1.5,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Color(
+                                    0xFFFF8C00,
+                                  ).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Color(
+                                      0xFFFF8C00,
+                                    ).withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      Icons.info_outline,
+                                      color: Color(0xFFFF8C00),
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'For more assistance, contact our support team.',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 12,
+                                          color: Color(0xFFFF8C00),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Close Button
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFFFF8C00),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      ],
                     ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    'Close',
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+                  )
+                : const SizedBox.shrink(),
           ),
-        ),
+        ],
       ),
     );
   }
